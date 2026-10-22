@@ -1,0 +1,157 @@
+<title>PixelCity</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&display=swap">
+<link rel="stylesheet" href="styles.css">
+
+<canvas id="view"></canvas>
+
+<div id="top" class="panel">
+  <div class="brand">PIXEL<span>CITY</span></div>
+  <div class="chip"><canvas id="sun" width="9" height="9"></canvas><span id="clockT">06:00</span><b id="dayT">Day 1</b></div>
+  <button id="mapChip" class="chip" title="Region view: every district"><b>District</b><span id="mapName">Downtown</span></button>
+  <div class="seg" id="speeds">
+    <button data-s="0" title="Pause (P)">❚❚</button>
+    <button data-s="1" class="on" title="Normal (1)">▶</button>
+    <button data-s="3" title="Fast (2)">▶▶</button>
+    <button data-s="8" title="Very fast (3)">▶▶▶</button>
+  </div>
+  <div class="stats">
+    <div class="chip"><b>Pop</b><span id="sPop">0</span></div>
+    <div class="chip"><b>Jobs</b><span id="sJobs">0</span></div>
+    <div class="chip"><b>Cars</b><span id="sCars">0</span></div>
+    <div class="chip"><b>Flow</b><span id="sFlow">A</span></div>
+    <div class="chip"><b>Avg trip</b><span id="sTrip">-</span></div>
+  </div>
+  <div class="grow"></div>
+  <div class="seg" id="overlays">
+    <button data-o="heat" title="Congestion map (V)">Congestion</button>
+    <button data-o="mood" class="on" title="Traffic moods over homes (M)">Moods</button>
+    <button data-o="occ" title="Building occupancy (C)">Occupancy</button>
+    <button data-o="grid" title="Grid (G)">Grid</button>
+  </div>
+  <button id="menuBtn" title="Menu">☰</button>
+</div>
+
+<div id="menu" class="panel hidden">
+  <button data-m="save">Save &amp; share…</button>
+  <button data-m="demo">New demo region</button>
+  <button data-m="empty">New empty region</button>
+  <button data-m="clearmap">Clear this district</button>
+  <button data-m="help">How to play</button>
+</div>
+
+<div id="side" class="panel">
+  <h4>TRAFFIC</h4>
+  <canvas id="graph" width="230" height="70"></canvas>
+  <div class="row" style="margin-top:4px"><span>Congestion</span><span id="gTi">0%</span></div>
+  <div class="row"><span>Waiting cars</span><span id="gWait">0</span></div>
+  <div class="row linkrow" id="gFailRow" title="Show where drivers last failed to park"><span>Parking fails</span><span id="gFail">0</span></div>
+  <div class="row"><span>Through traffic</span><span id="gThru">0</span></div>
+  <div class="row"><span>Happy with traffic</span><span id="gHappy">-</span></div>
+  <div class="row"><span>Asleep</span><span id="gSleep">0</span></div>
+  <div class="row"><span>Planes · boats</span><span id="gAir">0 · 0</span></div>
+  <div class="row"><span>Buses · transit riders</span><span id="gTransit">0 · 0</span></div>
+  <h4 style="margin-top:8px">HOW PEOPLE TRAVEL</h4>
+  <div class="modebar"><i id="mCar" style="background:#e74c3c;width:100%"></i><i id="mWalk" style="background:#5fdc7a"></i><i id="mMetro" style="background:#6fb3ff"></i><i id="mBus" style="background:#f5c518"></i></div>
+  <div class="legend"><span><i style="background:#e74c3c"></i><span id="lCar">car</span></span><span><i style="background:#5fdc7a"></i><span id="lWalk">walk</span></span><span><i style="background:#6fb3ff"></i><span id="lMetro">metro</span></span><span><i style="background:#f5c518"></i><span id="lBus">bus</span></span></div>
+</div>
+
+<div id="inspector" class="panel hidden"></div>
+
+<div id="cong" class="panel hidden">
+  <h4>CONGESTION</h4>
+  <div class="grad"></div>
+  <div class="gradlbl"><span>Free flow</span><span>Busy</span><span>Jammed</span></div>
+  <h4 style="margin-top:8px">WORST SPOTS <small style="color:var(--dim)">(click to jump)</small></h4>
+  <div id="hotList"></div>
+</div>
+
+<div id="zoom" class="panel">
+  <button id="zOut" title="Zoom out (-)">−</button>
+  <span id="zoomLbl">300%</span>
+  <button id="zIn" title="Zoom in (+)">+</button>
+  <button id="zFit" title="Whole district (Z)">District</button>
+  <button id="zRegion" title="Every district in the region">Region</button>
+</div>
+<div id="regionHint" class="panel">REGION · click a district to build in it · Esc or + to go back</div>
+
+<div id="bottom">
+  <div id="selBar" class="panel hidden">
+    <span id="selInfo">Drag a box to highlight an area</span>
+    <button id="selCopy" title="Copy (Ctrl+C)">Copy</button>
+    <button id="selCut" title="Cut (Ctrl+X)">Cut</button>
+    <button id="selDel" class="danger" title="Delete (Del)">Delete</button>
+    <button id="selPaste" title="Paste (Ctrl+V), then click to place">Paste</button>
+    <button id="selClear" title="Deselect (Esc)">Deselect</button>
+  </div>
+  <div id="flyout" class="panel hidden"></div>
+  <div id="bar" class="panel"></div>
+</div>
+
+<div id="tip" class="panel hidden"></div>
+<div id="hover" class="hidden"></div>
+<div id="toasts"></div>
+
+<div id="saveDlg" class="panel dlg hidden" role="dialog" aria-label="Save and share">
+  <div class="dlgHead"><h3>Save &amp; share</h3><button id="saveClose" title="Close">✕</button></div>
+  <section>
+    <h4>THIS BROWSER</h4>
+    <p class="note">Quick save on this device. The game also saves here every two minutes.</p>
+    <div class="btns"><button id="sLocalSave">Save here</button><button id="sLocalLoad">Load last save</button></div>
+  </section>
+  <section>
+    <h4>SAVE CODE</h4>
+    <p class="note">A code that holds your whole region. Copy it, keep it anywhere (a note, a message to yourself), and paste it on any device to pick up where you left off. No account needed.</p>
+    <div class="btns"><button id="sCodeCopy" class="on">Copy save code</button></div>
+    <textarea id="sCodeBox" class="hidden" rows="3" readonly aria-label="Your save code"></textarea>
+    <div class="codeRow"><input type="text" id="sCodeIn" placeholder="Paste a save code" autocomplete="off" spellcheck="false"><button id="sCodeLoad">Load code</button></div>
+  </section>
+  <section>
+    <h4>SAVE FILE</h4>
+    <p class="note">Carry a region to another device as a small file, or send it to a friend.</p>
+    <div class="btns"><button id="sFileSave">Download save file</button><label class="filebtn">Open save file<input type="file" id="sFileOpen" accept=".ptc,.txt"></label></div>
+  </section>
+  <section>
+    <h4>SHORT SHARE CODE</h4>
+    <p class="note" id="cloudNote">Checking whether share codes are available…</p>
+    <div id="cloudBody" class="hidden" style="display:flex;flex-direction:column;gap:8px">
+      <div class="btns"><button id="cCreate" class="on">Create a new share code</button><button id="cUpdate" disabled>Update my code</button><button id="cPrev" disabled>Undo last update</button></div>
+      <div id="cActive" class="note"></div>
+      <div id="cMine" style="display:flex;flex-direction:column;gap:4px"></div>
+      <div class="codeRow"><input type="text" id="cInput" placeholder="Paste a share code" autocomplete="off" spellcheck="false"><button id="cLoad">Open code</button></div>
+      <p class="note">Anyone with a code opens their own copy of that region, so nobody can change your city but you. Only the person who made a code can update it, and the previous version is kept so a bad update can be undone.</p>
+    </div>
+  </section>
+</div>
+
+<div id="confirmDlg" class="panel dlg hidden" role="alertdialog">
+  <p id="confirmMsg"></p>
+  <div class="btns"><button id="confirmYes" class="danger">Yes</button><button id="confirmNo">Cancel</button></div>
+</div>
+
+<div id="help" class="panel dlg hidden" role="dialog" aria-label="How to play">
+  <h2>PixelCity</h2>
+  <p>Build a region out of big pixels and keep it moving. Every resident owns a car. They drive to work in the morning, shop and visit parks in the afternoon, and head home to bed at night. The little faces over homes show how residents feel about their commute.</p>
+  <ul>
+    <li><b>Roads:</b> drag to draw streets (with sidewalks), country roads (none), highways or one-ways. Lay highways side by side to make them as wide as you like: half the rows run each way. Roads across water become bridges. Add <b>traffic lights</b> and <b>overpasses</b> at busy crossings.</li>
+    <li><b>Buildings</b> need a road next to them. Click to place, or drag to paint rows of houses. Docks go on a shore, half over the water.</li>
+    <li><b>Parking:</b> offices and shops have fewer spaces than visitors. Full lots send drivers circling to a Parking Lot or Garage, or home unhappy.</li>
+    <li><b>Walking:</b> sidewalks, footpaths, plazas and parks let people walk short trips. <b>Metro stations</b> take longer trips off the road.</li>
+    <li><b>Region:</b> nine connected districts, all simulated at once. Zoom out past a whole district to see them all, then click one to build there. Cars, boats and planes travel across all of them.</li>
+    <li>Turn on <b>Congestion</b> to see jams as a green-to-red gradient. <b>Save &amp; share</b> in the menu makes a save file or a share code.</li>
+  </ul>
+  <p><kbd>Wheel</kbd> or <kbd>+ −</kbd> zoom · <kbd>Z</kbd> district · <kbd>Shift</kbd>, <kbd>Right</kbd> or <kbd>Middle</kbd> drag, or <kbd>WASD</kbd> to pan · <kbd>Esc</kbd> cancel · <kbd>P</kbd> pause · <kbd>1 2 3</kbd> speed<br>
+  <kbd>X</kbd> select, then <kbd>Ctrl+C</kbd> <kbd>Ctrl+X</kbd> <kbd>Ctrl+V</kbd> <kbd>Del</kbd> · <kbd>Ctrl+S</kbd> quick save<br>
+  <kbd>Q</kbd> inspect · <kbd>B</kbd> bulldoze · <kbd>R</kbd> street · <kbd>K</kbd> country road · <kbd>J</kbd> sidewalks · <kbd>O</kbd> one-way · <kbd>H</kbd> highway · <kbd>U</kbd> overpass · <kbd>L</kbd> light · <kbd>F</kbd> footpath · <kbd>V</kbd> congestion · <kbd>M</kbd> moods</p>
+  <div class="btns"><button id="helpClose" class="on">Start building</button></div>
+</div>
+
+<script src="js/core.js"></script>
+<script src="js/art.js"></script>
+<script src="js/map.js"></script>
+<script src="js/simulation.js"></script>
+<script src="js/render.js"></script>
+<script src="js/controls.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/world.js"></script>
+<script src="js/save.js"></script>
+<script src="js/main.js"></script>
