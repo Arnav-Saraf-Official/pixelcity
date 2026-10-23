@@ -14,7 +14,7 @@ const DISTRICTS = ['North-West', 'North', 'North-East', 'West', 'Downtown', 'Eas
 
 const tile = new Uint8Array(N);     // 0 grass, 1 street, 2 highway, 3 footpath, 4 plaza
 const water = new Uint8Array(N);
-const tree = new Uint8Array(N);     // 0 none, 1..8 canopy variants
+const tree = new Uint8Array(N);     // 0 none, 1 pine, 2 oak, 3 cedar, 4 birch, 5 palm, 6 jungle, 7 autumn, 8 cactus
 const platform = new Uint8Array(N); // player-built island surface: 1 concrete, 2 steel, 3 dirt
 const biome = new Uint8Array(N);    // 0 water, 1 plains, 2 jungle, 3 desert, 4 snow, 5 rock
 const oilField = new Float32Array(N);   // 0..1, x5-10 under rock
@@ -250,8 +250,6 @@ function genTerrainInto(seed, wArr, tArr) {
     else if (moist > 0.6) b = 2;
     else if (moist < 0.33) b = 3;
     biome[i] = b;
-    const dens = b === 2 ? 0.55 : b === 1 ? 0.16 : b === 5 ? 0.06 : 0;
-    if (dens && hash(x, y, seed + 3) < dens) tArr[i] = 1 + Math.floor(hash(x, y, seed + 4) * 8);
   }
   // Add deterministic inland ponds and short stream reaches. They only cut a
   // small channel into land, leaving each landmass connected around the water.
@@ -290,12 +288,19 @@ function genTerrainInto(seed, wArr, tArr) {
       if (cnt[best] >= 6) biome[i] = best;
     }
   }
-  // Trees follow the smoothed map, so jungle trees only grow in the jungle.
+  // Trees follow the smoothed map and choose species suited to each biome.
   tArr.fill(0);
   for (let i = 0; i < N; i++) {
     if (wArr[i]) continue;
-    const b = biome[i], dens = b === 2 ? 0.55 : b === 1 ? 0.16 : b === 5 ? 0.06 : 0;
-    if (dens && hash(i % MW, i / MW | 0, seed + 3) < dens) tArr[i] = 1 + Math.floor(hash(i % MW, i / MW | 0, seed + 4) * 8);
+    const x = i % MW, y = i / MW | 0, b = biome[i];
+    const dens = b === 2 ? 0.55 : b === 1 ? 0.18 : b === 3 ? 0.035 : b === 4 ? 0.11 : b === 5 ? 0.08 : 0;
+    if (hash(x, y, seed + 3) >= dens) continue;
+    const kind = hash(x, y, seed + 4);
+    if (b === 1) tArr[i] = kind < 0.42 ? 2 : kind < 0.68 ? 3 : kind < 0.87 ? 4 : 7;
+    else if (b === 2) tArr[i] = kind < 0.25 ? 5 : 6;
+    else if (b === 3) tArr[i] = 8;
+    else if (b === 4) tArr[i] = kind < 0.58 ? 1 : kind < 0.82 ? 3 : 4;
+    else if (b === 5) tArr[i] = kind < 0.68 ? 1 : 3;
   }
   // Resource fields: perlin-ish noise, far richer under rock.
   for (let i = 0; i < N; i++) {
@@ -342,4 +347,3 @@ function genTerrainInto(seed, wArr, tArr) {
     }
   }
 }
-

@@ -1,52 +1,163 @@
 {
-  // ===================================================================
-  // Trees use eight palettes so canopies remain distinct over rich jungle soil.
-  // ===================================================================
   "format": "texture/1",
   "name": "trees",
   "tile": 9,
-
   "defs": {
-    "leaf": ["#4b9d36", "#1f6d36", "#3d8b78", "#7e9e38", "#bd7b38", "#6a578f", "#d7e0e6", "#9a4f45"],
-    "highlight": ["#8bcf48", "#56a84a", "#76c8b0", "#c5d56b", "#e8b55f", "#a891c2", "#ffffff", "#df8270"],
-    "palette": ["#205323", "#165244", "#75862b", "#9b512b", "#563b78", "#dce5ea", "#aa3a3a", "#c07122"],
-    "rim": ["#5db74b", "#4ca98b", "#a4b944", "#d6844a", "#9973b3", "#ffffff", "#dd7168", "#e7a545"],
-    "trunk": "#6b4a2b",
-    "shadow": "#14321459"
+    "pineDark": "#174b32",
+    "pine": "#26704a",
+    "pineLight": "#4d9960",
+    "oakDark": "#315d2f",
+    "oak": "#4b873b",
+    "oakLight": "#81ae4c",
+    "trunk": "#76502f",
+    "birchTrunk": "#d8d2b2",
+    "palmTrunk": "#95643a",
+    "palmLeaf": "#39804a",
+    "jungleDark": "#17623e",
+    "jungle": "#23874c",
+    "jungleLight": "#62b653",
+    "autumnDark": "#a74428",
+    "autumn": "#d16a2e",
+    "autumnLight": "#efad45",
+    "cactusDark": "#26734a",
+    "cactus": "#46975b",
+    "cactusLight": "#83bd69"
   },
-
   "textures": {
     "tree": {
       "size": [9, 9],
-      "params": {
-        "v": 1,
-        "dx": ["if", ["bit", ["param", "v"], 0], 1, -1],
-        "dy": ["if", ["bit", ["param", "v"], 1], 1, 0],
-        "leaf": ["at", ["def", "leaf"], ["mod", ["-", ["param", "v"], 1], 8]],
-        "hi": ["at", ["def", "highlight"], ["mod", ["-", ["param", "v"], 1], 8]],
-        "alternate": ["at", ["def", "palette"], ["mod", ["-", ["param", "v"], 1], 8]],
-        "edge": ["at", ["def", "rim"], ["mod", ["-", ["param", "v"], 1], 8]]
-      },
+      "params": {"v": 1},
       "ops": [
-        { "op": "rect", "x": ["+", 3, ["param", "dx"]], "y": ["+", 6, ["param", "dy"]],
-          "w": 4, "h": 2, "color": ["def", "shadow"] },
-
-        { "op": "rect", "x": ["+", 4, ["param", "dx"]], "y": ["+", 5, ["param", "dy"]],
-          "w": 1, "h": 2, "color": ["def", "trunk"] },
-
-        { "op": "rect", "x": ["+", 2, ["param", "dx"]], "y": ["+", 2, ["param", "dy"]],
-          "w": 5, "h": 3, "color": ["if", ["<", ["param", "v"], 6], ["param", "leaf"], ["param", "alternate"]] },
-        { "op": "rect", "x": ["+", 3, ["param", "dx"]], "y": ["+", 1, ["param", "dy"]],
-          "w": 3, "h": 5, "color": ["if", ["<", ["param", "v"], 6], ["param", "leaf"], ["param", "alternate"]] },
-        { "op": "pixel", "x": ["+", 2, ["param", "dx"]], "y": ["+", 3, ["param", "dy"]], "color": ["param", "edge"] },
-        { "op": "pixel", "x": ["+", 6, ["param", "dx"]], "y": ["+", 3, ["param", "dy"]], "color": ["param", "edge"] },
-
-        { "op": "rect", "x": ["+", 3, ["param", "dx"]], "y": ["+", 2, ["param", "dy"]],
-          "w": 2, "h": 1, "color": ["param", "hi"] },
-        { "op": "if", "test": [">", ["param", "v"], 4], "then": [
-          { "op": "pixel", "x": ["+", 2, ["param", "dx"]], "y": ["+", 3, ["param", "dy"]], "color": ["param", "hi"] },
-          { "op": "pixel", "x": ["+", 6, ["param", "dx"]], "y": ["+", 4, ["param", "dy"]], "color": ["param", "hi"] }
-        ] }
+        {"op": "if", "test": ["==", ["param", "v"], 1], "then": [{"op": "use", "texture": "pine", "at": [0, 0]}]},
+        {"op": "if", "test": ["==", ["param", "v"], 2], "then": [{"op": "use", "texture": "oak", "at": [0, 0]}]},
+        {"op": "if", "test": ["==", ["param", "v"], 3], "then": [{"op": "use", "texture": "cedar", "at": [0, 0]}]},
+        {"op": "if", "test": ["==", ["param", "v"], 4], "then": [{"op": "use", "texture": "birch", "at": [0, 0]}]},
+        {"op": "if", "test": ["==", ["param", "v"], 5], "then": [{"op": "use", "texture": "palm", "at": [0, 0]}]},
+        {"op": "if", "test": ["==", ["param", "v"], 6], "then": [{"op": "use", "texture": "jungle", "at": [0, 0]}]},
+        {"op": "if", "test": ["==", ["param", "v"], 7], "then": [{"op": "use", "texture": "autumn", "at": [0, 0]}]},
+        {"op": "if", "test": ["==", ["param", "v"], 8], "then": [{"op": "use", "texture": "cactus", "at": [0, 0]}]}
+      ]
+    },
+    "pine": {
+      "size": [9, 9],
+      "ops": [
+        {"op": "rect", "x": 3, "y": 7, "w": 3, "h": 1, "color": "#173923"},
+        {"op": "rect", "x": 4, "y": 5, "w": 1, "h": 4, "color": ["def", "trunk"]},
+        {"op": "pixel", "x": 4, "y": 0, "color": ["def", "pineLight"]},
+        {"op": "rect", "x": 3, "y": 1, "w": 3, "h": 1, "color": ["def", "pine"]},
+        {"op": "rect", "x": 2, "y": 2, "w": 5, "h": 1, "color": ["def", "pineDark"]},
+        {"op": "rect", "x": 3, "y": 2, "w": 3, "h": 1, "color": ["def", "pineLight"]},
+        {"op": "rect", "x": 1, "y": 3, "w": 7, "h": 1, "color": ["def", "pine"]},
+        {"op": "rect", "x": 2, "y": 3, "w": 5, "h": 1, "color": ["def", "pineLight"]},
+        {"op": "rect", "x": 0, "y": 4, "w": 9, "h": 1, "color": ["def", "pineDark"]},
+        {"op": "rect", "x": 1, "y": 4, "w": 7, "h": 1, "color": ["def", "pine"]},
+        {"op": "rect", "x": 2, "y": 5, "w": 5, "h": 1, "color": ["def", "pine"]},
+        {"op": "rect", "x": 3, "y": 6, "w": 3, "h": 1, "color": ["def", "pineDark"]},
+        {"op": "pixel", "x": 3, "y": 3, "color": "#8bb66a"},
+        {"op": "pixel", "x": 2, "y": 4, "color": "#8bb66a"}
+      ]
+    },
+    "oak": {
+      "size": [9, 9],
+      "ops": [
+        {"op": "rect", "x": 4, "y": 5, "w": 1, "h": 4, "color": ["def", "trunk"]},
+        {"op": "line", "x1": 4, "y1": 6, "x2": 2, "y2": 4, "color": ["def", "trunk"]},
+        {"op": "line", "x1": 4, "y1": 6, "x2": 6, "y2": 4, "color": ["def", "trunk"]},
+        {"op": "rect", "x": 2, "y": 2, "w": 5, "h": 3, "color": ["def", "oakDark"]},
+        {"op": "rect", "x": 1, "y": 3, "w": 7, "h": 2, "color": ["def", "oak"]},
+        {"op": "rect", "x": 3, "y": 1, "w": 3, "h": 2, "color": ["def", "oak"]},
+        {"op": "rect", "x": 2, "y": 2, "w": 2, "h": 2, "color": ["def", "oakLight"]},
+        {"op": "rect", "x": 5, "y": 3, "w": 2, "h": 2, "color": "#609342"},
+        {"op": "pixel", "x": 3, "y": 1, "color": "#a2c65b"},
+        {"op": "pixel", "x": 7, "y": 3, "color": "#a2c65b"}
+      ]
+    },
+    "cedar": {
+      "size": [9, 9],
+      "ops": [
+        {"op": "rect", "x": 4, "y": 4, "w": 1, "h": 5, "color": ["def", "trunk"]},
+        {"op": "rect", "x": 3, "y": 1, "w": 3, "h": 1, "color": ["def", "pineLight"]},
+        {"op": "rect", "x": 2, "y": 2, "w": 5, "h": 1, "color": ["def", "pine"]},
+        {"op": "rect", "x": 3, "y": 3, "w": 3, "h": 1, "color": ["def", "pineDark"]},
+        {"op": "rect", "x": 1, "y": 4, "w": 7, "h": 1, "color": ["def", "pine"]},
+        {"op": "rect", "x": 2, "y": 5, "w": 5, "h": 1, "color": ["def", "pineDark"]},
+        {"op": "rect", "x": 0, "y": 6, "w": 9, "h": 1, "color": ["def", "pine"]},
+        {"op": "rect", "x": 1, "y": 7, "w": 7, "h": 1, "color": ["def", "pineDark"]},
+        {"op": "pixel", "x": 2, "y": 6, "color": ["def", "pineLight"]},
+        {"op": "pixel", "x": 6, "y": 7, "color": ["def", "pineLight"]}
+      ]
+    },
+    "birch": {
+      "size": [9, 9],
+      "ops": [
+        {"op": "rect", "x": 4, "y": 3, "w": 1, "h": 6, "color": ["def", "birchTrunk"]},
+        {"op": "pixel", "x": 4, "y": 4, "color": "#68563e"},
+        {"op": "pixel", "x": 4, "y": 7, "color": "#68563e"},
+        {"op": "rect", "x": 2, "y": 2, "w": 5, "h": 2, "color": "#477c3b"},
+        {"op": "rect", "x": 3, "y": 1, "w": 3, "h": 2, "color": "#6e9f4b"},
+        {"op": "pixel", "x": 1, "y": 3, "color": "#558e41"},
+        {"op": "pixel", "x": 7, "y": 2, "color": "#8ab755"},
+        {"op": "pixel", "x": 2, "y": 1, "color": "#a2c65b"},
+        {"op": "pixel", "x": 6, "y": 3, "color": "#a2c65b"}
+      ]
+    },
+    "palm": {
+      "size": [9, 9],
+      "ops": [
+        {"op": "line", "x1": 4, "y1": 8, "x2": 5, "y2": 2, "color": ["def", "palmTrunk"]},
+        {"op": "pixel", "x": 4, "y": 6, "color": "#bd8a4d"},
+        {"op": "pixel", "x": 5, "y": 4, "color": "#bd8a4d"},
+        {"op": "line", "x1": 5, "y1": 2, "x2": 1, "y2": 0, "color": ["def", "palmLeaf"]},
+        {"op": "line", "x1": 5, "y1": 2, "x2": 0, "y2": 2, "color": ["def", "palmLeaf"]},
+        {"op": "line", "x1": 5, "y1": 2, "x2": 2, "y2": 4, "color": ["def", "palmLeaf"]},
+        {"op": "line", "x1": 5, "y1": 2, "x2": 8, "y2": 0, "color": "#58a653"},
+        {"op": "line", "x1": 5, "y1": 2, "x2": 8, "y2": 2, "color": "#58a653"},
+        {"op": "line", "x1": 5, "y1": 2, "x2": 7, "y2": 4, "color": "#58a653"},
+        {"op": "pixel", "x": 5, "y": 1, "color": "#d5ac45"}
+      ]
+    },
+    "jungle": {
+      "size": [9, 9],
+      "ops": [
+        {"op": "rect", "x": 4, "y": 5, "w": 1, "h": 4, "color": "#65452b"},
+        {"op": "rect", "x": 2, "y": 3, "w": 5, "h": 3, "color": ["def", "jungleDark"]},
+        {"op": "rect", "x": 1, "y": 4, "w": 7, "h": 2, "color": ["def", "jungle"]},
+        {"op": "rect", "x": 3, "y": 2, "w": 3, "h": 3, "color": ["def", "jungle"]},
+        {"op": "rect", "x": 2, "y": 3, "w": 2, "h": 2, "color": ["def", "jungleLight"]},
+        {"op": "rect", "x": 5, "y": 4, "w": 2, "h": 2, "color": "#35984e"},
+        {"op": "pixel", "x": 3, "y": 2, "color": "#87ca53"},
+        {"op": "pixel", "x": 7, "y": 3, "color": "#76bf4c"}
+      ]
+    },
+    "autumn": {
+      "size": [9, 9],
+      "ops": [
+        {"op": "rect", "x": 4, "y": 5, "w": 1, "h": 4, "color": ["def", "trunk"]},
+        {"op": "line", "x1": 4, "y1": 6, "x2": 2, "y2": 4, "color": ["def", "trunk"]},
+        {"op": "line", "x1": 4, "y1": 6, "x2": 6, "y2": 4, "color": ["def", "trunk"]},
+        {"op": "rect", "x": 2, "y": 2, "w": 5, "h": 3, "color": ["def", "autumnDark"]},
+        {"op": "rect", "x": 1, "y": 3, "w": 7, "h": 2, "color": ["def", "autumn"]},
+        {"op": "rect", "x": 3, "y": 1, "w": 3, "h": 2, "color": ["def", "autumn"]},
+        {"op": "rect", "x": 2, "y": 2, "w": 2, "h": 2, "color": ["def", "autumnLight"]},
+        {"op": "pixel", "x": 6, "y": 2, "color": "#e28a35"},
+        {"op": "pixel", "x": 7, "y": 4, "color": "#f2c451"}
+      ]
+    },
+    "cactus": {
+      "size": [9, 9],
+      "ops": [
+        {"op": "rect", "x": 3, "y": 7, "w": 3, "h": 1, "color": "#62503a"},
+        {"op": "rect", "x": 4, "y": 1, "w": 2, "h": 7, "color": ["def", "cactusDark"]},
+        {"op": "rect", "x": 4, "y": 2, "w": 1, "h": 5, "color": ["def", "cactus"]},
+        {"op": "rect", "x": 2, "y": 4, "w": 2, "h": 2, "color": ["def", "cactus"]},
+        {"op": "rect", "x": 1, "y": 3, "w": 1, "h": 3, "color": ["def", "cactusDark"]},
+        {"op": "rect", "x": 2, "y": 5, "w": 2, "h": 1, "color": ["def", "cactusDark"]},
+        {"op": "rect", "x": 5, "y": 3, "w": 2, "h": 2, "color": ["def", "cactus"]},
+        {"op": "rect", "x": 6, "y": 2, "w": 1, "h": 3, "color": ["def", "cactusDark"]},
+        {"op": "rect", "x": 5, "y": 4, "w": 2, "h": 1, "color": ["def", "cactusDark"]},
+        {"op": "pixel", "x": 4, "y": 1, "color": ["def", "cactusLight"]},
+        {"op": "pixel", "x": 3, "y": 4, "color": ["def", "cactusLight"]},
+        {"op": "pixel", "x": 5, "y": 3, "color": ["def", "cactusLight"]}
       ]
     }
   }

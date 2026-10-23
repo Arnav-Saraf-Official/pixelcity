@@ -461,7 +461,7 @@
     for (const fam of Object.keys(state.families)) files[fam] = clone(state.families[fam]);
     if (ED.target) {
       const previewOps = files[state.family].textures[state.current].ops;
-      const targetPaths = editorTargetPaths(previewOps);
+      const targetPaths = editorTargetPaths(texDoc().ops, previewOps);
       if (!targetPaths) {
         invalidateEditorTarget();
       } else {
@@ -715,7 +715,7 @@
     tex.ops = tex.ops || [];
     box.append(opsEditor(tex.ops, renderOps));
   }
-  function opsEditor(ops, refresh) {
+  function opsEditor(ops, refresh, forcedIfs = []) {
     const box = h('div', {class: 'ops'});
     for (let i = 0; i < ops.length; i++) box.append(opCard(ops[i], i, ops, refresh, forcedIfs));
     box.append(addOpRow(ops, refresh));
@@ -1042,14 +1042,14 @@
     }
     return null;
   }
-  function editorTargetPaths(ops) {
+  function editorTargetPaths(sourceOps, targetOps) {
     if (!ED.target) return null;
-    const path = findNodePath(ops, ED.target.list);
-    if (!path) return null;
+    const path = findNodePath(sourceOps, ED.target.list);
+    if (!path || !Array.isArray(pathValue(targetOps, path))) return null;
     const forcedIfs = [];
     for (const forced of ED.target.forcedIfs) {
-      const forcedPath = findNodePath(ops, forced.op);
-      if (!forcedPath) return null;
+      const forcedPath = findNodePath(sourceOps, forced.op);
+      if (!forcedPath || pathValue(targetOps, forcedPath) == null) return null;
       forcedIfs.push({path: forcedPath, result: forced.result});
     }
     return {path, forcedIfs};
@@ -1059,7 +1059,7 @@
     for (const fam of Object.keys(state.families)) files[fam] = clone(state.families[fam]);
     const tex = files[state.family].textures[state.current];
     if (ED.target) {
-      const targetPaths = editorTargetPaths(tex.ops);
+      const targetPaths = editorTargetPaths(texDoc().ops, tex.ops);
       if (!targetPaths) throw new Error('The selected op was removed. Choose a draw target again.');
       for (const forced of targetPaths.forcedIfs) pathValue(tex.ops, forced.path).test = forced.result;
     }

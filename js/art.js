@@ -45,8 +45,9 @@ function drawPlazaTile(c, x0, y0, i) {
 // ---------------------------------------------------------------------
 // Trees
 // ---------------------------------------------------------------------
+const TREE_SPECIES = ['pine', 'oak', 'cedar', 'birch', 'palm', 'jungle', 'autumn', 'cactus'];
 function drawTree(c, x0, y0, v) {
-  TEX.draw(c, 'trees', 'tree', x0, y0, { v });
+  TEX.draw(c, 'trees', TREE_SPECIES[(v - 1) & 7], x0, y0);
 }
 function drawPlatform(c, x0, y0, type) {
   const colors = type === 1 ? ['#8f9297', '#b9bcc0'] : type === 2 ? ['#535b65', '#aab2bc'] : ['#70583b', '#9a7b50'];
