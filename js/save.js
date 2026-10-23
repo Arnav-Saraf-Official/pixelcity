@@ -203,13 +203,14 @@ function serialize() {
   const gw = new Uint8Array(N), gt = new Uint8Array(N); genTerrainInto(worldSeed, gw, gt);
   const savedBuildings = [...buildings.values()];
   return {v: 5, seed: worldSeed, t: Math.round(gameMin), settings: {...worldSettings}, tax: {sales: worldSettings.taxSales || 0, income: worldSettings.taxIncome || 0}, resources: {...resources},
-    tile: rle(tile), platform: rle(platform), oneway: rle(oneway), overpass: rle(overpass), walkway: rle(walkway), rail: rle(railOn), track: rle(trackOn),
+    tile: rle(tile), platform: rle(platform), oneway: rle(oneway), overpass: rle(overpass), walkway: rle(walkway), rail: rle(railOn), track: rle(trackOn), sig: rle(sigNode),
     water: diffEnc(water, gw), tree: diffEnc(tree, gt, i => tile[i] || bldAt[i]),
     lights: [...lights].map(([i, L]) => [i, L.ns, L.ew, Math.round(L.off)]),
     b: savedBuildings.map(b => [b.type, b.x, b.y, b.seed >>> 0]),
     state: savedBuildings.map((b, i) => [i, Number.isFinite(b.stock) ? b.stock : null, b.inventory || null, b.byproducts || null, b.policy || null]),
     districts: [...districts.values()].map(d => [d.id, d.name, d.color]),
     dlayer: rle(districtLayer),
+    lines: freightLines.map(l => [l.id, l.stops.slice(), l.color]),
     wx: [WEATHER.kind, Math.round(WEATHER.until)],
     cam: [Math.round(cam.x), Math.round(cam.y), cam.z]};
 }
@@ -250,20 +251,22 @@ function loadData(d) {
   // an old region simply has no tunnels or tracks until you draw some
   if (d.rail !== undefined && (typeof d.rail !== 'string' || d.rail.length > 5e6)) throw new Error(BAD);
   if (d.track !== undefined && (typeof d.track !== 'string' || d.track.length > 5e6)) throw new Error(BAD);
-  const nt = new Uint8Array(N), npl = new Uint8Array(N), no = new Uint8Array(N), nov = new Uint8Array(N), nw = new Uint8Array(N), nwa = new Uint8Array(N), ntr = new Uint8Array(N), nra = new Uint8Array(N), ntk = new Uint8Array(N);
+  if (d.sig !== undefined && (typeof d.sig !== 'string' || d.sig.length > 5e6)) throw new Error(BAD);
+  const nt = new Uint8Array(N), npl = new Uint8Array(N), no = new Uint8Array(N), nov = new Uint8Array(N), nw = new Uint8Array(N), nwa = new Uint8Array(N), ntr = new Uint8Array(N), nra = new Uint8Array(N), ntk = new Uint8Array(N), nsig = new Uint8Array(N);
   unrleInto(d.tile, nt, 4);
   if (d.platform !== undefined && typeof d.platform !== 'string') throw new Error(BAD);
   if (typeof d.platform === 'string') unrleInto(d.platform, npl, 3);
   unrleInto(d.oneway, no, 4); unrleInto(d.overpass, nov, 1); unrleInto(d.walkway, nw, 1);
   if (typeof d.rail === 'string') unrleInto(d.rail, nra, 1);
   if (typeof d.track === 'string') unrleInto(d.track, ntk, 1);
+  if (typeof d.sig === 'string') unrleInto(d.sig, nsig, 1);
   genTerrainInto(d.seed, nwa, ntr); applyDiff(d.water, nwa, 1); applyDiff(d.tree, ntr, 8);
   for (const e of d.b) if (!Array.isArray(e) || !hasType(e[0]) || !isInt(e[1], 0, MW - 1) || !isInt(e[2], 0, MH - 1) || !isInt(e[3], 0, 4294967295)) throw new Error(BAD);
   for (const e of d.lights) if (!Array.isArray(e) || !isInt(e[0], 0, N - 1) || !isInt(e[1], 3, 25) || !isInt(e[2], 3, 25) || !isInt(e[3], 0, 60)) throw new Error(BAD);
   // the save is valid: replace the region
   clearWorld();
   worldSeed = d.seed;
-  tile.set(nt); platform.set(npl); oneway.set(no); overpass.set(nov); walkway.set(nw); water.set(nwa); tree.set(ntr); railOn.set(nra); trackOn.set(ntk);
+  tile.set(nt); platform.set(npl); oneway.set(no); overpass.set(nov); walkway.set(nw); water.set(nwa); tree.set(ntr); railOn.set(nra); trackOn.set(ntk); sigNode.set(nsig);
   for (let i = 0; i < N; i++) if (tile[i] || water[i] || platform[i]) tree[i] = 0;
   const restoredBuildings = [];
   for (const [type, x, y, seed] of d.b) restoredBuildings.push(canPlace(type, x, y) || canPlaceLoose(type, x, y) ? placeBuilding(type, x, y, seed) : null);
@@ -317,6 +320,17 @@ function loadData(d) {
     taxSales: Number.isFinite(settings.taxSales) ? clamp(settings.taxSales, 0, 30) : Number.isFinite(d.tax?.sales) ? clamp(d.tax.sales, 0, 30) : 0,
     taxIncome: Number.isFinite(settings.taxIncome) ? clamp(settings.taxIncome, 0, 50) : Number.isFinite(d.tax?.income) ? clamp(d.tax.income, 0, 50) : 0,
   };
+  freightLines = [];
+  nextLineId = 1;
+  if (Array.isArray(d.lines)) for (const e of d.lines.slice(0, 32)) {
+    if (!Array.isArray(e) || !Array.isArray(e[1])) continue;
+    const stops = e[1].filter(v => isInt(v, 1, 1e9)).slice(0, 4);
+    if (stops.length < 2) continue;
+    const id = isInt(e[0], 1, 1e9) ? e[0] : nextLineId;
+    if (freightLines.some(l => l.id === id)) continue;
+    freightLines.push({id, stops, color: typeof e[2] === 'string' ? e[2].slice(0, 16) : '#f2c14e'});
+    nextLineId = Math.max(nextLineId, id + 1);
+  }
   gameMin = isInt(d.t, 0, 1e9) ? d.t : 6.5 * 60;
   finishWorld();
   if (Array.isArray(d.cam) && d.cam.length === 3 && d.cam.every(Number.isFinite) && ZOOMS.includes(d.cam[2])) { cam.x = d.cam[0]; cam.y = d.cam[1]; cam.z = d.cam[2]; }

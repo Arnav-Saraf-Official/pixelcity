@@ -251,9 +251,15 @@ footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;bo
       </div>
 
       <div class="row" style="margin-bottom:6px">
-        <button id="edLoad" class="grow">Load sprite</button>
+        <button id="edLoad" class="grow">Ops → pixels</button>
         <button id="edClear">Clear</button>
-        <button id="edApply" class="primary grow">Apply to sprite</button>
+      </div>
+      <div class="row" style="margin-bottom:6px">
+        <select id="edApplyMode" class="grow" aria-label="How to apply pixels">
+          <option value="patch">Patch ops (keeps if/repeat)</option>
+          <option value="replace">Replace all ops</option>
+        </select>
+        <button id="edApply" class="primary grow">Pixels → ops</button>
       </div>
       <div class="editorWrap"><canvas id="pixelCanvas" width="90" height="90"></canvas></div>
       <div class="row" style="margin-top:6px">
@@ -263,11 +269,17 @@ footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;bo
         <span class="spacer"></span>
         <label class="row">zoom <input id="edZoom" type="range" min="1" max="24" value="8" style="width:70px" aria-label="Editor zoom"></label>
       </div>
-      <p class="hintline">Right-click paints transparent. Applying replaces this
-        sprite's ops with optimized rects in the current colour palette.</p>
+      <p class="hintline">Right-click paints transparent. <b>Patch</b> keeps the
+        sprite's existing ops (including <code>if</code>, <code>repeat</code> and
+        <code>each</code>) and appends only the pixels you changed, using
+        <code>clear</code> ops for erasures. <b>Replace</b> flattens everything
+        into rect ops.</p>
     </div>
 
     <div class="tabpane hidden" id="tab-ops">
+      <div class="row" style="margin-bottom:6px">
+        <button id="opToPixels" class="grow">Convert to pixel art</button>
+      </div>
       <div id="opEditor"></div>
       <p class="help">Values are JSON: a number, <code>"#rrggbbaa"</code>, a list,
         or an expression such as <code>["+", ["param","x"], 1]</code>.

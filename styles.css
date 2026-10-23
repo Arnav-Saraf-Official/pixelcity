@@ -71,13 +71,20 @@ body.region #side,body.region #bottom,body.region #inspector,body.region #cong,b
    needed to clear the zoom panel, which --zoomw / --bshift are measured for in
    js/ui.js. The max-width keeps it out from under those controls at any width. */
 #bottom{position:fixed;left:50%;bottom:calc(10px + var(--sb));transform:translateX(calc(-50% + var(--bshift,0px)));display:flex;flex-direction:column;align-items:center;gap:8px;max-width:calc(100vw - 28px - var(--zoomw,0px));z-index:5}
-#flyout{display:flex;gap:8px;padding:6px;overflow-x:auto;max-width:100%;align-items:flex-start}
+#flyout{display:flex;flex-direction:column;gap:6px;padding:6px;max-width:100%;align-items:stretch}
+#flyout .fhead{display:flex;align-items:center;gap:6px;padding:0 2px}
+#flyout .fhead b{font-weight:normal;color:var(--hi);font-size:20px;letter-spacing:1px;text-transform:uppercase;white-space:nowrap}
+#paletteFilter{font-size:17px;padding:1px 6px;flex:1;min-width:110px;max-width:260px}
+#flyout .fclose{flex:none;padding:0 7px;line-height:1.1}
+#flyout .fbody{display:flex;gap:8px;overflow-x:auto;max-width:100%;align-items:flex-start;padding-bottom:2px}
 #flyout .fgroup{display:flex;flex-direction:column;gap:2px;flex:none}
+#flyout .fempty{color:var(--dim);padding:6px;font-size:18px}
 #flyout .fgroup>small{color:var(--dim);font-size:13px;letter-spacing:1px;padding:0 4px;text-transform:uppercase;white-space:nowrap}
 #flyout .frow{display:flex;gap:6px}
 .card{width:86px;flex:none;padding:4px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:17px;line-height:1}
 .card canvas{width:54px;height:54px;image-rendering:pixelated}
 .card small{color:var(--dim);font-size:14px}
+.card kbd{font-family:inherit;font-size:12px;line-height:1;color:var(--hi);background:var(--ink);border:1px solid var(--line);padding:1px 3px}
 #bar{display:flex;gap:4px;padding:5px;align-items:center;overflow-x:auto;max-width:100%}
 #bar .sep{width:2px;align-self:stretch;background:var(--edge);margin:0 4px}
 #tip{position:fixed;z-index:20;padding:6px 8px;max-width:260px;pointer-events:none;font-size:18px;line-height:1.05}

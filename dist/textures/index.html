@@ -251,9 +251,15 @@ footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;bo
       </div>
 
       <div class="row" style="margin-bottom:6px">
-        <button id="edLoad" class="grow">Load sprite</button>
+        <button id="edLoad" class="grow">Ops → pixels</button>
         <button id="edClear">Clear</button>
-        <button id="edApply" class="primary grow">Apply to sprite</button>
+      </div>
+      <div class="row" style="margin-bottom:6px">
+        <select id="edApplyMode" class="grow" aria-label="How to apply pixels">
+          <option value="patch">Patch ops (keeps if/repeat)</option>
+          <option value="replace">Replace all ops</option>
+        </select>
+        <button id="edApply" class="primary grow">Pixels → ops</button>
       </div>
       <div class="editorWrap"><canvas id="pixelCanvas" width="90" height="90"></canvas></div>
       <div class="row" style="margin-top:6px">
@@ -263,11 +269,17 @@ footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;bo
         <span class="spacer"></span>
         <label class="row">zoom <input id="edZoom" type="range" min="1" max="24" value="8" style="width:70px" aria-label="Editor zoom"></label>
       </div>
-      <p class="hintline">Right-click paints transparent. Applying replaces this
-        sprite's ops with optimized rects in the current colour palette.</p>
+      <p class="hintline">Right-click paints transparent. <b>Patch</b> keeps the
+        sprite's existing ops (including <code>if</code>, <code>repeat</code> and
+        <code>each</code>) and appends only the pixels you changed, using
+        <code>clear</code> ops for erasures. <b>Replace</b> flattens everything
+        into rect ops.</p>
     </div>
 
     <div class="tabpane hidden" id="tab-ops">
+      <div class="row" style="margin-bottom:6px">
+        <button id="opToPixels" class="grow">Convert to pixel art</button>
+      </div>
       <div id="opEditor"></div>
       <p class="help">Values are JSON: a number, <code>"#rrggbbaa"</code>, a list,
         or an expression such as <code>["+", ["param","x"], 1]</code>.
@@ -528,6 +540,10 @@ footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;bo
         if (alpha !== undefined && alpha !== 1) g.globalAlpha = alpha;
         g.drawImage(c, x, y);
         if (alpha !== undefined && alpha !== 1) g.globalAlpha = 1;
+      },
+      clearRect(x, y, ww, hh) {
+        if (ww <= 0 || hh <= 0) return;
+        g.clearRect(Math.round(x), Math.round(y), Math.round(ww), Math.round(hh));
       }
     };
   }
@@ -564,6 +580,14 @@ footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;bo
           const o = (yy * img.w + xx) * 4;
           blend(x + xx, y + yy, src[o], src[o + 1], src[o + 2], Math.round(src[o + 3] * k));
         }
+      },
+      clearRect(x, y, ww, hh) {
+        if (ww <= 0 || hh <= 0) return;
+        const x0 = Math.round(x), y0 = Math.round(y), x1 = x0 + Math.round(ww), y1 = y0 + Math.round(hh);
+        for (let yy = Math.max(0, y0); yy < Math.min(h, y1); yy++) for (let xx = Math.max(0, x0); xx < Math.min(w, x1); xx++) {
+          const o = (yy * w + xx) * 4;
+          data[o] = data[o + 1] = data[o + 2] = data[o + 3] = 0;
+        }
       }
     };
   }
@@ -576,6 +600,9 @@ footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;bo
 
   const DRAW = {
     rect(a, env, be) { be.fillRect(a.x + env.ox, a.y + env.oy, a.w, a.h, a.color); },
+    // Punch a hole back to transparent. Unlike a rect with alpha 0, this erases
+    // whatever was painted under it, which is what patching pixel art needs.
+    clear(a, env, be) { be.clearRect(a.x + env.ox, a.y + env.oy, a.w, a.h); },
     pixel(a, env, be) { be.fillRect(a.x + env.ox, a.y + env.oy, 1, 1, a.color); },
     line(a, env, be) {
       let x0 = a.x1 + env.ox, y0 = a.y1 + env.oy;
@@ -1050,6 +1077,7 @@ footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;bo
   // -------------------------------------------------------------------
   const OP_FIELDS = {
     rect: ['x', 'y', 'w', 'h', 'color'],
+    clear: ['x', 'y', 'w', 'h'],
     pixel: ['x', 'y', 'color'],
     line: ['x1', 'y1', 'x2', 'y2', 'color'],
     png: ['src', 'x', 'y', 'alpha'],
@@ -1071,6 +1099,7 @@ footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;bo
   const PAIR_FIELDS = new Set(['params', 'args']);
   const OP_DEFAULTS = {
     rect: {op: 'rect', x: 0, y: 0, w: 1, h: 1, color: '#ffffff'},
+    clear: {op: 'clear', x: 0, y: 0, w: 1, h: 1},
     pixel: {op: 'pixel', x: 0, y: 0, color: '#ffffff'},
     line: {op: 'line', x1: 0, y1: 0, x2: 8, y2: 8, color: '#ffffff'},
     png: {op: 'png', src: '', x: 0, y: 0},
@@ -1821,7 +1850,7 @@ footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;bo
   // Pixel editor
   // ===================================================================
   const ED = {
-    data: null, w: 0, h: 0, zoom: 8, tool: 'pencil', size: 1,
+    data: null, w: 0, h: 0, base: null, baseW: 0, baseH: 0, zoom: 8, tool: 'pencil', size: 1,
     color: {r: 255, g: 255, b: 255, a: 255},
     undo: [], redo: [], recent: [],
     start: null, snapshot: null, strokeErase: false,
@@ -1847,7 +1876,7 @@ footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;bo
     $('edW').value = w; $('edH').value = hpx;
   }
   function edClearBuffer() {
-    ED.data = null; ED.undo = []; ED.redo = [];
+    ED.data = null; ED.base = null; ED.undo = []; ED.redo = [];
     $('edLoad').disabled = false;
   }
   function edClear() {
@@ -1856,6 +1885,7 @@ footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;bo
     const hpx = tex && tex.size ? tex.size[1] : 9;
     ED.data = new Uint8ClampedArray(w * hpx * 4);
     ED.w = w; ED.h = hpx;
+    ED.base = null;
     ED.undo = []; ED.redo = [];
     $('edW').value = w; $('edH').value = hpx;
     edRender();
@@ -1869,6 +1899,8 @@ footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;bo
       const img = g.getImageData(0, 0, t.canvas.width, t.canvas.height);
       ED.w = img.width; ED.h = img.height;
       ED.data = new Uint8ClampedArray(img.data);
+      ED.base = new Uint8ClampedArray(img.data);
+      ED.baseW = ED.w; ED.baseH = ED.h;
       ED.undo = []; ED.redo = [];
       $('edW').value = ED.w; $('edH').value = ED.h;
       edFitZoom();
@@ -2048,15 +2080,47 @@ footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;bo
       y: Math.floor((e.clientY - r.top) / r.height * ED.h),
     };
   }
+  // Only the pixels that differ from the render the canvas was loaded from.
+  // Erasures become `clear` ops, so an op tree full of ifs can be patched
+  // without being flattened.
+  function patchFromBase(data, w, h, base, bw, bh) {
+    const add = new Uint8ClampedArray(w * h * 4);
+    const cut = new Uint8ClampedArray(w * h * 4);
+    const same = (i, r, g, b, a) => {
+      if (!base || i >= bw * bh) return false;
+      const o = i * 4;
+      return base[o] === r && base[o + 1] === g && base[o + 2] === b && base[o + 3] === a;
+    };
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x, o = i * 4;
+      const r = data[o], g = data[o + 1], b = data[o + 2], a = data[o + 3];
+      if (same(i, r, g, b, a)) continue;
+      if (a === 0) { cut[o] = cut[o + 1] = cut[o + 2] = cut[o + 3] = 255; }
+      else { add[o] = r; add[o + 1] = g; add[o + 2] = b; add[o + 3] = a; }
+    }
+    const clears = imageToOps(cut, w, h).map(op => ({op: 'clear', x: op.x, y: op.y, w: op.w, h: op.h}));
+    return [...clears, ...imageToOps(add, w, h)];
+  }
   function edApply() {
     const tex = texDoc();
     if (!tex) { status('Select a sprite first.', 'bad'); return; }
     if (!ED.data) { status('Load or clear a canvas first.', 'bad'); return; }
-    const ops = imageToOps(ED.data, ED.w, ED.h);
+    const mode = ($('edApplyMode') && $('edApplyMode').value) || 'patch';
+    const flat = imageToOps(ED.data, ED.w, ED.h);
     tex.size = [ED.w, ED.h];
-    tex.ops = ops;
+    let applied = flat, how = 'replaced';
+    if (mode === 'patch') {
+      if (!ED.base) { status('Use “Ops → pixels” first so there is a baseline to patch.', 'bad'); return; }
+      const patch = patchFromBase(ED.data, ED.w, ED.h, ED.base, ED.baseW, ED.baseH);
+      if (!patch.length) { status('No pixels changed, so the ops were left alone.', ''); return; }
+      tex.ops = [...(tex.ops || []), ...patch];
+      applied = patch; how = 'patched';
+    } else {
+      tex.ops = flat;
+    }
+    ED.base = new Uint8ClampedArray(ED.data); ED.baseW = ED.w; ED.baseH = ED.h;
     renderOps(); renderTextureSettings(); renderLibrary(); preview();
-    status(`Applied ${ED.w}×${ED.h} as ${plural(ops.length, 'rect op', 'rect ops')} (${Math.round(opBytes(ops) / 1024 * 10) / 10} KB).`, 'good');
+    status(`${how} ${ED.w}×${ED.h} with ${plural(applied.length, 'op', 'ops')} (${Math.round(opBytes(applied) / 1024 * 10) / 10} KB).`, 'good');
   }
 
   // -------------------------------------------------------------------
@@ -2085,6 +2149,7 @@ footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;bo
     renderAll();
   });
   $('newBlankSprite').addEventListener('click', addBlankSprite);
+  $('opToPixels').addEventListener('click', () => { edLoadSprite(); setTab('pixels'); });
   $('importBtn').addEventListener('click', () => $('importFile').click());
   $('importFile').addEventListener('change', e => {
     const files = [...(e.target.files || [])];

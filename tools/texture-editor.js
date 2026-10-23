@@ -162,6 +162,7 @@
   // -------------------------------------------------------------------
   const OP_FIELDS = {
     rect: ['x', 'y', 'w', 'h', 'color'],
+    clear: ['x', 'y', 'w', 'h'],
     pixel: ['x', 'y', 'color'],
     line: ['x1', 'y1', 'x2', 'y2', 'color'],
     png: ['src', 'x', 'y', 'alpha'],
@@ -183,6 +184,7 @@
   const PAIR_FIELDS = new Set(['params', 'args']);
   const OP_DEFAULTS = {
     rect: {op: 'rect', x: 0, y: 0, w: 1, h: 1, color: '#ffffff'},
+    clear: {op: 'clear', x: 0, y: 0, w: 1, h: 1},
     pixel: {op: 'pixel', x: 0, y: 0, color: '#ffffff'},
     line: {op: 'line', x1: 0, y1: 0, x2: 8, y2: 8, color: '#ffffff'},
     png: {op: 'png', src: '', x: 0, y: 0},
@@ -933,7 +935,7 @@
   // Pixel editor
   // ===================================================================
   const ED = {
-    data: null, w: 0, h: 0, zoom: 8, tool: 'pencil', size: 1,
+    data: null, w: 0, h: 0, base: null, baseW: 0, baseH: 0, zoom: 8, tool: 'pencil', size: 1,
     color: {r: 255, g: 255, b: 255, a: 255},
     undo: [], redo: [], recent: [],
     start: null, snapshot: null, strokeErase: false,
@@ -959,7 +961,7 @@
     $('edW').value = w; $('edH').value = hpx;
   }
   function edClearBuffer() {
-    ED.data = null; ED.undo = []; ED.redo = [];
+    ED.data = null; ED.base = null; ED.undo = []; ED.redo = [];
     $('edLoad').disabled = false;
   }
   function edClear() {
@@ -968,6 +970,7 @@
     const hpx = tex && tex.size ? tex.size[1] : 9;
     ED.data = new Uint8ClampedArray(w * hpx * 4);
     ED.w = w; ED.h = hpx;
+    ED.base = null;
     ED.undo = []; ED.redo = [];
     $('edW').value = w; $('edH').value = hpx;
     edRender();
@@ -981,6 +984,8 @@
       const img = g.getImageData(0, 0, t.canvas.width, t.canvas.height);
       ED.w = img.width; ED.h = img.height;
       ED.data = new Uint8ClampedArray(img.data);
+      ED.base = new Uint8ClampedArray(img.data);
+      ED.baseW = ED.w; ED.baseH = ED.h;
       ED.undo = []; ED.redo = [];
       $('edW').value = ED.w; $('edH').value = ED.h;
       edFitZoom();
@@ -1160,15 +1165,47 @@
       y: Math.floor((e.clientY - r.top) / r.height * ED.h),
     };
   }
+  // Only the pixels that differ from the render the canvas was loaded from.
+  // Erasures become `clear` ops, so an op tree full of ifs can be patched
+  // without being flattened.
+  function patchFromBase(data, w, h, base, bw, bh) {
+    const add = new Uint8ClampedArray(w * h * 4);
+    const cut = new Uint8ClampedArray(w * h * 4);
+    const same = (i, r, g, b, a) => {
+      if (!base || i >= bw * bh) return false;
+      const o = i * 4;
+      return base[o] === r && base[o + 1] === g && base[o + 2] === b && base[o + 3] === a;
+    };
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x, o = i * 4;
+      const r = data[o], g = data[o + 1], b = data[o + 2], a = data[o + 3];
+      if (same(i, r, g, b, a)) continue;
+      if (a === 0) { cut[o] = cut[o + 1] = cut[o + 2] = cut[o + 3] = 255; }
+      else { add[o] = r; add[o + 1] = g; add[o + 2] = b; add[o + 3] = a; }
+    }
+    const clears = imageToOps(cut, w, h).map(op => ({op: 'clear', x: op.x, y: op.y, w: op.w, h: op.h}));
+    return [...clears, ...imageToOps(add, w, h)];
+  }
   function edApply() {
     const tex = texDoc();
     if (!tex) { status('Select a sprite first.', 'bad'); return; }
     if (!ED.data) { status('Load or clear a canvas first.', 'bad'); return; }
-    const ops = imageToOps(ED.data, ED.w, ED.h);
+    const mode = ($('edApplyMode') && $('edApplyMode').value) || 'patch';
+    const flat = imageToOps(ED.data, ED.w, ED.h);
     tex.size = [ED.w, ED.h];
-    tex.ops = ops;
+    let applied = flat, how = 'replaced';
+    if (mode === 'patch') {
+      if (!ED.base) { status('Use “Ops → pixels” first so there is a baseline to patch.', 'bad'); return; }
+      const patch = patchFromBase(ED.data, ED.w, ED.h, ED.base, ED.baseW, ED.baseH);
+      if (!patch.length) { status('No pixels changed, so the ops were left alone.', ''); return; }
+      tex.ops = [...(tex.ops || []), ...patch];
+      applied = patch; how = 'patched';
+    } else {
+      tex.ops = flat;
+    }
+    ED.base = new Uint8ClampedArray(ED.data); ED.baseW = ED.w; ED.baseH = ED.h;
     renderOps(); renderTextureSettings(); renderLibrary(); preview();
-    status(`Applied ${ED.w}×${ED.h} as ${plural(ops.length, 'rect op', 'rect ops')} (${Math.round(opBytes(ops) / 1024 * 10) / 10} KB).`, 'good');
+    status(`${how} ${ED.w}×${ED.h} with ${plural(applied.length, 'op', 'ops')} (${Math.round(opBytes(applied) / 1024 * 10) / 10} KB).`, 'good');
   }
 
   // -------------------------------------------------------------------
@@ -1197,6 +1234,7 @@
     renderAll();
   });
   $('newBlankSprite').addEventListener('click', addBlankSprite);
+  $('opToPixels').addEventListener('click', () => { edLoadSprite(); setTab('pixels'); });
   $('importBtn').addEventListener('click', () => $('importFile').click());
   $('importFile').addEventListener('change', e => {
     const files = [...(e.target.files || [])];

@@ -158,6 +158,16 @@ function drawTrackTile(c, x0, y0, m, wet) {
   TEX.draw(c, 'rails', 'track', x0, y0, { m });
 }
 
+// Block signal at the edge a train crosses into the next block: a small post
+// with a lamp that is red while another train holds the leg.
+function drawTrackSignal(c, x0, y0, dir, red) {
+  const px = dir === 2 ? x0 + T - 2 : x0 + 2;
+  const py = dir === 2 ? y0 + 2 : y0 + T - 3;
+  c.fillStyle = '#24282e'; c.fillRect(px, py, 2, 3);
+  c.fillStyle = red ? '#e5484d' : '#43b95b'; c.fillRect(px, py, 2, 2);
+  c.fillStyle = red ? '#ffc0c0' : '#d8ffe0'; c.fillRect(px, py, 1, 1);
+}
+
 function drawStationPad(c, x0, y0) {
   TEX.draw(c, 'underground', 'station', x0, y0, {});
 }

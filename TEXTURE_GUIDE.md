@@ -290,6 +290,7 @@ Ops run in order, top to bottom. Later ops paint over earlier ones.
 | `rect` | `x y w h color` | filled rectangle |
 | `pixel` | `x y color` | one pixel |
 | `line` | `x1 y1 x2 y2 color` | 1px Bresenham line |
+| `clear` | `x y w h` | erase a rectangle back to transparent |
 | `png` | `src x y alpha?` | blit an image (see [§9](#9-png-sprites)) |
 | `each` | `as in ops` | run `ops` once per item in `in` |
 | `repeat` | `as times from? ops` | run `ops` `times` times, step 1 |

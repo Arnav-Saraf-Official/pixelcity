@@ -115,6 +115,22 @@ const stockLimit = b => b.type === 'warehouse' ? WAREHOUSE_CAP
   : (b.type === 'port' || b.type === 'distribution' || b.type === 'railyard') ? HUB_STOCK_CAP
   : BT[b.type].cat === 'com' ? SHOP_STOCK_CAP : ((PRODUCER[b.type] && PRODUCER[b.type].cap) || 40);
 const producerOf = b => PRODUCER[b.type] || null;
+// Trucks already on the road toward a building, so two dispatches never race
+// for the same shelf space. Derived from the fleet, so a truck that crashes
+// simply stops counting instead of leaving a stale reservation behind.
+function inboundByBuilding() {
+  const inbound = new Map();
+  for (const c of cars) {
+    if (!c.truck || c.dead || !c.cargo) continue;
+    inbound.set(c.dest, (inbound.get(c.dest) || 0) + c.cargo.amount);
+  }
+  return inbound;
+}
+function freeRoomOf(b, inbound) {
+  const reserved = (inbound && inbound.get(b.id)) || 0;
+  const room = b.type === 'warehouse' ? warehouseRoom(b) : stockLimit(b) - Math.max(0, b.stock || 0);
+  return Math.max(0, room - reserved);
+}
 function takeProducerStock(b, good, amount) {
   const p = producerOf(b);
   if (!p) return 0;
@@ -141,6 +157,10 @@ function hasAccessibleSupply(shop) {    const shopRoad = roadTileOf(shop);
 function resetLogistics() {
   ships.length = 0;
   freight.length = 0;
+  freightLines = [];
+  nextLineId = 1;
+  blockRes.clear();
+  sigNode.fill(0);
   cargoStats.deliveries = 0; cargoStats.shipped = 0; cargoStats.moved = 0; cargoStats.trainRuns = 0;
   truckTimer = 0; shipTimer = 0;
   logisticsReady = false;
@@ -189,6 +209,7 @@ function relinkTrack() {
     for (let d = 1; d <= 4; d++) { const j = nb(i, d); if (j >= 0 && trackOn[j]) m |= bit(d); }
     track[i] = m;
   }
+  relinkBlocks();
 }
 const tqPath = new Int32Array(N), tqPrev = new Int32Array(N), tqSeen = new Uint32Array(N);
 let tqGen = 0;
@@ -222,14 +243,14 @@ function roadTileOf(b) {
   if (b.road >= 0 && tile[b.road] === 1) return b.road;
   return perimeter(b.x, b.y, b.w, b.h).find(i => tile[i] === 1) ?? -1;
 }
-function findCustomer(p, good, excludeWarehouses = false) {
+function findCustomer(p, good, excludeWarehouses = false, inbound = null) {
   const from = roadTileOf(p);
   if (from < 0) return null;
   const comp = compR[from];
   let best = null, bd = Infinity, bestPri = 99;
   for (const b of buildings.values()) {
     if (b === p || excludeWarehouses && b.type === 'warehouse' || !acceptsGood(b, good)) continue;
-    if ((b.type === 'warehouse' ? warehouseTotal(b) : b.stock) >= stockLimit(b)) continue;
+    if (freeRoomOf(b, inbound) <= 0) continue;
     const r = roadTileOf(b);
     if (r < 0 || compR[r] !== comp) continue;
     const d = distB(p, b);
@@ -263,7 +284,7 @@ function sendTruck(from, to, good, amount, color) {
     cargoStats.deliveries++; cargoStats.moved += amount;
     return true;
   }
-  const c = newCar({truck: true, cargo: {good, amount}, dest: to.id, intent: to.id, path,
+  const c = newCar({truck: true, cargo: {good, amount, from: from.id}, dest: to.id, intent: to.id, path,
     color: color || '#ddd6c2', max: 18});
   carGeom(c);
   if (!spawnCarAt(c)) {
@@ -276,57 +297,88 @@ function sendTruck(from, to, good, amount, color) {
   }
   return true;
 }
+// Put an undelivered load back where it came from, so a demolished or filled
+// destination does not quietly delete stock.
+function putBack(id, good, amount) {
+  const S = B(id);
+  if (!S || amount <= 0) return;
+  if (S.type === 'warehouse') { storeInWarehouse(S, good, amount); return; }
+  const p = producerOf(S);
+  if (p) {
+    if (good === p.good) S.stock = Math.min(p.cap, (S.stock || 0) + amount);
+    else { S.byproducts ||= Object.create(null); S.byproducts[good] = Math.min(100, (S.byproducts[good] || 0) + amount); }
+    return;
+  }
+  S.stock = Math.min(stockLimit(S), (S.stock || 0) + amount);
+}
 function deliverTruck(c) {
   const D = B(c.dest);
-  if (D && c.cargo) {
-    if (D.type === 'warehouse') storeInWarehouse(D, c.cargo.good, c.cargo.amount);
-    else D.stock = Math.min(stockLimit(D), (D.stock || 0) + c.cargo.amount);
-    cargoStats.deliveries++; cargoStats.moved += c.cargo.amount;
-  }
+  if (!D || !c.cargo) { endCar(c); return; }
+  const {good, amount} = c.cargo;
+  const stored = D.type === 'warehouse' ? storeInWarehouse(D, good, amount)
+    : Math.min(amount, Math.max(0, stockLimit(D) - (D.stock || 0)));
+  if (D.type !== 'warehouse') D.stock = (D.stock || 0) + stored;
+  if (stored > 0) { cargoStats.deliveries++; cargoStats.moved += stored; }
+  if (stored < amount) putBack(c.cargo.from, good, amount - stored);
   endCar(c);
 }
 function dispatchTrucks() {
   let trucks = 0;
   for (const c of cars) if (c.truck) trucks++;
   if (trucks >= 70) return;
+  const inbound = inboundByBuilding();
+  const room = b => freeRoomOf(b, inbound);
   for (const b of buildings.values()) {
     const p = producerOf(b);
     if (!p || b.truckCd > 0) continue;
     const goods = [p.good, ...Object.keys(p.byproducts || {})];
     for (const good of goods) {
       if (producerStock(b, good) < 10) continue;
-      const to = findCustomer(b, good);
+      const to = findCustomer(b, good, false, inbound);
       if (!to) continue;
-      const amount = Math.min(TRUCK_CAP, Math.floor(producerStock(b, good)));
-      if (sendTruck(b, to, good, amount)) { b.truckCd = 5 + Math.random() * 4; if (++trucks >= 70) return; }
+      const amount = Math.min(TRUCK_CAP, Math.floor(producerStock(b, good)), room(to));
+      if (amount <= 0) continue;
+      if (sendTruck(b, to, good, amount)) {
+        inbound.set(to.id, (inbound.get(to.id) || 0) + amount);
+        b.truckCd = 5 + Math.random() * 4; if (++trucks >= 70) return;
+      }
     }
   }
-  // Warehouses move stock to the least supplied peer; each shipment keeps its
-  // item type so trains/ships/trucks never turn mixed cargo into generic goods.
+  // Warehouses top up reachable shops first, then relieve a nearly full peer
+  // into a nearly empty one. Both thresholds are deliberately wide, so two
+  // warehouses never shuttle the same load back and forth.
   for (const source of buildings.values()) {
     if (source.type !== 'warehouse' || source.truckCd > 0 || warehouseTotal(source) < 10) continue;
-    let sentToShop = false;
+    let sent = false;
     for (const good of GOOD_KEYS) {
       const available = Math.floor((source.inventory && source.inventory[good]) || 0);
       if (available < 1) continue;
-      const customer = findCustomer(source, good, true);
+      const customer = findCustomer(source, good, true, inbound);
       if (!customer) continue;
-      const amount = Math.min(TRUCK_CAP, available);
+      const amount = Math.min(TRUCK_CAP, available, room(customer));
+      if (amount <= 0) continue;
       if (sendTruck(source, customer, good, amount, '#d1c5a8')) {
-        source.truckCd = 6; sentToShop = true; if (++trucks >= 70) return; break;
+        inbound.set(customer.id, (inbound.get(customer.id) || 0) + amount);
+        source.truckCd = 6; sent = true; if (++trucks >= 70) return; break;
       }
     }
-    if (sentToShop) continue;
+    if (sent) continue;
+    if (warehouseTotal(source) < WAREHOUSE_CAP * 0.6) continue;
     let target = null, gap = 0;
     for (const dest of buildings.values()) {
-      if (dest === source || dest.type !== 'warehouse' || roadTileOf(dest) < 0 || compR[roadTileOf(dest)] !== compR[roadTileOf(source)]) continue;
+      if (dest === source || dest.type !== 'warehouse' || warehouseTotal(dest) > WAREHOUSE_CAP * 0.4) continue;
+      const dr = roadTileOf(dest);
+      if (dr < 0 || compR[dr] !== compR[roadTileOf(source)]) continue;
       const d = warehouseTotal(source) - warehouseTotal(dest);
       if (d > gap) { gap = d; target = dest; }
     }
     if (!target) continue;
     for (const good of GOOD_KEYS) {
-      const n = Math.min(TRUCK_CAP, Math.floor(((source.inventory && source.inventory[good]) || 0) / 2));
-      if (n && sendTruck(source, target, good, n, '#d1c5a8')) {
+      const have = Math.floor((source.inventory && source.inventory[good]) || 0);
+      const n = Math.min(TRUCK_CAP, Math.floor(have / 2), room(target));
+      if (n <= 0) continue;
+      if (sendTruck(source, target, good, n, '#d1c5a8')) {
+        inbound.set(target.id, (inbound.get(target.id) || 0) + n);
         source.truckCd = 6; if (++trucks >= 70) return;
       }
     }
@@ -336,10 +388,14 @@ function dispatchTrucks() {
     if (b.road < 0 || b.truckCd > 0) continue;
     if (b.type !== 'distribution' && b.type !== 'port' && b.type !== 'railyard') continue;
     if (b.stock < 12) continue;
-    const to = findCustomer(b, 'goods');
+    const to = findCustomer(b, 'goods', false, inbound);
     if (!to) continue;
-    const amount = Math.min(TRUCK_CAP, Math.floor(b.stock));
-    if (sendTruck(b, to, 'goods', amount, '#cfe0ef')) { b.truckCd = 7 + Math.random() * 5; if (++trucks >= 70) return; }
+    const amount = Math.min(TRUCK_CAP, Math.floor(b.stock), room(to));
+    if (amount <= 0) continue;
+    if (sendTruck(b, to, 'goods', amount, '#cfe0ef')) {
+      inbound.set(to.id, (inbound.get(to.id) || 0) + amount);
+      b.truckCd = 7 + Math.random() * 5; if (++trucks >= 70) return;
+    }
   }
 }
 
@@ -392,6 +448,17 @@ function exportTile(b) {
   }
   return best;
 }
+// A voyage that fails (channel blocked, destination demolished) sends its cargo
+// back to the quay it left, rather than deleting it at sea.
+function returnShipCargo(s) {
+  if (!s || !s.cargo) return;
+  const S = B(s.origin);
+  if (S) {
+    if (S.type === 'warehouse') storeInWarehouse(S, s.cargo.good, s.cargo.amount);
+    else S.stock = Math.min(stockLimit(S), (S.stock || 0) + s.cargo.amount);
+  }
+  s.cargo = null;
+}
 function launchShip(port) {
   const from = waterNeighbour(port);
   if (from < 0) return false;
@@ -420,7 +487,7 @@ function launchShip(port) {
     port.stock -= cargo.amount;
   }
   ships.push({path, i: 0, t: 0, x: 0, y: 0, d: 2, speed: 5 + Math.random() * 2,
-    cargo, destPort: destPort ? destPort.id : 0,
+    cargo, origin: port.id, destPort: destPort ? destPort.id : 0,
     color: pick(['#f4f5f7', '#d8e4f0', '#e8d8b8'], Math.random()), dead: false});
   return true;
 }
@@ -428,7 +495,7 @@ function stepShips(dt) {
   for (const s of ships) {
     s.t += (s.speed || 6) * dt / T;
     while (s.t >= 1) { s.t -= 1; s.i++; }
-    if (s.i >= s.path.length - 1 || !water[s.path[s.i]]) { s.dead = true; continue; }
+    if (s.i >= s.path.length - 1 || !water[s.path[s.i]]) { returnShipCargo(s); s.dead = true; continue; }
     const a = s.path[s.i], c = s.path[s.i + 1];
     s.x = ((a % MW) + ((c % MW) - (a % MW)) * s.t) * T + 4.5;
     s.y = ((a / MW | 0) + ((c / MW | 0) - (a / MW | 0)) * s.t) * T + 4.5;
@@ -436,10 +503,19 @@ function stepShips(dt) {
     if (s.i >= s.path.length - 2) {
       // arrived: unload at the other port, or the cargo leaves the region
       const P = B(s.destPort);
-      if (P && P.type === 'warehouse') storeInWarehouse(P, s.cargo.good, s.cargo.amount);
-      else if (P) P.stock = Math.min(stockLimit(P), (P.stock || 0) + s.cargo.amount);
-      else cargoStats.shipped += s.cargo.amount;
-      if (P) cargoStats.moved += s.cargo.amount;
+      const {good, amount} = s.cargo;
+      let stored = 0;
+      if (P && P.type === 'warehouse') stored = storeInWarehouse(P, good, amount);
+      else if (P) {
+        stored = Math.min(amount, Math.max(0, stockLimit(P) - (P.stock || 0)));
+        P.stock = (P.stock || 0) + stored;
+      }
+      if (P) {
+        if (stored < amount) resources[good] = (resources[good] || 0) + (amount - stored);
+        cargoStats.moved += stored;
+      } else if (s.destPort) returnShipCargo(s);        // the port was demolished mid-voyage
+      else cargoStats.shipped += amount;                // exported off the region
+      s.cargo = null;
       s.dead = true;
     }
   }
@@ -450,6 +526,11 @@ function stepShips(dt) {
 // Freight trains
 // ---------------------------------------------------------------------
 const FREIGHT_SPEED = 7;
+// Player-drawn freight loops: {id, stops: [yard ids], color}. A line gets its
+// own train; yards without a line keep an automatic demand tour.
+let freightLines = [];
+let nextLineId = 1;
+const blockRes = new Map();          // block id -> train id holding the leg
 function freightConsist() {
   const total = 3 * (4 + Math.floor(Math.random() * 3));   // 12, 15 or 18 cars
   // One group of each kind is guaranteed, so every train can move people as
@@ -465,54 +546,173 @@ function yardTrack(b) {
   const per = perimeter(b.x, b.y, b.w, b.h);
   return per.find(i => trackOn[i]) ?? -1;
 }
-function partnerYard(y) {
-  const mine = yardTrack(y);
-  if (mine < 0) return null;
-  const list = [];
-  for (const o of buildings.values()) {
-    if (o.type !== 'railyard' && o.type !== 'distribution') continue;
-    if (o.id === y.id) continue;
-    const t = yardTrack(o);
-    if (t < 0) continue;
-    const p = trackPath(mine, t);
-    if (p && p.length > 1) list.push({b: o, d: distB(y, o), path: p});
+// Signal blocks: one tile wide around junctions, yards and player signals, and
+// a whole plain run of track in between. A block is the unit a train reserves,
+// so two trains can never occupy the same stretch in opposite directions.
+function relinkBlocks() {
+  blockOf.fill(0);
+  blockRes.clear();
+  for (const t of freight) t.reserved = [];
+  const node = i => {
+    if (sigNode[i]) return true;
+    let n = 0;
+    for (let d = 1; d <= 4; d++) { const j = nb(i, d); if (j >= 0 && trackOn[j]) n++; }
+    if (n !== 2) return true;
+    for (let d = 1; d <= 4; d++) {
+      const j = nb(i, d), id = j >= 0 ? bldAt[j] : 0;
+      if (!id) continue;
+      const b = B(id);
+      if (b && (b.type === 'railyard' || b.type === 'distribution')) return true;
+    }
+    return false;
+  };
+  let id = 0;
+  const queue = new Int32Array(N);
+  let qh = 0, qt = 0;
+  for (let i = 0; i < N; i++) if (trackOn[i] && node(i)) { blockOf[i] = ++id; queue[qt++] = i; }
+  while (qh < qt) {
+    const u = queue[qh++];
+    for (let d = 1; d <= 4; d++) {
+      const v = nb(u, d);
+      if (v < 0 || !trackOn[v] || blockOf[v]) continue;
+      blockOf[v] = blockOf[u];
+      queue[qt++] = v;
+    }
   }
-  if (!list.length) return null;
-  list.sort((a, b) => a.d - b.d);
-  return list[0];
+  // A closed loop with no junction in it is still one block.
+  for (let i = 0; i < N; i++) {
+    if (!trackOn[i] || blockOf[i]) continue;
+    blockOf[i] = ++id;
+    qh = 0; qt = 0; queue[qt++] = i;
+    while (qh < qt) {
+      const u = queue[qh++];
+      for (let d = 1; d <= 4; d++) {
+        const v = nb(u, d);
+        if (v < 0 || !trackOn[v] || blockOf[v]) continue;
+        blockOf[v] = id;
+        queue[qt++] = v;
+      }
+    }
+  }
+}
+// A block is red while a train holds the whole leg that runs through it.
+function blockBusy(id) { return id > 0 && blockRes.has(id); }
+function pathBlocks(path) {
+  const out = [];
+  let last = 0;
+  for (const i of path) {
+    const b = blockOf[i];
+    if (b && b !== last) { out.push(b); last = b; }
+  }
+  return out;
+}
+// Reserve every block of a leg in one go. All-or-nothing avoids the classic
+// single-track stand-off where two trains each hold a block the other wants.
+function reservePath(t, path) {
+  const blocks = pathBlocks(path);
+  for (const b of blocks) if (blockRes.has(b) && blockRes.get(b) !== t.id) return false;
+  for (const b of blocks) blockRes.set(b, t.id);
+  t.reserved = blocks;
+  return true;
+}
+function releaseBlocks(t) {
+  for (const b of t.reserved || []) if (blockRes.get(b) === t.id) blockRes.delete(b);
+  t.reserved = [];
+}
+function freightStopScore(y) {
+  let score = 0;
+  for (const b of buildings.values()) {
+    if (!nearYard(b, y)) continue;
+    if (b.type === 'warehouse') score += warehouseTotal(b) * 0.4 + warehouseRoom(b) * 0.3;
+    else if (b.type === 'distribution') score += Math.max(0, b.stock) * 1.5 + 40;
+    else if (producerOf(b)) {
+      const p = producerOf(b);
+      score += producerStock(b, p.good) * 2;
+      for (const g of Object.keys(p.byproducts || {})) score += producerStock(b, g);
+    }
+  }
+  return score;
+}
+// Automatic itinerary: up to three yards with something to move, then home.
+// A leg that cannot be routed is skipped rather than stranding the train.
+function autoPlan(t) {
+  const home = B(t.home);
+  if (!home || yardTrack(home) < 0) return [];
+  const pool = yards.filter(y => y.id !== t.home && yardTrack(y) >= 0 && freightStopScore(y) > 0)
+    .sort((a, b) => freightStopScore(b) - freightStopScore(a));
+  const plan = [];
+  for (const y of pool) {
+    if (plan.length >= 3) break;
+    const prev = plan.length ? B(plan[plan.length - 1]) : home;
+    const path = trackPath(yardTrack(prev), yardTrack(y));
+    if (!path || path.length < 2) continue;
+    plan.push(y.id);
+  }
+  if (!plan.length) return [];
+  const last = B(plan[plan.length - 1]);
+  if (!trackPath(yardTrack(last), yardTrack(home))) return [];
+  plan.push(t.home);
+  return plan;
+}
+function linePlan(t) {
+  const line = freightLines.find(l => l.id === t.line);
+  if (!line) return [];
+  const stops = line.stops.filter(id => {
+    const y = B(id);
+    return y && y.type === 'railyard' && yardTrack(y) >= 0;
+  });
+  if (stops.length < 2) return [];
+  const at = Math.max(0, stops.indexOf(t.at));
+  const out = [];
+  for (let k = 1; k < stops.length; k++) out.push(stops[(at + k) % stops.length]);
+  out.push(stops[at]);
+  return out;
+}
+function planFreight(t) {
+  const plan = t.line ? linePlan(t) : autoPlan(t);
+  if (!plan.length) return false;
+  t.plan = plan; t.leg = 0; t.target = plan[0];
+  return true;
 }
 function retireFreight(t) {
   t.dead = true;
+  releaseBlocks(t);
   for (const p of t.riders) if (!p.dead) { p.riding = false; p.hidden = false; p.ride = 0; nextLeg(p); }
   t.riders = [];
 }
+function newFreightTrain(yard, lineId) {
+  return {
+    id: nextIncident++, home: yard.id, line: lineId || 0, consist: freightConsist(),
+    path: null, i: 0, t: 0, x: yard.cx * T, y: yard.cy * T, d: 2,
+    state: 'dwell', wait: 2 + Math.random() * 2, at: yard.id, target: 0,
+    plan: [], leg: 0, reserved: [], cargo: {material: 0, liquid: 0, gas: 0},
+    riders: [], lastStop: -1, dead: false,
+  };
+}
 function syncFreight() {
   for (const t of freight) {
-    const a = B(t.home), b = B(t.partner);
-    if (!a || !b || a.type !== 'railyard' || yardTrack(a) < 0 || yardTrack(b) < 0) retireFreight(t);
+    const a = B(t.home);
+    if (!a || a.type !== 'railyard' || yardTrack(a) < 0) retireFreight(t);
+    else if (t.line && !freightLines.some(l => l.id === t.line)) retireFreight(t);
   }
   freight = freight.filter(t => !t.dead);
-  const homed = new Set(freight.map(t => t.home));
+  // one train per player line, then one automatic train per yard
+  for (const line of freightLines) {
+    if (freight.some(t => t.line === line.id)) continue;
+    const home = B(line.stops[0]);
+    if (!home || home.type !== 'railyard' || yardTrack(home) < 0) continue;
+    if (line.stops.some(id => { const y = B(id); return !y || y.type !== 'railyard' || yardTrack(y) < 0; })) continue;
+    if (freight.length >= 32) break;
+    freight.push(newFreightTrain(home, line.id));
+  }
+  const autoHomed = new Set(freight.filter(t => !t.line).map(t => t.home));
   for (const y of yards) {
-    if (homed.has(y.id) || freight.length >= 10) continue;
-    const p = partnerYard(y);
-    if (!p) continue;
-    const train = {
-      id: nextIncident++, home: y.id, partner: p.b.id, consist: freightConsist(),
-      path: null, i: 0, t: 0, x: y.cx * T, y: y.cy * T, d: 2,
-      state: 'dwell', wait: 2 + Math.random() * 2, at: y.id, target: p.b.id,
-      cargo: {material: 0, liquid: 0, gas: 0}, riders: [], lastStop: -1, dead: false,
-    };
-    freight.push(train);
-    homed.add(y.id);
+    if (autoHomed.has(y.id) || freight.length >= 32 || yardTrack(y) < 0) continue;
+    freight.push(newFreightTrain(y, 0));
+    autoHomed.add(y.id);
   }
 }
-const freightCars = t => t.consist.length;
 const freightCap = (t, kind) => t.consist.filter(k => k === kind).length * 10;
-function freightEnds(t) {
-  const a = B(t.target), y = B(t.at);
-  return {from: yardTrack(y), to: yardTrack(a), a, y};
-}
 // Distance between two footprints in blocks, so loading uses exactly the
 // radius that placement advertises: five blocks from the yard's edge.
 function nearYard(b, y) {
@@ -520,43 +720,68 @@ function nearYard(b, y) {
   const dy = Math.max(0, b.y - (y.y + y.h), y.y - (b.y + b.h));
   return dx + dy <= 5;
 }
+// How much a yard can take on arrival: only warehouses inside the same
+// five-block radius the placement rules advertise, so a train never teleports
+// cargo to a warehouse on the far side of the map.
+function yardSideRoom(y) {
+  if (!y) return 0;
+  let room = 0;
+  for (const b of buildings.values()) if (b.type === 'warehouse' && nearYard(b, y)) room += warehouseRoom(b);
+  return room;
+}
 function loadFreight(t) {
-  const y = B(t.at);
-  if (!y) return;
+  const y = B(t.at), dest = B(t.target);
+  if (!y || !dest) return;
+  const destRoom = yardSideRoom(dest);
+  if (destRoom <= 0) return;                 // nowhere to put it: don't take it
+  let roomLeft = destRoom;
+  // A warehouse only exports a surplus, and only into a side that is still
+  // mostly empty. Without both rules two yards trade the same load forever.
+  let destCap = 0;
+  for (const b of buildings.values()) if (b.type === 'warehouse' && nearYard(b, dest)) destCap += WAREHOUSE_CAP;
+  const destFill = destCap ? 1 - destRoom / destCap : 0;
+  const warehouseSurplus = destFill <= 0.5;
   // oil and gas only reach a yard if the rig is within five blocks, which is
   // the placement rule; the same radius gathers the other goods too.
   const hold = t.goods ||= Object.create(null);
+  const recent = t.recent || null;           // goods just dropped here stay here
   for (const b of buildings.values()) {
     if (b === y) continue;
     const p = producerOf(b);
     if (!p || !nearYard(b, y)) continue;
     for (const good of [p.good, ...Object.keys(p.byproducts || {})]) {
+      if (recent && recent.has(good)) continue;
       const kind = good === 'oil' ? 'liquid' : good === 'gas' ? 'gas' : 'material';
-      const room = freightCap(t, kind) - t.cargo[kind];
-      const n = Math.min(room, Math.floor(producerStock(b, good)));
+      const n = Math.min(freightCap(t, kind) - t.cargo[kind], Math.floor(producerStock(b, good)), roomLeft);
       if (n <= 0) continue;
-      hold[good] = (hold[good] || 0) + takeProducerStock(b, good, n);
-      t.cargo[kind] += n;
+      const moved = takeProducerStock(b, good, n);
+      hold[good] = (hold[good] || 0) + moved;
+      t.cargo[kind] += moved;
+      roomLeft -= moved;
     }
   }
-  // Warehouses load item-bearing freight by type so material stocks move between hubs.
+  // Warehouses only clear a surplus, so a load just delivered at the far end
+  // is never picked straight back up and sent home.
   let materialRoom = freightCap(t, 'material') - t.cargo.material;
   for (const b of buildings.values()) {
     if (b === y || !nearYard(b, y) || b.type !== 'warehouse') continue;
+    if (!warehouseSurplus || warehouseTotal(b) < WAREHOUSE_CAP * 0.5) continue;
     for (const good of GOOD_KEYS) {
-      const n = Math.min(materialRoom, Math.floor((b.inventory && b.inventory[good]) || 0));
-      if (!n) continue;
-      const moved = takeFromWarehouse(b, good, n); hold[good] = (hold[good] || 0) + moved; materialRoom -= moved;
-      t.cargo.material += moved;
-      if (!materialRoom) break;
+      if (recent && recent.has(good)) continue;
+      const n = Math.min(materialRoom, Math.floor((b.inventory && b.inventory[good]) || 0), roomLeft);
+      if (n <= 0) continue;
+      const moved = takeFromWarehouse(b, good, n); hold[good] = (hold[good] || 0) + moved;
+      materialRoom -= moved; roomLeft -= moved; t.cargo.material += moved;
+      if (!materialRoom || !roomLeft) break;
     }
-    if (!materialRoom) break;
+    if (!materialRoom || !roomLeft) break;
   }
   // A rail-served terminal continues to carry legacy undifferentiated goods.
   for (const b of buildings.values()) {
     if (b.type !== 'distribution' || b === y || b.stock <= 0 || !nearYard(b, y)) continue;
-    const n = Math.min(freightCap(t, 'material') - t.cargo.material, Math.floor(b.stock));
-    if (n > 0) { t.cargo.material += n; b.stock -= n; t.goods.goods = (t.goods.goods || 0) + n; }
+    if (recent && recent.has('goods')) continue;
+    const n = Math.min(freightCap(t, 'material') - t.cargo.material, Math.floor(b.stock), roomLeft);
+    if (n > 0) { t.cargo.material += n; b.stock -= n; t.goods.goods = (t.goods.goods || 0) + n; roomLeft -= n; }
   }
 }
 function unloadFreight(t) {
@@ -564,20 +789,22 @@ function unloadFreight(t) {
   if (!total) return;
   const y = B(t.at);
   if (!y) return;
-  const destinations = [...buildings.values()].filter(b => b.type === 'warehouse' && warehouseRoom(b) > 0).sort((a, b) => Math.abs(a.cx - y.cx) + Math.abs(a.cy - y.cy) - (Math.abs(b.cx - y.cx) + Math.abs(b.cy - y.cy)));
+  const destinations = [...buildings.values()]
+    .filter(b => b.type === 'warehouse' && nearYard(b, y) && warehouseRoom(b) > 0)
+    .sort((a, b) => warehouseRoom(b) - warehouseRoom(a));
   const hold = t.goods || {};
+  const unloaded = new Set();
   let moved = 0;
   for (const good of GOOD_KEYS) {
     let left = hold[good] || 0;
+    if (left > 0) unloaded.add(good);
     for (const dest of destinations) {
       if (!left) break;
       const n = storeInWarehouse(dest, good, left); left -= n; moved += n;
     }
-    if (left) {
-      if (good === 'goods') resources.goods = (resources.goods || 0) + left;
-      else resources[good] = (resources[good] || 0) + left;
-    }
+    if (left) resources[good] = (resources[good] || 0) + left;   // only when every nearby warehouse is full
   }
+  t.recent = unloaded;
   t.cargo.material = 0; t.cargo.liquid = 0; t.cargo.gas = 0; t.goods = Object.create(null);
   cargoStats.moved += moved;
 }
@@ -633,14 +860,23 @@ function stepFreight(dt) {
     if (t.state === 'dwell') {
       t.wait -= dt;
       if (t.wait > 0) continue;
-      const ends = freightEnds(t);
-      if (ends.from < 0 || ends.to < 0) { t.wait = 3; continue; }
-      const path = trackPath(ends.from, ends.to);
-      if (!path || path.length < 2) { t.wait = 3; continue; }
+      if (!t.plan.length || t.leg >= t.plan.length) {
+        if (!planFreight(t)) { t.wait = 3; continue; }
+      }
+      const here = B(t.at), next = B(t.target);
+      const from = yardTrack(here), to = yardTrack(next);
+      if (from < 0 || to < 0) { t.plan = []; t.wait = 3; continue; }
+      const path = trackPath(from, to);
+      if (!path || path.length < 2) { t.plan = []; t.wait = 3; continue; }
+      const stops = stationsAlong(path);
       loadFreight(t);
+      // The whole leg is claimed before the train moves, so a block is only
+      // ever held in one direction. A red signal means another train owns it.
+      if (!reservePath(t, path)) { t.wait = 1.5; continue; }
       t.path = path; t.i = 0; t.t = 0; t.state = 'run'; t.year = (t.year || 0) + 1;
       t.lastStop = -1;
-      t.stops = stationsAlong(path);
+      t.stops = stops;
+      t.recent = null;              // next yard may load anything again
       cargoStats.trainRuns++;
       const a = path[0], b = path[1];
       t.x = (a % MW) * T + 4.5; t.y = (a / MW | 0) * T + 4.5;
@@ -666,9 +902,13 @@ function stepFreight(dt) {
     while (t.t >= 1) {
       t.t -= 1; t.i++;
       if (t.i >= t.path.length - 1) {
-        t.at = t.target; t.target = t.partner === t.target ? t.home : t.partner;
-        // at the far end the train turns around; at home it loads and goes out again
+        t.at = t.target;
+        // unload at this stop, free the blocks behind, then queue the next leg
+        t.recent = null;             // this visit's own unload fills it below
         unloadFreight(t);
+        releaseBlocks(t);
+        t.leg++;
+        t.target = t.leg < t.plan.length ? t.plan[t.leg] : 0;
         t.state = 'dwell'; t.wait = 3; t.path = null; t.i = 0; t.t = 0; t.lastStop = -1; t.stops = null;
         const y = B(t.at);
         if (y) { t.x = y.cx * T; t.y = y.cy * T; }
@@ -735,46 +975,29 @@ function logisticsHour() {
 
 function stepLogistics(dt) {
   if (!logisticsReady) syncLogistics();
+  // Cooldowns are the gap between one building's dispatches. Warehouses and
+  // hubs use them too, so every source keeps shipping instead of firing once.
+  for (const b of buildings.values()) if (b.truckCd > 0) b.truckCd = Math.max(0, b.truckCd - dt);
   truckTimer += dt;
   if (truckTimer >= 1.4) { truckTimer = 0; dispatchTrucks(); }
-  // Warehouses always move stock toward a less-full peer. Roads/trucks handle
-  // nearby links; a train at a track-served yard can also transfer old stocks.
-  for (const y of yards) {
-    const yard = yardTrack(y);
-    if (yard < 0) continue;
-    const train = freight.find(t => t.at === y.id && t.state === 'dwell' && t.wait <= 0);
-    if (!train) continue;
-    const partner = B(train.target), otherTrack = yardTrack(partner);
-    const target = [...buildings.values()].filter(b => b.type === 'warehouse' && b.id !== y.id && warehouseRoom(b) > 0 &&
-      (b.id === partner.id || otherTrack >= 0 && trackPath(otherTrack, yardTrack(b)))).sort((a, b) => warehouseTotal(a) - warehouseTotal(b))[0];
-    if (!target) continue;
-    let room = freightCap(train, 'material') - train.cargo.material;
-    for (const good of GOOD_KEYS) {
-      if (room <= 0) break;
-      const n = Math.min(room, Math.floor(((y.inventory && y.inventory[good]) || 0) / 2), warehouseRoom(target));
-      if (!n) continue;
-      const moved = takeFromWarehouse(y, good, n);
-      target.inventory[good] = (target.inventory[good] || 0) + moved;
-      cargoStats.moved += moved; room -= moved;
-    }
-  }
-  // terminals beside a port pass their cargo straight to the quay
-  for (const h of hubs) {
-    if (h.stock <= 0) continue;
-    for (const i of perimeter(h.x, h.y, h.w, h.h)) {
-      const id = bldAt[i];
-      if (!id) continue;
-      const b = B(id);
-      if (!b || b.type !== 'port') continue;
-      const n = Math.min(h.stock, 40);
-      b.stock = Math.min(stockLimit(b), (b.stock || 0) + n);
-      h.stock -= n;
-      break;
-    }
-  }
   shipTimer += dt;
   if (shipTimer >= 2.5) {
     shipTimer = 0;
+    // terminals beside a port hand their cargo over at a loading pace, not all at once
+    for (const h of hubs) {
+      if (h.stock <= 0) continue;
+      for (const i of perimeter(h.x, h.y, h.w, h.h)) {
+        const id = bldAt[i];
+        if (!id) continue;
+        const b = B(id);
+        if (!b || b.type !== 'port') continue;
+        const n = Math.min(h.stock, 40, Math.max(0, stockLimit(b) - (b.stock || 0)));
+        if (n <= 0) break;
+        b.stock = (b.stock || 0) + n;
+        h.stock -= n;
+        break;
+      }
+    }
     if (ships.length < 10) for (const p of ports) {
       if (p.stock >= 20 && launchShip(p)) break;
     }

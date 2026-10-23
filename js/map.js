@@ -109,7 +109,13 @@ function drawTile(c, i) {
   else if (tree[i] && !bldAt[i]) drawTree(c, x0, y0, tree[i]);
   // Surface freight track lies over whatever is underneath, so a line can
   // cross a street at grade and still leave the street intact for traffic.
-  if (trackOn[i]) drawTrackTile(c, x0, y0, track[i], water[i]);
+  if (trackOn[i]) {
+    drawTrackTile(c, x0, y0, track[i], water[i]);
+    // One signal per block boundary is enough: check the east and south edges.
+    const e = nb(i, 2), s = nb(i, 3);
+    if (e >= 0 && trackOn[e] && blockOf[e] && blockOf[e] !== blockOf[i]) drawTrackSignal(c, x0, y0, 2, blockBusy(blockOf[e]));
+    if (s >= 0 && trackOn[s] && blockOf[s] && blockOf[s] !== blockOf[i]) drawTrackSignal(c, x0, y0, 3, blockBusy(blockOf[s]));
+  }
 }
 const miniCv = mk(MW, MH), mctx = miniCv.getContext('2d'), miniImg = mctx.createImageData(MW, MH);
 const MINIC = [[88, 156, 68], [215, 218, 224], [240, 200, 90], [219, 201, 159], [211, 201, 180]];

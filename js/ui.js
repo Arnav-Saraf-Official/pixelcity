@@ -24,6 +24,8 @@ function makeIcon(id) {
   } else switch (id) {
     case 'rail': aw = ah = 9; drawRailTile(t, 0, 0, 15, 'junction'); break;
     case 'track': aw = ah = 9; grass(); drawTrackTile(t, 0, 0, 10, false); break;
+    case 'signal': aw = ah = 9; grass(); drawTrackTile(t, 0, 0, 10, false); t.fillStyle = '#24282e'; t.fillRect(6, 4, 2, 3); t.fillStyle = '#e5484d'; t.fillRect(6, 4, 2, 2); break;
+    case 'freightline': aw = ah = 9; grass(); drawTrackTile(t, 0, 0, 10, false); t.fillStyle = '#f2c14e'; t.fillRect(1, 1, 2, 2); t.fillStyle = '#4d96ff'; t.fillRect(6, 6, 2, 2); break;
     case 'road': grass(); drawRoadTile(t, 0, 0, 4, 0, 0, 0, 1, 0); drawRoadTile(t, 0, 9, 3, 0, 0, 0, 1, 0); drawRoadTile(t, 9, 9, 8, 0, 0, 0, 1, 0); break;
     case 'country': grass(); drawRoadTile(t, 0, 4, 10, 0, 0, 0, 0, 0); drawRoadTile(t, 9, 4, 10, 0, 0, 0, 0, 0); break;
     case 'sidewalk': grass(); drawRoadTile(t, 0, 4, 10, 0, 0, 0, 1, 0); drawRoadTile(t, 9, 4, 10, 0, 0, 0, 1, 0);
@@ -96,6 +98,7 @@ function buildBar() {
   const sep = document.createElement('div'); sep.className = 'sep'; barEl.append(sep);
   for (const cat of CATS) {
     const b = document.createElement('button'); b.className = 'tab'; b.dataset.cat = cat.id; b.textContent = cat.name;
+    b.title = `Open the ${cat.name} palette`;
     b.style.padding = '10px 12px';
     b.onclick = () => openCat(curCat === cat.id ? null : cat.id);
     barEl.append(b);
@@ -109,9 +112,27 @@ function openCat(cat) {
   barEl.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.cat === cat));
   if (!cat) { flyEl.classList.add('hidden'); return; }
   flyEl.innerHTML = '';
+  const catName = (CATS.find(c => c.id === cat) || {}).name || cat;
+  // A search box and a close button make a long palette usable: type to narrow
+  // it, Escape or ✕ to get it out of the way.
+  const head = document.createElement('div');
+  head.className = 'fhead';
+  const title = document.createElement('b'); title.textContent = catName; head.append(title);
+  const filter = document.createElement('input');
+  filter.id = 'paletteFilter'; filter.type = 'search'; filter.placeholder = `Filter ${catName.toLowerCase()}…`;
+  filter.setAttribute('aria-label', `Filter ${catName} tools`);
+  head.append(filter);
+  const close = document.createElement('button');
+  close.className = 'fclose'; close.textContent = '✕'; close.title = 'Close palette';
+  close.onclick = () => openCat(null);
+  head.append(close);
+  flyEl.append(head);
+
+  const body = document.createElement('div'); body.className = 'fbody'; flyEl.append(body);
   // Tools are laid out in labelled groups, so a tab reads as sections rather
   // than one long row: metro, walking, then freight, for example.
   let group = null, row = null;
+  const groups = [];
   for (const id in TOOLS) {
     if (TOOLS[id].cat !== cat) continue;
     const t = TOOLS[id], g = t.group || '';
@@ -120,32 +141,48 @@ function openCat(cat) {
       const wrap = document.createElement('div'); wrap.className = 'fgroup';
       if (g) { const lbl = document.createElement('small'); lbl.textContent = g; wrap.append(lbl); }
       row = document.createElement('div'); row.className = 'frow'; wrap.append(row);
-      flyEl.append(wrap);
+      body.append(wrap); groups.push(wrap);
     }
     const b = document.createElement('button'); b.className = 'card'; b.dataset.tool = id;
+    b.title = t.desc || t.name;
+    b.dataset.search = `${t.name} ${t.desc || ''} ${g} ${t.key || ''}`.toLowerCase();
     b.append(icon(id));
     const nm = document.createElement('span'); nm.textContent = t.name; b.append(nm);
     if (t.stats) { const s = document.createElement('small'); s.textContent = t.stats.split(' · ')[0]; b.append(s); }
-    else if (t.key) { const s = document.createElement('small'); s.textContent = `[${t.key}]`; b.append(s); }
+    if (t.key) { const k = document.createElement('kbd'); k.textContent = t.key; b.append(k); }
     b.onclick = () => setTool(id);
     b.onmouseenter = () => showTip(b, id); b.onmouseleave = hideTip;
     row.append(b);
   }
+  const empty = document.createElement('div');
+  empty.className = 'fempty'; empty.textContent = 'No tools match that filter.'; empty.hidden = true;
+  body.append(empty);
+  filter.addEventListener('input', () => {
+    const q = filter.value.trim().toLowerCase();
+    let any = false;
+    for (const wrap of groups) {
+      let shown = 0;
+      for (const b of wrap.querySelectorAll('.card')) {
+        const hit = !q || b.dataset.search.includes(q);
+        b.classList.toggle('hidden', !hit);
+        if (hit) shown++;
+      }
+      wrap.hidden = shown === 0;
+      if (shown) any = true;
+    }
+    empty.hidden = any;
+  });
+  filter.addEventListener('keydown', e => { if (e.key === 'Escape') openCat(null); });
   if (cat === 'world') {
     const info = document.createElement('small'); info.className = 'field-hint';
     info.textContent = 'Build islands from materials produced by quarries and mines; placing platforms consumes the materials.';
-    flyEl.append(info);
-  }
-  if (cat === 'world') {
-    const info = document.createElement('small'); info.className = 'field-hint';
-    info.textContent = 'Create islands using quarry and mine products; placing a platform consumes materials.';
-    flyEl.append(info);
+    body.append(info);
   }
   if (cat === 'districts') {
     const wrap = document.createElement('div');
     wrap.id = 'districtList';
     wrap.className = 'list';
-    flyEl.append(wrap);
+    body.append(wrap);
     updateDistrictUI();
   }
   flyEl.classList.remove('hidden');
@@ -492,7 +529,7 @@ function hud(dt) {
   setT('gCargo', `${trucks} · ${typeof cargoStats === 'object' ? cargoStats.deliveries : 0}`);
   setT('gShips', `${ships.length} · ${ports.length}`);
   let wagons = 0; for (const t of freight) wagons += t.consist.length;
-  setT('gFreight', `${freight.length} · ${wagons} cars`);
+  setT('gFreight', `${freight.length} · ${wagons} cars${freightLines.length ? ` · ${freightLines.length} L` : ''}`);
   const m = {car: 0, walk: 0, metro: 0, bus: 0}; for (const v of stats.modes) m[v]++;
   document.getElementById('mBus').style.width = (m.bus / (stats.modes.length || 1) * 100) + '%';
   setT('lBus', `bus ${Math.round(m.bus / (stats.modes.length || 1) * 100)}%`);

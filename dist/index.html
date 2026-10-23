@@ -74,13 +74,20 @@ body.region #side,body.region #bottom,body.region #inspector,body.region #cong,b
    needed to clear the zoom panel, which --zoomw / --bshift are measured for in
    js/ui.js. The max-width keeps it out from under those controls at any width. */
 #bottom{position:fixed;left:50%;bottom:calc(10px + var(--sb));transform:translateX(calc(-50% + var(--bshift,0px)));display:flex;flex-direction:column;align-items:center;gap:8px;max-width:calc(100vw - 28px - var(--zoomw,0px));z-index:5}
-#flyout{display:flex;gap:8px;padding:6px;overflow-x:auto;max-width:100%;align-items:flex-start}
+#flyout{display:flex;flex-direction:column;gap:6px;padding:6px;max-width:100%;align-items:stretch}
+#flyout .fhead{display:flex;align-items:center;gap:6px;padding:0 2px}
+#flyout .fhead b{font-weight:normal;color:var(--hi);font-size:20px;letter-spacing:1px;text-transform:uppercase;white-space:nowrap}
+#paletteFilter{font-size:17px;padding:1px 6px;flex:1;min-width:110px;max-width:260px}
+#flyout .fclose{flex:none;padding:0 7px;line-height:1.1}
+#flyout .fbody{display:flex;gap:8px;overflow-x:auto;max-width:100%;align-items:flex-start;padding-bottom:2px}
 #flyout .fgroup{display:flex;flex-direction:column;gap:2px;flex:none}
+#flyout .fempty{color:var(--dim);padding:6px;font-size:18px}
 #flyout .fgroup>small{color:var(--dim);font-size:13px;letter-spacing:1px;padding:0 4px;text-transform:uppercase;white-space:nowrap}
 #flyout .frow{display:flex;gap:6px}
 .card{width:86px;flex:none;padding:4px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:17px;line-height:1}
 .card canvas{width:54px;height:54px;image-rendering:pixelated}
 .card small{color:var(--dim);font-size:14px}
+.card kbd{font-family:inherit;font-size:12px;line-height:1;color:var(--hi);background:var(--ink);border:1px solid var(--line);padding:1px 3px}
 #bar{display:flex;gap:4px;padding:5px;align-items:center;overflow-x:auto;max-width:100%}
 #bar .sep{width:2px;align-self:stretch;background:var(--edge);margin:0 4px}
 #tip{position:fixed;z-index:20;padding:6px 8px;max-width:260px;pointer-events:none;font-size:18px;line-height:1.05}
@@ -378,13 +385,13 @@ body.menu-screen #top,body.menu-screen #taxBtn,body.menu-screen #menu,body.menu-
     <li><b>Buildings</b> need a road next to them. Click to place, or drag to paint rows of houses. Docks go on a shore, half over the water.</li>
     <li><b>Parking:</b> offices and shops have fewer spaces than visitors. Full lots send drivers circling to a Parking Lot or Garage, or home unhappy.</li>
     <li><b>Walking:</b> sidewalks, footpaths, plazas and parks let people walk short trips. <b>Metro stations</b> take longer trips off the road, but a station is only useful once you draw <b>Metro Rails</b> (Metro tab) between it and another station.</li>
-    <li><b>Freight:</b> farms, quarries, fisheries and rigs load their goods onto <b>trucks</b> at the kerb. Draw surface <b>Freight Track</b> (Transit tab, <kbd>I</kbd>) between <b>Train Yards</b>; each train carries 12-18 cars in runs of three, mixing passengers, materials, liquids and gas. <b>Cargo Ports</b> send ships to other ports and islands, and <b>Distribution Terminals</b> sort truck cargo onto trains and quays. Oil and gas buildings must sit within 5 blocks of a train yard.</li>
+    <li><b>Freight:</b> farms, quarries, fisheries and rigs load their goods onto <b>trucks</b> at the kerb. Draw surface <b>Freight Track</b> (Transit tab, <kbd>I</kbd>) between <b>Train Yards</b>; each train carries 12-18 cars in runs of three, mixing passengers, materials, liquids and gas. Trains plan multi-stop tours between up to three yards, and a <b>Freight Line</b> tool gives chosen yards a dedicated loop. Track is split into signal blocks; a block turns red while a train holds the leg, and no two trains can occupy the same block. <b>Rail Signal</b> (<kbd>E</kbd>) adds a block boundary by hand. <b>Cargo Ports</b> send ships to other ports and islands, and <b>Distribution Terminals</b> sort truck cargo onto trains and quays. Oil and gas buildings must sit within 5 blocks of a train yard.</li>
     <li><b>Region:</b> nine connected districts, all simulated at once. Zoom out past a whole district to see them all, then click one to build there. Cars, boats and planes travel across all of them.</li>
     <li>Turn on <b>Congestion</b> to see jams as a green-to-red gradient. <b>Underground</b> strips the surface away and shows the metro network: rails, junction blocks where lines meet, reversing blocks where a train can turn back, and the trains themselves. <b>Save &amp; share</b> in the menu makes a save file or a share code.</li>
   </ul>
   <p><kbd>Wheel</kbd> or <kbd>+ −</kbd> zoom · <kbd>Z</kbd> district · <kbd>Shift</kbd>, <kbd>Right</kbd> or <kbd>Middle</kbd> drag, or <kbd>WASD</kbd> to pan · <kbd>Esc</kbd> cancel · <kbd>P</kbd> pause · <kbd>1 2 3</kbd> speed<br>
   <kbd>X</kbd> select, then <kbd>Ctrl+C</kbd> <kbd>Ctrl+X</kbd> <kbd>Ctrl+V</kbd> <kbd>Del</kbd> · <kbd>Ctrl+S</kbd> quick save<br>
-  <kbd>Q</kbd> inspect · <kbd>B</kbd> bulldoze · <kbd>R</kbd> street · <kbd>K</kbd> country road · <kbd>J</kbd> sidewalks · <kbd>O</kbd> one-way · <kbd>H</kbd> highway · <kbd>U</kbd> overpass · <kbd>L</kbd> light · <kbd>F</kbd> footpath · <kbd>T</kbd> metro rails · <kbd>I</kbd> freight track · <kbd>V</kbd> congestion · <kbd>M</kbd> moods · <kbd>N</kbd> underground · <kbd>Y</kbd> sky</p>
+  <kbd>Q</kbd> inspect · <kbd>B</kbd> bulldoze · <kbd>R</kbd> street · <kbd>K</kbd> country road · <kbd>J</kbd> sidewalks · <kbd>O</kbd> one-way · <kbd>H</kbd> highway · <kbd>U</kbd> overpass · <kbd>L</kbd> light · <kbd>F</kbd> footpath · <kbd>T</kbd> metro rails · <kbd>I</kbd> freight track · <kbd>E</kbd> rail signal · <kbd>V</kbd> congestion · <kbd>M</kbd> moods · <kbd>N</kbd> underground · <kbd>Y</kbd> sky</p>
   <div class="btns"><button id="helpClose" class="on">Start building</button></div>
 </div>
 
@@ -579,6 +586,8 @@ const railOn = new Uint8Array(N);   // underground metro rails the player has dr
 const rail = new Uint8Array(N);     // their connection mask, derived from railOn on every edit
 const trackOn = new Uint8Array(N);  // surface freight tracks the player has drawn
 const track = new Uint8Array(N);    // their connection mask, derived from trackOn on every edit
+const sigNode = new Uint8Array(N);  // player-placed signal block boundaries on freight track
+const blockOf = new Int32Array(N);  // signal block id per track tile, rebuilt with the track
 const overpass = new Uint8Array(N); // grade-separated 4-way crossing
 const freeflow = new Uint8Array(N); // junction joining only highways (merges, splits, ramps): cars zipper through
 const bldAt = new Int32Array(N);
@@ -1100,6 +1109,10 @@ function genTerrainInto(seed, wArr, tArr) {
         if (alpha !== undefined && alpha !== 1) g.globalAlpha = alpha;
         g.drawImage(c, x, y);
         if (alpha !== undefined && alpha !== 1) g.globalAlpha = 1;
+      },
+      clearRect(x, y, ww, hh) {
+        if (ww <= 0 || hh <= 0) return;
+        g.clearRect(Math.round(x), Math.round(y), Math.round(ww), Math.round(hh));
       }
     };
   }
@@ -1136,6 +1149,14 @@ function genTerrainInto(seed, wArr, tArr) {
           const o = (yy * img.w + xx) * 4;
           blend(x + xx, y + yy, src[o], src[o + 1], src[o + 2], Math.round(src[o + 3] * k));
         }
+      },
+      clearRect(x, y, ww, hh) {
+        if (ww <= 0 || hh <= 0) return;
+        const x0 = Math.round(x), y0 = Math.round(y), x1 = x0 + Math.round(ww), y1 = y0 + Math.round(hh);
+        for (let yy = Math.max(0, y0); yy < Math.min(h, y1); yy++) for (let xx = Math.max(0, x0); xx < Math.min(w, x1); xx++) {
+          const o = (yy * w + xx) * 4;
+          data[o] = data[o + 1] = data[o + 2] = data[o + 3] = 0;
+        }
       }
     };
   }
@@ -1148,6 +1169,9 @@ function genTerrainInto(seed, wArr, tArr) {
 
   const DRAW = {
     rect(a, env, be) { be.fillRect(a.x + env.ox, a.y + env.oy, a.w, a.h, a.color); },
+    // Punch a hole back to transparent. Unlike a rect with alpha 0, this erases
+    // whatever was painted under it, which is what patching pixel art needs.
+    clear(a, env, be) { be.clearRect(a.x + env.ox, a.y + env.oy, a.w, a.h); },
     pixel(a, env, be) { be.fillRect(a.x + env.ox, a.y + env.oy, 1, 1, a.color); },
     line(a, env, be) {
       let x0 = a.x1 + env.ox, y0 = a.y1 + env.oy;
@@ -1625,6 +1649,16 @@ function drawTrackTile(c, x0, y0, m, wet) {
   TEX.draw(c, 'rails', 'track', x0, y0, { m });
 }
 
+// Block signal at the edge a train crosses into the next block: a small post
+// with a lamp that is red while another train holds the leg.
+function drawTrackSignal(c, x0, y0, dir, red) {
+  const px = dir === 2 ? x0 + T - 2 : x0 + 2;
+  const py = dir === 2 ? y0 + 2 : y0 + T - 3;
+  c.fillStyle = '#24282e'; c.fillRect(px, py, 2, 3);
+  c.fillStyle = red ? '#e5484d' : '#43b95b'; c.fillRect(px, py, 2, 2);
+  c.fillStyle = red ? '#ffc0c0' : '#d8ffe0'; c.fillRect(px, py, 1, 1);
+}
+
 function drawStationPad(c, x0, y0) {
   TEX.draw(c, 'underground', 'station', x0, y0, {});
 }
@@ -1755,7 +1789,13 @@ function drawTile(c, i) {
   else if (tree[i] && !bldAt[i]) drawTree(c, x0, y0, tree[i]);
   // Surface freight track lies over whatever is underneath, so a line can
   // cross a street at grade and still leave the street intact for traffic.
-  if (trackOn[i]) drawTrackTile(c, x0, y0, track[i], water[i]);
+  if (trackOn[i]) {
+    drawTrackTile(c, x0, y0, track[i], water[i]);
+    // One signal per block boundary is enough: check the east and south edges.
+    const e = nb(i, 2), s = nb(i, 3);
+    if (e >= 0 && trackOn[e] && blockOf[e] && blockOf[e] !== blockOf[i]) drawTrackSignal(c, x0, y0, 2, blockBusy(blockOf[e]));
+    if (s >= 0 && trackOn[s] && blockOf[s] && blockOf[s] !== blockOf[i]) drawTrackSignal(c, x0, y0, 3, blockBusy(blockOf[s]));
+  }
 }
 const miniCv = mk(MW, MH), mctx = miniCv.getContext('2d'), miniImg = mctx.createImageData(MW, MH);
 const MINIC = [[88, 156, 68], [215, 218, 224], [240, 200, 90], [219, 201, 159], [211, 201, 180]];
@@ -3055,6 +3095,9 @@ function weatherKindRoll(r) {
   if (r > 0.7) return 'snow';
   return r > 0.35 ? 'cloudy' : 'sunny';
 }
+// Ideal is a sandbox: the sky never turns, so nothing outside the player's
+// control slows traffic or starts fires.
+const idealWeather = () => typeof worldSettings !== 'undefined' && worldSettings.difficulty === 'ideal';
 function initWeather() {
   const rng = mulberry((worldSeed ^ 0x51A7) >>> 0);
   weatherCells.length = 0;
@@ -3062,8 +3105,8 @@ function initWeather() {
   for (let gy = 0; gy < WX_ROWS; gy++) for (let gx = 0; gx < WX_COLS; gx++) {
     const bx = (gx + 0.5) * MW / WX_COLS, by = (gy + 0.5) * MH / WX_ROWS;
     const c = newWeatherCell(bx, by, k++);
-    c.kind = weatherKindRoll(rng());
-    c.until = gameMin + 150 + rng() * 420;
+    c.kind = idealWeather() ? 'sunny' : weatherKindRoll(rng());
+    c.until = gameMin + (idealWeather() ? 1e9 : 150 + rng() * 420);
     weatherCells.push(c);
   }
   weatherSeeded = true;
@@ -3097,15 +3140,15 @@ function syncWeatherLabel() {
 }
 function rollWeather(cell) {
   const c = cell || weatherCellAt(cameraTile().x, cameraTile().y);
-  c.kind = weatherKindRoll(Math.random());
-  c.until = gameMin + (180 + Math.random() * 360);   // 3-9 game hours
+  c.kind = idealWeather() ? 'sunny' : weatherKindRoll(Math.random());
+  c.until = gameMin + (idealWeather() ? 1e9 : 180 + Math.random() * 360);   // 3-9 game hours
   syncWeatherLabel();
 }
 function weatherTick() {
   if (!weatherCells.length) initWeather();
   for (const c of weatherCells) if (gameMin >= c.until) {
-    c.kind = weatherKindRoll(Math.random());
-    c.until = gameMin + 180 + Math.random() * 360;
+    c.kind = idealWeather() ? 'sunny' : weatherKindRoll(Math.random());
+    c.until = gameMin + (idealWeather() ? 1e9 : 180 + Math.random() * 360);
   }
   syncWeatherLabel();
 }
@@ -3781,6 +3824,22 @@ const stockLimit = b => b.type === 'warehouse' ? WAREHOUSE_CAP
   : (b.type === 'port' || b.type === 'distribution' || b.type === 'railyard') ? HUB_STOCK_CAP
   : BT[b.type].cat === 'com' ? SHOP_STOCK_CAP : ((PRODUCER[b.type] && PRODUCER[b.type].cap) || 40);
 const producerOf = b => PRODUCER[b.type] || null;
+// Trucks already on the road toward a building, so two dispatches never race
+// for the same shelf space. Derived from the fleet, so a truck that crashes
+// simply stops counting instead of leaving a stale reservation behind.
+function inboundByBuilding() {
+  const inbound = new Map();
+  for (const c of cars) {
+    if (!c.truck || c.dead || !c.cargo) continue;
+    inbound.set(c.dest, (inbound.get(c.dest) || 0) + c.cargo.amount);
+  }
+  return inbound;
+}
+function freeRoomOf(b, inbound) {
+  const reserved = (inbound && inbound.get(b.id)) || 0;
+  const room = b.type === 'warehouse' ? warehouseRoom(b) : stockLimit(b) - Math.max(0, b.stock || 0);
+  return Math.max(0, room - reserved);
+}
 function takeProducerStock(b, good, amount) {
   const p = producerOf(b);
   if (!p) return 0;
@@ -3807,6 +3866,10 @@ function hasAccessibleSupply(shop) {    const shopRoad = roadTileOf(shop);
 function resetLogistics() {
   ships.length = 0;
   freight.length = 0;
+  freightLines = [];
+  nextLineId = 1;
+  blockRes.clear();
+  sigNode.fill(0);
   cargoStats.deliveries = 0; cargoStats.shipped = 0; cargoStats.moved = 0; cargoStats.trainRuns = 0;
   truckTimer = 0; shipTimer = 0;
   logisticsReady = false;
@@ -3855,6 +3918,7 @@ function relinkTrack() {
     for (let d = 1; d <= 4; d++) { const j = nb(i, d); if (j >= 0 && trackOn[j]) m |= bit(d); }
     track[i] = m;
   }
+  relinkBlocks();
 }
 const tqPath = new Int32Array(N), tqPrev = new Int32Array(N), tqSeen = new Uint32Array(N);
 let tqGen = 0;
@@ -3888,14 +3952,14 @@ function roadTileOf(b) {
   if (b.road >= 0 && tile[b.road] === 1) return b.road;
   return perimeter(b.x, b.y, b.w, b.h).find(i => tile[i] === 1) ?? -1;
 }
-function findCustomer(p, good, excludeWarehouses = false) {
+function findCustomer(p, good, excludeWarehouses = false, inbound = null) {
   const from = roadTileOf(p);
   if (from < 0) return null;
   const comp = compR[from];
   let best = null, bd = Infinity, bestPri = 99;
   for (const b of buildings.values()) {
     if (b === p || excludeWarehouses && b.type === 'warehouse' || !acceptsGood(b, good)) continue;
-    if ((b.type === 'warehouse' ? warehouseTotal(b) : b.stock) >= stockLimit(b)) continue;
+    if (freeRoomOf(b, inbound) <= 0) continue;
     const r = roadTileOf(b);
     if (r < 0 || compR[r] !== comp) continue;
     const d = distB(p, b);
@@ -3929,7 +3993,7 @@ function sendTruck(from, to, good, amount, color) {
     cargoStats.deliveries++; cargoStats.moved += amount;
     return true;
   }
-  const c = newCar({truck: true, cargo: {good, amount}, dest: to.id, intent: to.id, path,
+  const c = newCar({truck: true, cargo: {good, amount, from: from.id}, dest: to.id, intent: to.id, path,
     color: color || '#ddd6c2', max: 18});
   carGeom(c);
   if (!spawnCarAt(c)) {
@@ -3942,57 +4006,88 @@ function sendTruck(from, to, good, amount, color) {
   }
   return true;
 }
+// Put an undelivered load back where it came from, so a demolished or filled
+// destination does not quietly delete stock.
+function putBack(id, good, amount) {
+  const S = B(id);
+  if (!S || amount <= 0) return;
+  if (S.type === 'warehouse') { storeInWarehouse(S, good, amount); return; }
+  const p = producerOf(S);
+  if (p) {
+    if (good === p.good) S.stock = Math.min(p.cap, (S.stock || 0) + amount);
+    else { S.byproducts ||= Object.create(null); S.byproducts[good] = Math.min(100, (S.byproducts[good] || 0) + amount); }
+    return;
+  }
+  S.stock = Math.min(stockLimit(S), (S.stock || 0) + amount);
+}
 function deliverTruck(c) {
   const D = B(c.dest);
-  if (D && c.cargo) {
-    if (D.type === 'warehouse') storeInWarehouse(D, c.cargo.good, c.cargo.amount);
-    else D.stock = Math.min(stockLimit(D), (D.stock || 0) + c.cargo.amount);
-    cargoStats.deliveries++; cargoStats.moved += c.cargo.amount;
-  }
+  if (!D || !c.cargo) { endCar(c); return; }
+  const {good, amount} = c.cargo;
+  const stored = D.type === 'warehouse' ? storeInWarehouse(D, good, amount)
+    : Math.min(amount, Math.max(0, stockLimit(D) - (D.stock || 0)));
+  if (D.type !== 'warehouse') D.stock = (D.stock || 0) + stored;
+  if (stored > 0) { cargoStats.deliveries++; cargoStats.moved += stored; }
+  if (stored < amount) putBack(c.cargo.from, good, amount - stored);
   endCar(c);
 }
 function dispatchTrucks() {
   let trucks = 0;
   for (const c of cars) if (c.truck) trucks++;
   if (trucks >= 70) return;
+  const inbound = inboundByBuilding();
+  const room = b => freeRoomOf(b, inbound);
   for (const b of buildings.values()) {
     const p = producerOf(b);
     if (!p || b.truckCd > 0) continue;
     const goods = [p.good, ...Object.keys(p.byproducts || {})];
     for (const good of goods) {
       if (producerStock(b, good) < 10) continue;
-      const to = findCustomer(b, good);
+      const to = findCustomer(b, good, false, inbound);
       if (!to) continue;
-      const amount = Math.min(TRUCK_CAP, Math.floor(producerStock(b, good)));
-      if (sendTruck(b, to, good, amount)) { b.truckCd = 5 + Math.random() * 4; if (++trucks >= 70) return; }
+      const amount = Math.min(TRUCK_CAP, Math.floor(producerStock(b, good)), room(to));
+      if (amount <= 0) continue;
+      if (sendTruck(b, to, good, amount)) {
+        inbound.set(to.id, (inbound.get(to.id) || 0) + amount);
+        b.truckCd = 5 + Math.random() * 4; if (++trucks >= 70) return;
+      }
     }
   }
-  // Warehouses move stock to the least supplied peer; each shipment keeps its
-  // item type so trains/ships/trucks never turn mixed cargo into generic goods.
+  // Warehouses top up reachable shops first, then relieve a nearly full peer
+  // into a nearly empty one. Both thresholds are deliberately wide, so two
+  // warehouses never shuttle the same load back and forth.
   for (const source of buildings.values()) {
     if (source.type !== 'warehouse' || source.truckCd > 0 || warehouseTotal(source) < 10) continue;
-    let sentToShop = false;
+    let sent = false;
     for (const good of GOOD_KEYS) {
       const available = Math.floor((source.inventory && source.inventory[good]) || 0);
       if (available < 1) continue;
-      const customer = findCustomer(source, good, true);
+      const customer = findCustomer(source, good, true, inbound);
       if (!customer) continue;
-      const amount = Math.min(TRUCK_CAP, available);
+      const amount = Math.min(TRUCK_CAP, available, room(customer));
+      if (amount <= 0) continue;
       if (sendTruck(source, customer, good, amount, '#d1c5a8')) {
-        source.truckCd = 6; sentToShop = true; if (++trucks >= 70) return; break;
+        inbound.set(customer.id, (inbound.get(customer.id) || 0) + amount);
+        source.truckCd = 6; sent = true; if (++trucks >= 70) return; break;
       }
     }
-    if (sentToShop) continue;
+    if (sent) continue;
+    if (warehouseTotal(source) < WAREHOUSE_CAP * 0.6) continue;
     let target = null, gap = 0;
     for (const dest of buildings.values()) {
-      if (dest === source || dest.type !== 'warehouse' || roadTileOf(dest) < 0 || compR[roadTileOf(dest)] !== compR[roadTileOf(source)]) continue;
+      if (dest === source || dest.type !== 'warehouse' || warehouseTotal(dest) > WAREHOUSE_CAP * 0.4) continue;
+      const dr = roadTileOf(dest);
+      if (dr < 0 || compR[dr] !== compR[roadTileOf(source)]) continue;
       const d = warehouseTotal(source) - warehouseTotal(dest);
       if (d > gap) { gap = d; target = dest; }
     }
     if (!target) continue;
     for (const good of GOOD_KEYS) {
-      const n = Math.min(TRUCK_CAP, Math.floor(((source.inventory && source.inventory[good]) || 0) / 2));
-      if (n && sendTruck(source, target, good, n, '#d1c5a8')) {
+      const have = Math.floor((source.inventory && source.inventory[good]) || 0);
+      const n = Math.min(TRUCK_CAP, Math.floor(have / 2), room(target));
+      if (n <= 0) continue;
+      if (sendTruck(source, target, good, n, '#d1c5a8')) {
+        inbound.set(target.id, (inbound.get(target.id) || 0) + n);
         source.truckCd = 6; if (++trucks >= 70) return;
       }
     }
@@ -4002,10 +4097,14 @@ function dispatchTrucks() {
     if (b.road < 0 || b.truckCd > 0) continue;
     if (b.type !== 'distribution' && b.type !== 'port' && b.type !== 'railyard') continue;
     if (b.stock < 12) continue;
-    const to = findCustomer(b, 'goods');
+    const to = findCustomer(b, 'goods', false, inbound);
     if (!to) continue;
-    const amount = Math.min(TRUCK_CAP, Math.floor(b.stock));
-    if (sendTruck(b, to, 'goods', amount, '#cfe0ef')) { b.truckCd = 7 + Math.random() * 5; if (++trucks >= 70) return; }
+    const amount = Math.min(TRUCK_CAP, Math.floor(b.stock), room(to));
+    if (amount <= 0) continue;
+    if (sendTruck(b, to, 'goods', amount, '#cfe0ef')) {
+      inbound.set(to.id, (inbound.get(to.id) || 0) + amount);
+      b.truckCd = 7 + Math.random() * 5; if (++trucks >= 70) return;
+    }
   }
 }
 
@@ -4058,6 +4157,17 @@ function exportTile(b) {
   }
   return best;
 }
+// A voyage that fails (channel blocked, destination demolished) sends its cargo
+// back to the quay it left, rather than deleting it at sea.
+function returnShipCargo(s) {
+  if (!s || !s.cargo) return;
+  const S = B(s.origin);
+  if (S) {
+    if (S.type === 'warehouse') storeInWarehouse(S, s.cargo.good, s.cargo.amount);
+    else S.stock = Math.min(stockLimit(S), (S.stock || 0) + s.cargo.amount);
+  }
+  s.cargo = null;
+}
 function launchShip(port) {
   const from = waterNeighbour(port);
   if (from < 0) return false;
@@ -4086,7 +4196,7 @@ function launchShip(port) {
     port.stock -= cargo.amount;
   }
   ships.push({path, i: 0, t: 0, x: 0, y: 0, d: 2, speed: 5 + Math.random() * 2,
-    cargo, destPort: destPort ? destPort.id : 0,
+    cargo, origin: port.id, destPort: destPort ? destPort.id : 0,
     color: pick(['#f4f5f7', '#d8e4f0', '#e8d8b8'], Math.random()), dead: false});
   return true;
 }
@@ -4094,7 +4204,7 @@ function stepShips(dt) {
   for (const s of ships) {
     s.t += (s.speed || 6) * dt / T;
     while (s.t >= 1) { s.t -= 1; s.i++; }
-    if (s.i >= s.path.length - 1 || !water[s.path[s.i]]) { s.dead = true; continue; }
+    if (s.i >= s.path.length - 1 || !water[s.path[s.i]]) { returnShipCargo(s); s.dead = true; continue; }
     const a = s.path[s.i], c = s.path[s.i + 1];
     s.x = ((a % MW) + ((c % MW) - (a % MW)) * s.t) * T + 4.5;
     s.y = ((a / MW | 0) + ((c / MW | 0) - (a / MW | 0)) * s.t) * T + 4.5;
@@ -4102,10 +4212,19 @@ function stepShips(dt) {
     if (s.i >= s.path.length - 2) {
       // arrived: unload at the other port, or the cargo leaves the region
       const P = B(s.destPort);
-      if (P && P.type === 'warehouse') storeInWarehouse(P, s.cargo.good, s.cargo.amount);
-      else if (P) P.stock = Math.min(stockLimit(P), (P.stock || 0) + s.cargo.amount);
-      else cargoStats.shipped += s.cargo.amount;
-      if (P) cargoStats.moved += s.cargo.amount;
+      const {good, amount} = s.cargo;
+      let stored = 0;
+      if (P && P.type === 'warehouse') stored = storeInWarehouse(P, good, amount);
+      else if (P) {
+        stored = Math.min(amount, Math.max(0, stockLimit(P) - (P.stock || 0)));
+        P.stock = (P.stock || 0) + stored;
+      }
+      if (P) {
+        if (stored < amount) resources[good] = (resources[good] || 0) + (amount - stored);
+        cargoStats.moved += stored;
+      } else if (s.destPort) returnShipCargo(s);        // the port was demolished mid-voyage
+      else cargoStats.shipped += amount;                // exported off the region
+      s.cargo = null;
       s.dead = true;
     }
   }
@@ -4116,6 +4235,11 @@ function stepShips(dt) {
 // Freight trains
 // ---------------------------------------------------------------------
 const FREIGHT_SPEED = 7;
+// Player-drawn freight loops: {id, stops: [yard ids], color}. A line gets its
+// own train; yards without a line keep an automatic demand tour.
+let freightLines = [];
+let nextLineId = 1;
+const blockRes = new Map();          // block id -> train id holding the leg
 function freightConsist() {
   const total = 3 * (4 + Math.floor(Math.random() * 3));   // 12, 15 or 18 cars
   // One group of each kind is guaranteed, so every train can move people as
@@ -4131,54 +4255,173 @@ function yardTrack(b) {
   const per = perimeter(b.x, b.y, b.w, b.h);
   return per.find(i => trackOn[i]) ?? -1;
 }
-function partnerYard(y) {
-  const mine = yardTrack(y);
-  if (mine < 0) return null;
-  const list = [];
-  for (const o of buildings.values()) {
-    if (o.type !== 'railyard' && o.type !== 'distribution') continue;
-    if (o.id === y.id) continue;
-    const t = yardTrack(o);
-    if (t < 0) continue;
-    const p = trackPath(mine, t);
-    if (p && p.length > 1) list.push({b: o, d: distB(y, o), path: p});
+// Signal blocks: one tile wide around junctions, yards and player signals, and
+// a whole plain run of track in between. A block is the unit a train reserves,
+// so two trains can never occupy the same stretch in opposite directions.
+function relinkBlocks() {
+  blockOf.fill(0);
+  blockRes.clear();
+  for (const t of freight) t.reserved = [];
+  const node = i => {
+    if (sigNode[i]) return true;
+    let n = 0;
+    for (let d = 1; d <= 4; d++) { const j = nb(i, d); if (j >= 0 && trackOn[j]) n++; }
+    if (n !== 2) return true;
+    for (let d = 1; d <= 4; d++) {
+      const j = nb(i, d), id = j >= 0 ? bldAt[j] : 0;
+      if (!id) continue;
+      const b = B(id);
+      if (b && (b.type === 'railyard' || b.type === 'distribution')) return true;
+    }
+    return false;
+  };
+  let id = 0;
+  const queue = new Int32Array(N);
+  let qh = 0, qt = 0;
+  for (let i = 0; i < N; i++) if (trackOn[i] && node(i)) { blockOf[i] = ++id; queue[qt++] = i; }
+  while (qh < qt) {
+    const u = queue[qh++];
+    for (let d = 1; d <= 4; d++) {
+      const v = nb(u, d);
+      if (v < 0 || !trackOn[v] || blockOf[v]) continue;
+      blockOf[v] = blockOf[u];
+      queue[qt++] = v;
+    }
   }
-  if (!list.length) return null;
-  list.sort((a, b) => a.d - b.d);
-  return list[0];
+  // A closed loop with no junction in it is still one block.
+  for (let i = 0; i < N; i++) {
+    if (!trackOn[i] || blockOf[i]) continue;
+    blockOf[i] = ++id;
+    qh = 0; qt = 0; queue[qt++] = i;
+    while (qh < qt) {
+      const u = queue[qh++];
+      for (let d = 1; d <= 4; d++) {
+        const v = nb(u, d);
+        if (v < 0 || !trackOn[v] || blockOf[v]) continue;
+        blockOf[v] = id;
+        queue[qt++] = v;
+      }
+    }
+  }
+}
+// A block is red while a train holds the whole leg that runs through it.
+function blockBusy(id) { return id > 0 && blockRes.has(id); }
+function pathBlocks(path) {
+  const out = [];
+  let last = 0;
+  for (const i of path) {
+    const b = blockOf[i];
+    if (b && b !== last) { out.push(b); last = b; }
+  }
+  return out;
+}
+// Reserve every block of a leg in one go. All-or-nothing avoids the classic
+// single-track stand-off where two trains each hold a block the other wants.
+function reservePath(t, path) {
+  const blocks = pathBlocks(path);
+  for (const b of blocks) if (blockRes.has(b) && blockRes.get(b) !== t.id) return false;
+  for (const b of blocks) blockRes.set(b, t.id);
+  t.reserved = blocks;
+  return true;
+}
+function releaseBlocks(t) {
+  for (const b of t.reserved || []) if (blockRes.get(b) === t.id) blockRes.delete(b);
+  t.reserved = [];
+}
+function freightStopScore(y) {
+  let score = 0;
+  for (const b of buildings.values()) {
+    if (!nearYard(b, y)) continue;
+    if (b.type === 'warehouse') score += warehouseTotal(b) * 0.4 + warehouseRoom(b) * 0.3;
+    else if (b.type === 'distribution') score += Math.max(0, b.stock) * 1.5 + 40;
+    else if (producerOf(b)) {
+      const p = producerOf(b);
+      score += producerStock(b, p.good) * 2;
+      for (const g of Object.keys(p.byproducts || {})) score += producerStock(b, g);
+    }
+  }
+  return score;
+}
+// Automatic itinerary: up to three yards with something to move, then home.
+// A leg that cannot be routed is skipped rather than stranding the train.
+function autoPlan(t) {
+  const home = B(t.home);
+  if (!home || yardTrack(home) < 0) return [];
+  const pool = yards.filter(y => y.id !== t.home && yardTrack(y) >= 0 && freightStopScore(y) > 0)
+    .sort((a, b) => freightStopScore(b) - freightStopScore(a));
+  const plan = [];
+  for (const y of pool) {
+    if (plan.length >= 3) break;
+    const prev = plan.length ? B(plan[plan.length - 1]) : home;
+    const path = trackPath(yardTrack(prev), yardTrack(y));
+    if (!path || path.length < 2) continue;
+    plan.push(y.id);
+  }
+  if (!plan.length) return [];
+  const last = B(plan[plan.length - 1]);
+  if (!trackPath(yardTrack(last), yardTrack(home))) return [];
+  plan.push(t.home);
+  return plan;
+}
+function linePlan(t) {
+  const line = freightLines.find(l => l.id === t.line);
+  if (!line) return [];
+  const stops = line.stops.filter(id => {
+    const y = B(id);
+    return y && y.type === 'railyard' && yardTrack(y) >= 0;
+  });
+  if (stops.length < 2) return [];
+  const at = Math.max(0, stops.indexOf(t.at));
+  const out = [];
+  for (let k = 1; k < stops.length; k++) out.push(stops[(at + k) % stops.length]);
+  out.push(stops[at]);
+  return out;
+}
+function planFreight(t) {
+  const plan = t.line ? linePlan(t) : autoPlan(t);
+  if (!plan.length) return false;
+  t.plan = plan; t.leg = 0; t.target = plan[0];
+  return true;
 }
 function retireFreight(t) {
   t.dead = true;
+  releaseBlocks(t);
   for (const p of t.riders) if (!p.dead) { p.riding = false; p.hidden = false; p.ride = 0; nextLeg(p); }
   t.riders = [];
 }
+function newFreightTrain(yard, lineId) {
+  return {
+    id: nextIncident++, home: yard.id, line: lineId || 0, consist: freightConsist(),
+    path: null, i: 0, t: 0, x: yard.cx * T, y: yard.cy * T, d: 2,
+    state: 'dwell', wait: 2 + Math.random() * 2, at: yard.id, target: 0,
+    plan: [], leg: 0, reserved: [], cargo: {material: 0, liquid: 0, gas: 0},
+    riders: [], lastStop: -1, dead: false,
+  };
+}
 function syncFreight() {
   for (const t of freight) {
-    const a = B(t.home), b = B(t.partner);
-    if (!a || !b || a.type !== 'railyard' || yardTrack(a) < 0 || yardTrack(b) < 0) retireFreight(t);
+    const a = B(t.home);
+    if (!a || a.type !== 'railyard' || yardTrack(a) < 0) retireFreight(t);
+    else if (t.line && !freightLines.some(l => l.id === t.line)) retireFreight(t);
   }
   freight = freight.filter(t => !t.dead);
-  const homed = new Set(freight.map(t => t.home));
+  // one train per player line, then one automatic train per yard
+  for (const line of freightLines) {
+    if (freight.some(t => t.line === line.id)) continue;
+    const home = B(line.stops[0]);
+    if (!home || home.type !== 'railyard' || yardTrack(home) < 0) continue;
+    if (line.stops.some(id => { const y = B(id); return !y || y.type !== 'railyard' || yardTrack(y) < 0; })) continue;
+    if (freight.length >= 32) break;
+    freight.push(newFreightTrain(home, line.id));
+  }
+  const autoHomed = new Set(freight.filter(t => !t.line).map(t => t.home));
   for (const y of yards) {
-    if (homed.has(y.id) || freight.length >= 10) continue;
-    const p = partnerYard(y);
-    if (!p) continue;
-    const train = {
-      id: nextIncident++, home: y.id, partner: p.b.id, consist: freightConsist(),
-      path: null, i: 0, t: 0, x: y.cx * T, y: y.cy * T, d: 2,
-      state: 'dwell', wait: 2 + Math.random() * 2, at: y.id, target: p.b.id,
-      cargo: {material: 0, liquid: 0, gas: 0}, riders: [], lastStop: -1, dead: false,
-    };
-    freight.push(train);
-    homed.add(y.id);
+    if (autoHomed.has(y.id) || freight.length >= 32 || yardTrack(y) < 0) continue;
+    freight.push(newFreightTrain(y, 0));
+    autoHomed.add(y.id);
   }
 }
-const freightCars = t => t.consist.length;
 const freightCap = (t, kind) => t.consist.filter(k => k === kind).length * 10;
-function freightEnds(t) {
-  const a = B(t.target), y = B(t.at);
-  return {from: yardTrack(y), to: yardTrack(a), a, y};
-}
 // Distance between two footprints in blocks, so loading uses exactly the
 // radius that placement advertises: five blocks from the yard's edge.
 function nearYard(b, y) {
@@ -4186,43 +4429,68 @@ function nearYard(b, y) {
   const dy = Math.max(0, b.y - (y.y + y.h), y.y - (b.y + b.h));
   return dx + dy <= 5;
 }
+// How much a yard can take on arrival: only warehouses inside the same
+// five-block radius the placement rules advertise, so a train never teleports
+// cargo to a warehouse on the far side of the map.
+function yardSideRoom(y) {
+  if (!y) return 0;
+  let room = 0;
+  for (const b of buildings.values()) if (b.type === 'warehouse' && nearYard(b, y)) room += warehouseRoom(b);
+  return room;
+}
 function loadFreight(t) {
-  const y = B(t.at);
-  if (!y) return;
+  const y = B(t.at), dest = B(t.target);
+  if (!y || !dest) return;
+  const destRoom = yardSideRoom(dest);
+  if (destRoom <= 0) return;                 // nowhere to put it: don't take it
+  let roomLeft = destRoom;
+  // A warehouse only exports a surplus, and only into a side that is still
+  // mostly empty. Without both rules two yards trade the same load forever.
+  let destCap = 0;
+  for (const b of buildings.values()) if (b.type === 'warehouse' && nearYard(b, dest)) destCap += WAREHOUSE_CAP;
+  const destFill = destCap ? 1 - destRoom / destCap : 0;
+  const warehouseSurplus = destFill <= 0.5;
   // oil and gas only reach a yard if the rig is within five blocks, which is
   // the placement rule; the same radius gathers the other goods too.
   const hold = t.goods ||= Object.create(null);
+  const recent = t.recent || null;           // goods just dropped here stay here
   for (const b of buildings.values()) {
     if (b === y) continue;
     const p = producerOf(b);
     if (!p || !nearYard(b, y)) continue;
     for (const good of [p.good, ...Object.keys(p.byproducts || {})]) {
+      if (recent && recent.has(good)) continue;
       const kind = good === 'oil' ? 'liquid' : good === 'gas' ? 'gas' : 'material';
-      const room = freightCap(t, kind) - t.cargo[kind];
-      const n = Math.min(room, Math.floor(producerStock(b, good)));
+      const n = Math.min(freightCap(t, kind) - t.cargo[kind], Math.floor(producerStock(b, good)), roomLeft);
       if (n <= 0) continue;
-      hold[good] = (hold[good] || 0) + takeProducerStock(b, good, n);
-      t.cargo[kind] += n;
+      const moved = takeProducerStock(b, good, n);
+      hold[good] = (hold[good] || 0) + moved;
+      t.cargo[kind] += moved;
+      roomLeft -= moved;
     }
   }
-  // Warehouses load item-bearing freight by type so material stocks move between hubs.
+  // Warehouses only clear a surplus, so a load just delivered at the far end
+  // is never picked straight back up and sent home.
   let materialRoom = freightCap(t, 'material') - t.cargo.material;
   for (const b of buildings.values()) {
     if (b === y || !nearYard(b, y) || b.type !== 'warehouse') continue;
+    if (!warehouseSurplus || warehouseTotal(b) < WAREHOUSE_CAP * 0.5) continue;
     for (const good of GOOD_KEYS) {
-      const n = Math.min(materialRoom, Math.floor((b.inventory && b.inventory[good]) || 0));
-      if (!n) continue;
-      const moved = takeFromWarehouse(b, good, n); hold[good] = (hold[good] || 0) + moved; materialRoom -= moved;
-      t.cargo.material += moved;
-      if (!materialRoom) break;
+      if (recent && recent.has(good)) continue;
+      const n = Math.min(materialRoom, Math.floor((b.inventory && b.inventory[good]) || 0), roomLeft);
+      if (n <= 0) continue;
+      const moved = takeFromWarehouse(b, good, n); hold[good] = (hold[good] || 0) + moved;
+      materialRoom -= moved; roomLeft -= moved; t.cargo.material += moved;
+      if (!materialRoom || !roomLeft) break;
     }
-    if (!materialRoom) break;
+    if (!materialRoom || !roomLeft) break;
   }
   // A rail-served terminal continues to carry legacy undifferentiated goods.
   for (const b of buildings.values()) {
     if (b.type !== 'distribution' || b === y || b.stock <= 0 || !nearYard(b, y)) continue;
-    const n = Math.min(freightCap(t, 'material') - t.cargo.material, Math.floor(b.stock));
-    if (n > 0) { t.cargo.material += n; b.stock -= n; t.goods.goods = (t.goods.goods || 0) + n; }
+    if (recent && recent.has('goods')) continue;
+    const n = Math.min(freightCap(t, 'material') - t.cargo.material, Math.floor(b.stock), roomLeft);
+    if (n > 0) { t.cargo.material += n; b.stock -= n; t.goods.goods = (t.goods.goods || 0) + n; roomLeft -= n; }
   }
 }
 function unloadFreight(t) {
@@ -4230,20 +4498,22 @@ function unloadFreight(t) {
   if (!total) return;
   const y = B(t.at);
   if (!y) return;
-  const destinations = [...buildings.values()].filter(b => b.type === 'warehouse' && warehouseRoom(b) > 0).sort((a, b) => Math.abs(a.cx - y.cx) + Math.abs(a.cy - y.cy) - (Math.abs(b.cx - y.cx) + Math.abs(b.cy - y.cy)));
+  const destinations = [...buildings.values()]
+    .filter(b => b.type === 'warehouse' && nearYard(b, y) && warehouseRoom(b) > 0)
+    .sort((a, b) => warehouseRoom(b) - warehouseRoom(a));
   const hold = t.goods || {};
+  const unloaded = new Set();
   let moved = 0;
   for (const good of GOOD_KEYS) {
     let left = hold[good] || 0;
+    if (left > 0) unloaded.add(good);
     for (const dest of destinations) {
       if (!left) break;
       const n = storeInWarehouse(dest, good, left); left -= n; moved += n;
     }
-    if (left) {
-      if (good === 'goods') resources.goods = (resources.goods || 0) + left;
-      else resources[good] = (resources[good] || 0) + left;
-    }
+    if (left) resources[good] = (resources[good] || 0) + left;   // only when every nearby warehouse is full
   }
+  t.recent = unloaded;
   t.cargo.material = 0; t.cargo.liquid = 0; t.cargo.gas = 0; t.goods = Object.create(null);
   cargoStats.moved += moved;
 }
@@ -4299,14 +4569,23 @@ function stepFreight(dt) {
     if (t.state === 'dwell') {
       t.wait -= dt;
       if (t.wait > 0) continue;
-      const ends = freightEnds(t);
-      if (ends.from < 0 || ends.to < 0) { t.wait = 3; continue; }
-      const path = trackPath(ends.from, ends.to);
-      if (!path || path.length < 2) { t.wait = 3; continue; }
+      if (!t.plan.length || t.leg >= t.plan.length) {
+        if (!planFreight(t)) { t.wait = 3; continue; }
+      }
+      const here = B(t.at), next = B(t.target);
+      const from = yardTrack(here), to = yardTrack(next);
+      if (from < 0 || to < 0) { t.plan = []; t.wait = 3; continue; }
+      const path = trackPath(from, to);
+      if (!path || path.length < 2) { t.plan = []; t.wait = 3; continue; }
+      const stops = stationsAlong(path);
       loadFreight(t);
+      // The whole leg is claimed before the train moves, so a block is only
+      // ever held in one direction. A red signal means another train owns it.
+      if (!reservePath(t, path)) { t.wait = 1.5; continue; }
       t.path = path; t.i = 0; t.t = 0; t.state = 'run'; t.year = (t.year || 0) + 1;
       t.lastStop = -1;
-      t.stops = stationsAlong(path);
+      t.stops = stops;
+      t.recent = null;              // next yard may load anything again
       cargoStats.trainRuns++;
       const a = path[0], b = path[1];
       t.x = (a % MW) * T + 4.5; t.y = (a / MW | 0) * T + 4.5;
@@ -4332,9 +4611,13 @@ function stepFreight(dt) {
     while (t.t >= 1) {
       t.t -= 1; t.i++;
       if (t.i >= t.path.length - 1) {
-        t.at = t.target; t.target = t.partner === t.target ? t.home : t.partner;
-        // at the far end the train turns around; at home it loads and goes out again
+        t.at = t.target;
+        // unload at this stop, free the blocks behind, then queue the next leg
+        t.recent = null;             // this visit's own unload fills it below
         unloadFreight(t);
+        releaseBlocks(t);
+        t.leg++;
+        t.target = t.leg < t.plan.length ? t.plan[t.leg] : 0;
         t.state = 'dwell'; t.wait = 3; t.path = null; t.i = 0; t.t = 0; t.lastStop = -1; t.stops = null;
         const y = B(t.at);
         if (y) { t.x = y.cx * T; t.y = y.cy * T; }
@@ -4401,46 +4684,29 @@ function logisticsHour() {
 
 function stepLogistics(dt) {
   if (!logisticsReady) syncLogistics();
+  // Cooldowns are the gap between one building's dispatches. Warehouses and
+  // hubs use them too, so every source keeps shipping instead of firing once.
+  for (const b of buildings.values()) if (b.truckCd > 0) b.truckCd = Math.max(0, b.truckCd - dt);
   truckTimer += dt;
   if (truckTimer >= 1.4) { truckTimer = 0; dispatchTrucks(); }
-  // Warehouses always move stock toward a less-full peer. Roads/trucks handle
-  // nearby links; a train at a track-served yard can also transfer old stocks.
-  for (const y of yards) {
-    const yard = yardTrack(y);
-    if (yard < 0) continue;
-    const train = freight.find(t => t.at === y.id && t.state === 'dwell' && t.wait <= 0);
-    if (!train) continue;
-    const partner = B(train.target), otherTrack = yardTrack(partner);
-    const target = [...buildings.values()].filter(b => b.type === 'warehouse' && b.id !== y.id && warehouseRoom(b) > 0 &&
-      (b.id === partner.id || otherTrack >= 0 && trackPath(otherTrack, yardTrack(b)))).sort((a, b) => warehouseTotal(a) - warehouseTotal(b))[0];
-    if (!target) continue;
-    let room = freightCap(train, 'material') - train.cargo.material;
-    for (const good of GOOD_KEYS) {
-      if (room <= 0) break;
-      const n = Math.min(room, Math.floor(((y.inventory && y.inventory[good]) || 0) / 2), warehouseRoom(target));
-      if (!n) continue;
-      const moved = takeFromWarehouse(y, good, n);
-      target.inventory[good] = (target.inventory[good] || 0) + moved;
-      cargoStats.moved += moved; room -= moved;
-    }
-  }
-  // terminals beside a port pass their cargo straight to the quay
-  for (const h of hubs) {
-    if (h.stock <= 0) continue;
-    for (const i of perimeter(h.x, h.y, h.w, h.h)) {
-      const id = bldAt[i];
-      if (!id) continue;
-      const b = B(id);
-      if (!b || b.type !== 'port') continue;
-      const n = Math.min(h.stock, 40);
-      b.stock = Math.min(stockLimit(b), (b.stock || 0) + n);
-      h.stock -= n;
-      break;
-    }
-  }
   shipTimer += dt;
   if (shipTimer >= 2.5) {
     shipTimer = 0;
+    // terminals beside a port hand their cargo over at a loading pace, not all at once
+    for (const h of hubs) {
+      if (h.stock <= 0) continue;
+      for (const i of perimeter(h.x, h.y, h.w, h.h)) {
+        const id = bldAt[i];
+        if (!id) continue;
+        const b = B(id);
+        if (!b || b.type !== 'port') continue;
+        const n = Math.min(h.stock, 40, Math.max(0, stockLimit(b) - (b.stock || 0)));
+        if (n <= 0) break;
+        b.stock = (b.stock || 0) + n;
+        h.stock -= n;
+        break;
+      }
+    }
     if (ships.length < 10) for (const p of ports) {
       if (p.stock >= 20 && launchShip(p)) break;
     }
@@ -4940,6 +5206,8 @@ const TOOLS = {
   'b:park': {cat: 'transit', group: 'Walking & parking'},
   'b:parking': {cat: 'transit', group: 'Walking & parking'}, 'b:garage': {cat: 'transit', group: 'Walking & parking'},
   track:     {cat: 'transit', group: 'Freight', name: 'Freight Track', kind: 'line', key: 'I', desc: 'Drag to extend freight track. Bulldoze it to remove.'},
+  signal:    {cat: 'transit', group: 'Freight', name: 'Rail Signal', kind: 'click', key: 'E', desc: 'Click a piece of freight track to split it into signal blocks. Blocks turn red while a train has the leg.'},
+  freightline:{cat: 'transit', group: 'Freight', name: 'Freight Line', kind: 'click', desc: 'Click two to four train yards to give them a dedicated train loop. Click the first yard again to finish.'},
   'b:railyard': {cat: 'transit', group: 'Freight'},
   'b:port': {cat: 'transit', group: 'Freight'}, 'b:distribution': {cat: 'transit', group: 'Freight'},
   tree:      {cat: 'nature', name: 'Trees', kind: 'brush', desc: 'Paint varied tree canopies on empty land.'},
@@ -5116,6 +5384,53 @@ function clickLight(t) {
   if (lights.has(i)) lights.delete(i); else lights.set(i, {ns: 8, ew: 8, off: Math.random() * 10});
   mapChanged();
 }
+function clickSignal(t) {
+  if (!inb(t.x, t.y)) return;
+  const i = t.y * MW + t.x;
+  if (!trackOn[i]) { toast('Signals sit on freight track. Draw track first.'); return; }
+  sigNode[i] = sigNode[i] ? 0 : 1;
+  markTiles([i]); mapChanged();
+}
+const LINE_COLORS = ['#f2c14e', '#4d96ff', '#6bcb77', '#ff7eb6', '#c77dff'];
+let lineDraft = [];
+function clickFreightLine(t, e) {
+  if (!inb(t.x, t.y)) return;
+  const id = bldAt[t.y * MW + t.x], yard = id ? B(id) : null;
+  if (!yard || yard.type !== 'railyard') { toast('Freight lines start and stop at train yards.'); return; }
+  if (e && e.shiftKey) {
+    const before = freightLines.length;
+    freightLines = freightLines.filter(l => !l.stops.includes(yard.id));
+    if (freightLines.length === before) { toast('That yard is not on a freight line.'); return; }
+    mapChanged();
+    toast(`Removed ${before - freightLines.length} freight line${before - freightLines.length === 1 ? '' : 's'}.`);
+    return;
+  }
+  if (!lineDraft.length) {
+    lineDraft = [yard.id];
+    toast('Line started. Click another yard, then click the first yard again to finish.');
+    return;
+  }
+  if (yard.id === lineDraft[0]) {
+    if (lineDraft.length < 2) { toast('A line needs at least two train yards.'); lineDraft = []; return; }
+    const lid = nextLineId++;
+    const line = {id: lid, stops: lineDraft.slice(), color: LINE_COLORS[(lid - 1) % LINE_COLORS.length]};
+    freightLines.push(line);
+    lineDraft = [];
+    mapChanged();
+    toast(`Freight line created with ${line.stops.length} stops.`);
+    return;
+  }
+  if (lineDraft.includes(yard.id)) { toast('That yard is already on this line.'); return; }
+  if (lineDraft.length >= 4) { toast('A line can visit up to four yards.'); return; }
+  lineDraft.push(yard.id);
+  toast(`${lineDraft.length} stops. Click the first yard again to finish.`);
+}
+function clickTool(tool, t, e) {
+  if (tool === 'overpass') return clickOverpass(t);
+  if (tool === 'signal') return clickSignal(t);
+  if (tool === 'freightline') return clickFreightLine(t, e);
+  return clickLight(t);
+}
 
 // ---- Select, copy, cut, paste ---------------------------------------------------
 let selRect = null, clip = null, pasteMode = false;
@@ -5231,7 +5546,7 @@ cv.addEventListener('pointerdown', e => {
   else if (tool.kind === 'line' || tool.kind === 'rect') { if (inb(t.x, t.y)) drag = {sx: t.x, sy: t.y, ex: t.x, ey: t.y}; }
   else if (tool.kind === 'build') { drag = null; tryBuild(t); drag = {paint: true}; }
   else if (tool.kind === 'brush') { brushTree(t); drag = {paint: true}; }
-  else if (tool.kind === 'click') { if (curTool === 'overpass') clickOverpass(t); else clickLight(t); }
+  else if (tool.kind === 'click') { clickTool(curTool, t, e); }
   else if (tool.kind === 'inspect') inspectAt(t);
 });
 cv.addEventListener('pointermove', e => {
@@ -5317,6 +5632,8 @@ function makeIcon(id) {
   } else switch (id) {
     case 'rail': aw = ah = 9; drawRailTile(t, 0, 0, 15, 'junction'); break;
     case 'track': aw = ah = 9; grass(); drawTrackTile(t, 0, 0, 10, false); break;
+    case 'signal': aw = ah = 9; grass(); drawTrackTile(t, 0, 0, 10, false); t.fillStyle = '#24282e'; t.fillRect(6, 4, 2, 3); t.fillStyle = '#e5484d'; t.fillRect(6, 4, 2, 2); break;
+    case 'freightline': aw = ah = 9; grass(); drawTrackTile(t, 0, 0, 10, false); t.fillStyle = '#f2c14e'; t.fillRect(1, 1, 2, 2); t.fillStyle = '#4d96ff'; t.fillRect(6, 6, 2, 2); break;
     case 'road': grass(); drawRoadTile(t, 0, 0, 4, 0, 0, 0, 1, 0); drawRoadTile(t, 0, 9, 3, 0, 0, 0, 1, 0); drawRoadTile(t, 9, 9, 8, 0, 0, 0, 1, 0); break;
     case 'country': grass(); drawRoadTile(t, 0, 4, 10, 0, 0, 0, 0, 0); drawRoadTile(t, 9, 4, 10, 0, 0, 0, 0, 0); break;
     case 'sidewalk': grass(); drawRoadTile(t, 0, 4, 10, 0, 0, 0, 1, 0); drawRoadTile(t, 9, 4, 10, 0, 0, 0, 1, 0);
@@ -5389,6 +5706,7 @@ function buildBar() {
   const sep = document.createElement('div'); sep.className = 'sep'; barEl.append(sep);
   for (const cat of CATS) {
     const b = document.createElement('button'); b.className = 'tab'; b.dataset.cat = cat.id; b.textContent = cat.name;
+    b.title = `Open the ${cat.name} palette`;
     b.style.padding = '10px 12px';
     b.onclick = () => openCat(curCat === cat.id ? null : cat.id);
     barEl.append(b);
@@ -5402,9 +5720,27 @@ function openCat(cat) {
   barEl.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.cat === cat));
   if (!cat) { flyEl.classList.add('hidden'); return; }
   flyEl.innerHTML = '';
+  const catName = (CATS.find(c => c.id === cat) || {}).name || cat;
+  // A search box and a close button make a long palette usable: type to narrow
+  // it, Escape or ✕ to get it out of the way.
+  const head = document.createElement('div');
+  head.className = 'fhead';
+  const title = document.createElement('b'); title.textContent = catName; head.append(title);
+  const filter = document.createElement('input');
+  filter.id = 'paletteFilter'; filter.type = 'search'; filter.placeholder = `Filter ${catName.toLowerCase()}…`;
+  filter.setAttribute('aria-label', `Filter ${catName} tools`);
+  head.append(filter);
+  const close = document.createElement('button');
+  close.className = 'fclose'; close.textContent = '✕'; close.title = 'Close palette';
+  close.onclick = () => openCat(null);
+  head.append(close);
+  flyEl.append(head);
+
+  const body = document.createElement('div'); body.className = 'fbody'; flyEl.append(body);
   // Tools are laid out in labelled groups, so a tab reads as sections rather
   // than one long row: metro, walking, then freight, for example.
   let group = null, row = null;
+  const groups = [];
   for (const id in TOOLS) {
     if (TOOLS[id].cat !== cat) continue;
     const t = TOOLS[id], g = t.group || '';
@@ -5413,32 +5749,48 @@ function openCat(cat) {
       const wrap = document.createElement('div'); wrap.className = 'fgroup';
       if (g) { const lbl = document.createElement('small'); lbl.textContent = g; wrap.append(lbl); }
       row = document.createElement('div'); row.className = 'frow'; wrap.append(row);
-      flyEl.append(wrap);
+      body.append(wrap); groups.push(wrap);
     }
     const b = document.createElement('button'); b.className = 'card'; b.dataset.tool = id;
+    b.title = t.desc || t.name;
+    b.dataset.search = `${t.name} ${t.desc || ''} ${g} ${t.key || ''}`.toLowerCase();
     b.append(icon(id));
     const nm = document.createElement('span'); nm.textContent = t.name; b.append(nm);
     if (t.stats) { const s = document.createElement('small'); s.textContent = t.stats.split(' · ')[0]; b.append(s); }
-    else if (t.key) { const s = document.createElement('small'); s.textContent = `[${t.key}]`; b.append(s); }
+    if (t.key) { const k = document.createElement('kbd'); k.textContent = t.key; b.append(k); }
     b.onclick = () => setTool(id);
     b.onmouseenter = () => showTip(b, id); b.onmouseleave = hideTip;
     row.append(b);
   }
+  const empty = document.createElement('div');
+  empty.className = 'fempty'; empty.textContent = 'No tools match that filter.'; empty.hidden = true;
+  body.append(empty);
+  filter.addEventListener('input', () => {
+    const q = filter.value.trim().toLowerCase();
+    let any = false;
+    for (const wrap of groups) {
+      let shown = 0;
+      for (const b of wrap.querySelectorAll('.card')) {
+        const hit = !q || b.dataset.search.includes(q);
+        b.classList.toggle('hidden', !hit);
+        if (hit) shown++;
+      }
+      wrap.hidden = shown === 0;
+      if (shown) any = true;
+    }
+    empty.hidden = any;
+  });
+  filter.addEventListener('keydown', e => { if (e.key === 'Escape') openCat(null); });
   if (cat === 'world') {
     const info = document.createElement('small'); info.className = 'field-hint';
     info.textContent = 'Build islands from materials produced by quarries and mines; placing platforms consumes the materials.';
-    flyEl.append(info);
-  }
-  if (cat === 'world') {
-    const info = document.createElement('small'); info.className = 'field-hint';
-    info.textContent = 'Create islands using quarry and mine products; placing a platform consumes materials.';
-    flyEl.append(info);
+    body.append(info);
   }
   if (cat === 'districts') {
     const wrap = document.createElement('div');
     wrap.id = 'districtList';
     wrap.className = 'list';
-    flyEl.append(wrap);
+    body.append(wrap);
     updateDistrictUI();
   }
   flyEl.classList.remove('hidden');
@@ -5785,7 +6137,7 @@ function hud(dt) {
   setT('gCargo', `${trucks} · ${typeof cargoStats === 'object' ? cargoStats.deliveries : 0}`);
   setT('gShips', `${ships.length} · ${ports.length}`);
   let wagons = 0; for (const t of freight) wagons += t.consist.length;
-  setT('gFreight', `${freight.length} · ${wagons} cars`);
+  setT('gFreight', `${freight.length} · ${wagons} cars${freightLines.length ? ` · ${freightLines.length} L` : ''}`);
   const m = {car: 0, walk: 0, metro: 0, bus: 0}; for (const v of stats.modes) m[v]++;
   document.getElementById('mBus').style.width = (m.bus / (stats.modes.length || 1) * 100) + '%';
   setT('lBus', `bus ${Math.round(m.bus / (stats.modes.length || 1) * 100)}%`);
@@ -6206,13 +6558,14 @@ function serialize() {
   const gw = new Uint8Array(N), gt = new Uint8Array(N); genTerrainInto(worldSeed, gw, gt);
   const savedBuildings = [...buildings.values()];
   return {v: 5, seed: worldSeed, t: Math.round(gameMin), settings: {...worldSettings}, tax: {sales: worldSettings.taxSales || 0, income: worldSettings.taxIncome || 0}, resources: {...resources},
-    tile: rle(tile), platform: rle(platform), oneway: rle(oneway), overpass: rle(overpass), walkway: rle(walkway), rail: rle(railOn), track: rle(trackOn),
+    tile: rle(tile), platform: rle(platform), oneway: rle(oneway), overpass: rle(overpass), walkway: rle(walkway), rail: rle(railOn), track: rle(trackOn), sig: rle(sigNode),
     water: diffEnc(water, gw), tree: diffEnc(tree, gt, i => tile[i] || bldAt[i]),
     lights: [...lights].map(([i, L]) => [i, L.ns, L.ew, Math.round(L.off)]),
     b: savedBuildings.map(b => [b.type, b.x, b.y, b.seed >>> 0]),
     state: savedBuildings.map((b, i) => [i, Number.isFinite(b.stock) ? b.stock : null, b.inventory || null, b.byproducts || null, b.policy || null]),
     districts: [...districts.values()].map(d => [d.id, d.name, d.color]),
     dlayer: rle(districtLayer),
+    lines: freightLines.map(l => [l.id, l.stops.slice(), l.color]),
     wx: [WEATHER.kind, Math.round(WEATHER.until)],
     cam: [Math.round(cam.x), Math.round(cam.y), cam.z]};
 }
@@ -6253,20 +6606,22 @@ function loadData(d) {
   // an old region simply has no tunnels or tracks until you draw some
   if (d.rail !== undefined && (typeof d.rail !== 'string' || d.rail.length > 5e6)) throw new Error(BAD);
   if (d.track !== undefined && (typeof d.track !== 'string' || d.track.length > 5e6)) throw new Error(BAD);
-  const nt = new Uint8Array(N), npl = new Uint8Array(N), no = new Uint8Array(N), nov = new Uint8Array(N), nw = new Uint8Array(N), nwa = new Uint8Array(N), ntr = new Uint8Array(N), nra = new Uint8Array(N), ntk = new Uint8Array(N);
+  if (d.sig !== undefined && (typeof d.sig !== 'string' || d.sig.length > 5e6)) throw new Error(BAD);
+  const nt = new Uint8Array(N), npl = new Uint8Array(N), no = new Uint8Array(N), nov = new Uint8Array(N), nw = new Uint8Array(N), nwa = new Uint8Array(N), ntr = new Uint8Array(N), nra = new Uint8Array(N), ntk = new Uint8Array(N), nsig = new Uint8Array(N);
   unrleInto(d.tile, nt, 4);
   if (d.platform !== undefined && typeof d.platform !== 'string') throw new Error(BAD);
   if (typeof d.platform === 'string') unrleInto(d.platform, npl, 3);
   unrleInto(d.oneway, no, 4); unrleInto(d.overpass, nov, 1); unrleInto(d.walkway, nw, 1);
   if (typeof d.rail === 'string') unrleInto(d.rail, nra, 1);
   if (typeof d.track === 'string') unrleInto(d.track, ntk, 1);
+  if (typeof d.sig === 'string') unrleInto(d.sig, nsig, 1);
   genTerrainInto(d.seed, nwa, ntr); applyDiff(d.water, nwa, 1); applyDiff(d.tree, ntr, 8);
   for (const e of d.b) if (!Array.isArray(e) || !hasType(e[0]) || !isInt(e[1], 0, MW - 1) || !isInt(e[2], 0, MH - 1) || !isInt(e[3], 0, 4294967295)) throw new Error(BAD);
   for (const e of d.lights) if (!Array.isArray(e) || !isInt(e[0], 0, N - 1) || !isInt(e[1], 3, 25) || !isInt(e[2], 3, 25) || !isInt(e[3], 0, 60)) throw new Error(BAD);
   // the save is valid: replace the region
   clearWorld();
   worldSeed = d.seed;
-  tile.set(nt); platform.set(npl); oneway.set(no); overpass.set(nov); walkway.set(nw); water.set(nwa); tree.set(ntr); railOn.set(nra); trackOn.set(ntk);
+  tile.set(nt); platform.set(npl); oneway.set(no); overpass.set(nov); walkway.set(nw); water.set(nwa); tree.set(ntr); railOn.set(nra); trackOn.set(ntk); sigNode.set(nsig);
   for (let i = 0; i < N; i++) if (tile[i] || water[i] || platform[i]) tree[i] = 0;
   const restoredBuildings = [];
   for (const [type, x, y, seed] of d.b) restoredBuildings.push(canPlace(type, x, y) || canPlaceLoose(type, x, y) ? placeBuilding(type, x, y, seed) : null);
@@ -6320,6 +6675,17 @@ function loadData(d) {
     taxSales: Number.isFinite(settings.taxSales) ? clamp(settings.taxSales, 0, 30) : Number.isFinite(d.tax?.sales) ? clamp(d.tax.sales, 0, 30) : 0,
     taxIncome: Number.isFinite(settings.taxIncome) ? clamp(settings.taxIncome, 0, 50) : Number.isFinite(d.tax?.income) ? clamp(d.tax.income, 0, 50) : 0,
   };
+  freightLines = [];
+  nextLineId = 1;
+  if (Array.isArray(d.lines)) for (const e of d.lines.slice(0, 32)) {
+    if (!Array.isArray(e) || !Array.isArray(e[1])) continue;
+    const stops = e[1].filter(v => isInt(v, 1, 1e9)).slice(0, 4);
+    if (stops.length < 2) continue;
+    const id = isInt(e[0], 1, 1e9) ? e[0] : nextLineId;
+    if (freightLines.some(l => l.id === id)) continue;
+    freightLines.push({id, stops, color: typeof e[2] === 'string' ? e[2].slice(0, 16) : '#f2c14e'});
+    nextLineId = Math.max(nextLineId, id + 1);
+  }
   gameMin = isInt(d.t, 0, 1e9) ? d.t : 6.5 * 60;
   finishWorld();
   if (Array.isArray(d.cam) && d.cam.length === 3 && d.cam.every(Number.isFinite) && ZOOMS.includes(d.cam[2])) { cam.x = d.cam[0]; cam.y = d.cam[1]; cam.z = d.cam[2]; }

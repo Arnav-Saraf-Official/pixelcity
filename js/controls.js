@@ -31,6 +31,8 @@ const TOOLS = {
   'b:park': {cat: 'transit', group: 'Walking & parking'},
   'b:parking': {cat: 'transit', group: 'Walking & parking'}, 'b:garage': {cat: 'transit', group: 'Walking & parking'},
   track:     {cat: 'transit', group: 'Freight', name: 'Freight Track', kind: 'line', key: 'I', desc: 'Drag to extend freight track. Bulldoze it to remove.'},
+  signal:    {cat: 'transit', group: 'Freight', name: 'Rail Signal', kind: 'click', key: 'E', desc: 'Click a piece of freight track to split it into signal blocks. Blocks turn red while a train has the leg.'},
+  freightline:{cat: 'transit', group: 'Freight', name: 'Freight Line', kind: 'click', desc: 'Click two to four train yards to give them a dedicated train loop. Click the first yard again to finish.'},
   'b:railyard': {cat: 'transit', group: 'Freight'},
   'b:port': {cat: 'transit', group: 'Freight'}, 'b:distribution': {cat: 'transit', group: 'Freight'},
   tree:      {cat: 'nature', name: 'Trees', kind: 'brush', desc: 'Paint varied tree canopies on empty land.'},
@@ -207,6 +209,53 @@ function clickLight(t) {
   if (lights.has(i)) lights.delete(i); else lights.set(i, {ns: 8, ew: 8, off: Math.random() * 10});
   mapChanged();
 }
+function clickSignal(t) {
+  if (!inb(t.x, t.y)) return;
+  const i = t.y * MW + t.x;
+  if (!trackOn[i]) { toast('Signals sit on freight track. Draw track first.'); return; }
+  sigNode[i] = sigNode[i] ? 0 : 1;
+  markTiles([i]); mapChanged();
+}
+const LINE_COLORS = ['#f2c14e', '#4d96ff', '#6bcb77', '#ff7eb6', '#c77dff'];
+let lineDraft = [];
+function clickFreightLine(t, e) {
+  if (!inb(t.x, t.y)) return;
+  const id = bldAt[t.y * MW + t.x], yard = id ? B(id) : null;
+  if (!yard || yard.type !== 'railyard') { toast('Freight lines start and stop at train yards.'); return; }
+  if (e && e.shiftKey) {
+    const before = freightLines.length;
+    freightLines = freightLines.filter(l => !l.stops.includes(yard.id));
+    if (freightLines.length === before) { toast('That yard is not on a freight line.'); return; }
+    mapChanged();
+    toast(`Removed ${before - freightLines.length} freight line${before - freightLines.length === 1 ? '' : 's'}.`);
+    return;
+  }
+  if (!lineDraft.length) {
+    lineDraft = [yard.id];
+    toast('Line started. Click another yard, then click the first yard again to finish.');
+    return;
+  }
+  if (yard.id === lineDraft[0]) {
+    if (lineDraft.length < 2) { toast('A line needs at least two train yards.'); lineDraft = []; return; }
+    const lid = nextLineId++;
+    const line = {id: lid, stops: lineDraft.slice(), color: LINE_COLORS[(lid - 1) % LINE_COLORS.length]};
+    freightLines.push(line);
+    lineDraft = [];
+    mapChanged();
+    toast(`Freight line created with ${line.stops.length} stops.`);
+    return;
+  }
+  if (lineDraft.includes(yard.id)) { toast('That yard is already on this line.'); return; }
+  if (lineDraft.length >= 4) { toast('A line can visit up to four yards.'); return; }
+  lineDraft.push(yard.id);
+  toast(`${lineDraft.length} stops. Click the first yard again to finish.`);
+}
+function clickTool(tool, t, e) {
+  if (tool === 'overpass') return clickOverpass(t);
+  if (tool === 'signal') return clickSignal(t);
+  if (tool === 'freightline') return clickFreightLine(t, e);
+  return clickLight(t);
+}
 
 // ---- Select, copy, cut, paste ---------------------------------------------------
 let selRect = null, clip = null, pasteMode = false;
@@ -322,7 +371,7 @@ cv.addEventListener('pointerdown', e => {
   else if (tool.kind === 'line' || tool.kind === 'rect') { if (inb(t.x, t.y)) drag = {sx: t.x, sy: t.y, ex: t.x, ey: t.y}; }
   else if (tool.kind === 'build') { drag = null; tryBuild(t); drag = {paint: true}; }
   else if (tool.kind === 'brush') { brushTree(t); drag = {paint: true}; }
-  else if (tool.kind === 'click') { if (curTool === 'overpass') clickOverpass(t); else clickLight(t); }
+  else if (tool.kind === 'click') { clickTool(curTool, t, e); }
   else if (tool.kind === 'inspect') inspectAt(t);
 });
 cv.addEventListener('pointermove', e => {

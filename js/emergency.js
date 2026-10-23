@@ -31,6 +31,9 @@ function weatherKindRoll(r) {
   if (r > 0.7) return 'snow';
   return r > 0.35 ? 'cloudy' : 'sunny';
 }
+// Ideal is a sandbox: the sky never turns, so nothing outside the player's
+// control slows traffic or starts fires.
+const idealWeather = () => typeof worldSettings !== 'undefined' && worldSettings.difficulty === 'ideal';
 function initWeather() {
   const rng = mulberry((worldSeed ^ 0x51A7) >>> 0);
   weatherCells.length = 0;
@@ -38,8 +41,8 @@ function initWeather() {
   for (let gy = 0; gy < WX_ROWS; gy++) for (let gx = 0; gx < WX_COLS; gx++) {
     const bx = (gx + 0.5) * MW / WX_COLS, by = (gy + 0.5) * MH / WX_ROWS;
     const c = newWeatherCell(bx, by, k++);
-    c.kind = weatherKindRoll(rng());
-    c.until = gameMin + 150 + rng() * 420;
+    c.kind = idealWeather() ? 'sunny' : weatherKindRoll(rng());
+    c.until = gameMin + (idealWeather() ? 1e9 : 150 + rng() * 420);
     weatherCells.push(c);
   }
   weatherSeeded = true;
@@ -73,15 +76,15 @@ function syncWeatherLabel() {
 }
 function rollWeather(cell) {
   const c = cell || weatherCellAt(cameraTile().x, cameraTile().y);
-  c.kind = weatherKindRoll(Math.random());
-  c.until = gameMin + (180 + Math.random() * 360);   // 3-9 game hours
+  c.kind = idealWeather() ? 'sunny' : weatherKindRoll(Math.random());
+  c.until = gameMin + (idealWeather() ? 1e9 : 180 + Math.random() * 360);   // 3-9 game hours
   syncWeatherLabel();
 }
 function weatherTick() {
   if (!weatherCells.length) initWeather();
   for (const c of weatherCells) if (gameMin >= c.until) {
-    c.kind = weatherKindRoll(Math.random());
-    c.until = gameMin + 180 + Math.random() * 360;
+    c.kind = idealWeather() ? 'sunny' : weatherKindRoll(Math.random());
+    c.until = gameMin + (idealWeather() ? 1e9 : 180 + Math.random() * 360);
   }
   syncWeatherLabel();
 }

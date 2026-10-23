@@ -232,6 +232,10 @@
         if (alpha !== undefined && alpha !== 1) g.globalAlpha = alpha;
         g.drawImage(c, x, y);
         if (alpha !== undefined && alpha !== 1) g.globalAlpha = 1;
+      },
+      clearRect(x, y, ww, hh) {
+        if (ww <= 0 || hh <= 0) return;
+        g.clearRect(Math.round(x), Math.round(y), Math.round(ww), Math.round(hh));
       }
     };
   }
@@ -268,6 +272,14 @@
           const o = (yy * img.w + xx) * 4;
           blend(x + xx, y + yy, src[o], src[o + 1], src[o + 2], Math.round(src[o + 3] * k));
         }
+      },
+      clearRect(x, y, ww, hh) {
+        if (ww <= 0 || hh <= 0) return;
+        const x0 = Math.round(x), y0 = Math.round(y), x1 = x0 + Math.round(ww), y1 = y0 + Math.round(hh);
+        for (let yy = Math.max(0, y0); yy < Math.min(h, y1); yy++) for (let xx = Math.max(0, x0); xx < Math.min(w, x1); xx++) {
+          const o = (yy * w + xx) * 4;
+          data[o] = data[o + 1] = data[o + 2] = data[o + 3] = 0;
+        }
       }
     };
   }
@@ -280,6 +292,9 @@
 
   const DRAW = {
     rect(a, env, be) { be.fillRect(a.x + env.ox, a.y + env.oy, a.w, a.h, a.color); },
+    // Punch a hole back to transparent. Unlike a rect with alpha 0, this erases
+    // whatever was painted under it, which is what patching pixel art needs.
+    clear(a, env, be) { be.clearRect(a.x + env.ox, a.y + env.oy, a.w, a.h); },
     pixel(a, env, be) { be.fillRect(a.x + env.ox, a.y + env.oy, 1, 1, a.color); },
     line(a, env, be) {
       let x0 = a.x1 + env.ox, y0 = a.y1 + env.oy;
