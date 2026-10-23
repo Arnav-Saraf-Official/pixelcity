@@ -17,6 +17,7 @@
 // =====================================================================
 (() => {
   const $ = (id) => document.getElementById(id);
+  const SAVED_CHANGES_KEY = 'pixelcity.textureStudio.savedChanges.v1';
   const state = {
     families: Object.create(null),   // family name -> doc
     family: null,
@@ -32,6 +33,8 @@
     images: new Map(),               // data URI -> {w,h,data}
     rev: 0,
   };
+  let bundledFamilies = null;
+  let savedChangesNotice = '';
 
   // -------------------------------------------------------------------
   // DOM helpers
@@ -961,6 +964,55 @@
     if (body.length <= 2) return '{}\n';
     return '{\n  // written by Texture Studio — JSONC: comments and trailing commas are allowed\n' + body.slice(2) + '\n';
   }
+  function loadSavedChanges() {
+    let raw;
+    try { raw = localStorage.getItem(SAVED_CHANGES_KEY); }
+    catch (e) {
+      savedChangesNotice = 'Could not access saved texture changes: ' + e.message;
+      return;
+    }
+    if (!raw) return;
+    try {
+      const saved = JSON.parse(raw);
+      if (!saved || saved.version !== 1 || !saved.families || typeof saved.families !== 'object' || Array.isArray(saved.families)) {
+        throw new Error('unrecognized saved data format');
+      }
+      for (const [name, doc] of Object.entries(saved.families)) {
+        if (!/^[a-z0-9_-]+$/i.test(name) || !doc || typeof doc !== 'object' ||
+            !doc.textures || typeof doc.textures !== 'object' || Array.isArray(doc.textures)) {
+          throw new Error('invalid texture family "' + name + '"');
+        }
+      }
+      state.families = Object.assign(Object.create(null), saved.families);
+      savedChangesNotice = 'Loaded saved editor-only texture changes from this browser.';
+    } catch (e) {
+      savedChangesNotice = 'Could not load saved texture changes: ' + e.message + '. Using bundled textures.';
+    }
+  }
+  function saveChanges() {
+    try {
+      localStorage.setItem(SAVED_CHANGES_KEY, JSON.stringify({version: 1, families: clean(state.families)}));
+      status('Saved texture changes in this browser only; gameplay files are unchanged.', 'good');
+    } catch (e) {
+      status('Could not save texture changes to this browser: ' + e.message, 'bad');
+    }
+  }
+  function clearSavedChanges() {
+    if (!confirm('Clear saved texture changes and restore the bundled editor textures? Unsaved edits will also be lost.')) return;
+    try {
+      localStorage.removeItem(SAVED_CHANGES_KEY);
+    } catch (e) {
+      status('Could not clear saved texture changes from this browser: ' + e.message, 'bad');
+      return;
+    }
+    state.families = Object.assign(Object.create(null), clone(bundledFamilies));
+    state.family = Object.keys(state.families).sort()[0] || null;
+    state.current = state.family ? Object.keys(state.families[state.family].textures)[0] || null : null;
+    edClearBuffer();
+    renderAll();
+    ensureAllImages();
+    status('Cleared saved texture changes. The editor is using bundled textures; gameplay files are unchanged.', 'good');
+  }
   function download() {
     const doc = familyName();
     if (!doc) return;
@@ -973,25 +1025,36 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
     status('Downloaded ' + a.download + ' (' + Math.round(text.length / 1024) + ' KB).', 'good');
   }
+  function importTextureText(text, sourceName) {
+    const doc = TEX.parse(text);
+    if (!doc || typeof doc !== 'object' || !doc.textures) throw new Error('no "textures" object');
+    const fam = (doc.name || sourceName.replace(/\.texture$/i, '') || 'imported').replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
+    doc.name = fam;
+    edClearBuffer();
+    state.families[fam] = doc;
+    state.family = fam;
+    state.current = Object.keys(doc.textures)[0] || null;
+    renderAll();
+    status('Imported ' + sourceName + '.', 'good');
+  }
   async function importFiles(files) {
     for (const file of files) {
-      try {
-        const text = await file.text();
-        const doc = TEX.parse(text);
-        if (!doc || typeof doc !== 'object' || !doc.textures) throw new Error('no "textures" object');
-        const fam = (doc.name || file.name.replace(/\.texture$/i, '') || 'imported').replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
-        doc.name = fam;
-        edClearBuffer();
-        state.families[fam] = doc;
-        state.family = fam;
-        state.current = Object.keys(doc.textures)[0] || null;
-        renderAll();
-        status('Imported ' + file.name + '.', 'good');
-      } catch (e) {
-        status('Could not import ' + file.name + ': ' + e.message, 'bad');
-      }
+      try { importTextureText(await file.text(), file.name); }
+      catch (e) { status('Could not import ' + file.name + ': ' + e.message, 'bad'); }
     }
     ensureAllImages();
+  }
+  function importPastedTexture() {
+    const text = $('pasteTextureText').value.trim();
+    if (!text) { status('Paste .texture file contents first.', 'bad'); return; }
+    try {
+      importTextureText(text, 'pasted.texture');
+      $('pasteTextureDialog').close();
+      $('pasteTextureText').value = '';
+      ensureAllImages();
+    } catch (e) {
+      status('Could not import pasted texture: ' + e.message, 'bad');
+    }
   }
   async function newSprite(file) {
     try {
@@ -1415,6 +1478,16 @@
   $('newBlankSprite').addEventListener('click', addBlankSprite);
   $('opToPixels').addEventListener('click', () => openPixelEditor(null, []));
   $('importBtn').addEventListener('click', () => $('importFile').click());
+  $('pasteTextureBtn').addEventListener('click', () => {
+    $('pasteTextureText').value = '';
+    $('pasteTextureDialog').showModal();
+    $('pasteTextureText').focus();
+  });
+  $('cancelPasteTexture').addEventListener('click', () => $('pasteTextureDialog').close());
+  $('pasteTextureForm').addEventListener('submit', e => {
+    e.preventDefault();
+    importPastedTexture();
+  });
   $('importFile').addEventListener('change', e => {
     const files = [...(e.target.files || [])];
     e.target.value = '';
@@ -1428,6 +1501,8 @@
   });
   $('bakeAll').addEventListener('click', bakeAllPngs);
   $('download').addEventListener('click', download);
+  $('saveChanges').addEventListener('click', saveChanges);
+  $('clearSavedChanges').addEventListener('click', clearSavedChanges);
   $('copy').addEventListener('click', async () => {
     const doc = familyName();
     if (!doc) return;
@@ -1557,6 +1632,9 @@
     }
   }
   if (!Object.keys(state.families).length) state.families.props = blankDoc('props');
+  bundledFamilies = clone(state.families);
+  loadSavedChanges();
+  if (!Object.keys(state.families).length) state.families.props = blankDoc('props');
   state.family = Object.keys(state.families).sort()[0];
   state.current = Object.keys(state.families[state.family].textures)[0] || null;
   edSyncColor();
@@ -1569,4 +1647,5 @@
   } else {
     status('Loaded ' + plural(Object.keys(sources).length, 'family', 'families') + ' from textures/.', 'good');
   }
+  if (savedChangesNotice) status(savedChangesNotice, savedChangesNotice.startsWith('Could not') ? 'bad' : 'good');
 })();

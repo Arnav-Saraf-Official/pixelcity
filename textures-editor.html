@@ -21,6 +21,10 @@ button.danger:hover{border-color:#7a3040;background:#33171d;color:var(--bad)}
 button.on{border-color:var(--hi);background:#3c3520;color:var(--hi)}
 input:focus,select:focus,textarea:focus{outline:1px solid var(--acc);outline-offset:0}
 input.invalid{border-color:#7a3040;background:#2a1418}
+dialog{width:min(640px,calc(100vw - 24px));padding:14px;background:var(--panel);color:var(--txt);border:1px solid var(--edge);box-shadow:0 16px 48px #000b}
+dialog::backdrop{background:#05070bbd}
+dialog form{display:flex;flex-direction:column;gap:10px}
+dialog textarea{width:100%;min-height:280px;resize:vertical;font-size:12px;line-height:1.5}
 .hidden{display:none!important}
 h1,h2,h3{margin:0;font-weight:600;letter-spacing:.02em}
 h1{font-size:15px}
@@ -162,11 +166,27 @@ footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;bo
   <button id="newFamily">New family</button>
   <button id="bakeAll" title="Replace every embedded PNG op with optimized rect ops">PNG → ops</button>
   <button id="importBtn">Import .texture…</button>
+  <button id="pasteTextureBtn">Paste .texture…</button>
   <button id="download" class="primary">Download .texture</button>
   <button id="copy" title="Copy the entire current .texture file to the clipboard">Copy .texture</button>
+  <button id="saveChanges" title="Save all texture editor changes in this browser only">Save changes</button>
+  <button id="clearSavedChanges" title="Clear browser-saved changes and restore bundled editor textures">Clear saved changes</button>
   <input type="file" id="importFile" accept=".texture,.json,application/json" multiple hidden>
   <input type="file" id="spriteFile" accept="image/png,image/*" hidden>
 </header>
+
+<dialog id="pasteTextureDialog" aria-labelledby="pasteTextureTitle">
+  <form id="pasteTextureForm">
+    <h2 id="pasteTextureTitle">Paste a .texture file</h2>
+    <label for="pasteTextureText">Paste the full texture file contents below. JSONC comments are supported.</label>
+    <textarea id="pasteTextureText" spellcheck="false" required placeholder='{"format":"texture/1","name":"my-textures","textures":{}}'></textarea>
+    <div class="row">
+      <span class="spacer"></span>
+      <button id="cancelPasteTexture" type="button">Cancel</button>
+      <button class="primary" type="submit">Import pasted texture</button>
+    </div>
+  </form>
+</dialog>
 
 <div id="app">
   <aside class="pane" id="library">
