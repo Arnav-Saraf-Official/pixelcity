@@ -1,0 +1,1634 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Texture Studio · PixelCity</title>
+<style>
+:root{
+  --bg:#0d1018;--panel:#161b2b;--panel2:#1d2437;--edge:#2f3854;--line:#222a40;
+  --txt:#e6eaf5;--dim:#8d97b5;--hi:#ffd75e;--acc:#6fb3ff;--good:#5fdc7a;--bad:#ff6b6b;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--mono);font-size:13px;line-height:1.45;display:flex;flex-direction:column;overflow:hidden}
+button,input,select,textarea{font-family:inherit;font-size:12px;color:var(--txt);background:var(--panel2);border:1px solid var(--edge);padding:3px 7px;border-radius:2px}
+button{cursor:pointer}
+button:hover{border-color:#4a5779;background:#26304a}
+button.primary{border-color:#7a6a2a;background:#2e2a16;color:var(--hi)}
+button.danger:hover{border-color:#7a3040;background:#33171d;color:var(--bad)}
+input:focus,select:focus,textarea:focus{outline:1px solid var(--acc);outline-offset:0}
+input.invalid{border-color:#7a3040;background:#2a1418}
+h1,h2,h3{margin:0;font-weight:600;letter-spacing:.02em}
+h1{font-size:15px}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim)}
+h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin:14px 0 6px}
+small{color:var(--dim)}
+code{font-size:11px;color:var(--acc);background:#101624;padding:1px 4px;border-radius:2px}
+
+header{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line);background:#101521;flex:0 0 auto;flex-wrap:wrap}
+header .grow{flex:1}
+header .title{display:flex;align-items:baseline;gap:8px}
+header .title b{color:var(--hi);font-size:16px;letter-spacing:.04em}
+header .title span{color:var(--dim)}
+header select{min-width:150px}
+
+#app{flex:1;display:grid;grid-template-columns:230px minmax(280px,1fr) minmax(360px,480px);min-height:0}
+.pane{min-height:0;overflow:auto;padding:10px 12px;border-right:1px solid var(--line)}
+.pane:last-child{border-right:0}
+#library{background:#111624}
+#stage{display:flex;flex-direction:column}
+#inspector{background:#111624}
+
+.list{display:flex;flex-direction:column;gap:2px;margin-bottom:8px}
+.list button{text-align:left;background:transparent;border:1px solid transparent;padding:3px 6px;display:flex;justify-content:space-between;gap:6px}
+.list button:hover{background:#1a2133;border-color:#2a3450}
+.list button.on{background:#25203a;border-color:#6c5a2a;color:var(--hi)}
+.list button .meta{color:var(--dim);font-size:10px}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.row .grow{flex:1}
+.spacer{flex:1}
+
+#stageTitle{font-size:13px;text-transform:none;letter-spacing:0;color:var(--txt)}
+#canvasWrap{
+  flex:0 0 auto;display:flex;align-items:center;justify-content:center;padding:14px;
+  background:
+    linear-gradient(45deg,#151b29 25%,transparent 25%,transparent 75%,#151b29 75%),
+    linear-gradient(45deg,#151b29 25%,transparent 25%,transparent 75%,#151b29 75%);
+  background-size:16px 16px;background-position:0 0,8px 8px;
+  border:1px solid var(--line);margin-top:8px;min-height:160px;overflow:auto
+}
+#preview{image-rendering:pixelated;display:block;background:transparent}
+#errors{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.err{color:#ffb3b3;background:#2a1418;border:1px solid #7a3040;padding:4px 7px;border-radius:2px;white-space:pre-wrap;font-size:11px}
+.ok{color:var(--good);font-size:11px}
+#paramForm,#texSettings,#opEditor{display:flex;flex-direction:column;gap:6px}
+.field{display:grid;grid-template-columns:96px 1fr;gap:8px;align-items:center}
+.field>label{color:var(--dim);font-size:11px;text-align:right;overflow:hidden;text-overflow:ellipsis}
+.field input[type=text],.field input[type=number],.field select{width:100%}
+.field .hint{grid-column:2;color:var(--dim);font-size:10px}
+
+.settings{border:1px solid var(--line);background:var(--panel);padding:8px;display:flex;flex-direction:column;gap:6px}
+.settings h2{margin-bottom:2px}
+
+.ops{display:flex;flex-direction:column;gap:5px}
+.ops .ops{margin:4px 0 0 0;padding-left:10px;border-left:1px solid #2b3450}
+.op{border:1px solid var(--line);background:var(--panel);border-radius:2px}
+.op>header{display:flex;align-items:center;gap:4px;padding:3px 5px;border-bottom:1px solid var(--line);background:#1a2132;border-radius:2px 2px 0 0}
+.op>header .kind{color:var(--hi);font-size:11px;letter-spacing:.05em;flex:1}
+.op>header button{padding:1px 5px;font-size:11px;line-height:1.2}
+.op .body{padding:5px;display:flex;flex-direction:column;gap:4px}
+.op .body .field{grid-template-columns:80px 1fr}
+.sub-label{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin:4px 0 2px}
+.addop{display:flex;gap:4px;align-items:center;margin-top:4px}
+.addop select{flex:1;min-width:0}
+.pairs{display:flex;flex-direction:column;gap:3px}
+.pairs .pair{display:grid;grid-template-columns:110px 1fr auto;gap:4px}
+.pngbox{display:flex;flex-direction:column;gap:3px}
+.pngbox .thumb{width:44px;height:44px;image-rendering:pixelated;border:1px solid var(--edge);background:#0b0f18;object-fit:contain}
+.pngbox .row{gap:4px}
+
+#markList{display:flex;flex-wrap:wrap;gap:8px;color:var(--dim);font-size:11px}
+#markList b{color:var(--txt);font-weight:500}
+
+footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;border-top:1px solid var(--line);background:#101521}
+#status{color:var(--dim);font-size:11px}
+#status.good{color:var(--good)}
+#status.bad{color:var(--bad)}
+
+.help{color:var(--dim);font-size:11px;margin-top:6px}
+.help b{color:var(--txt);font-weight:500}
+
+@media (max-width:1100px){
+  #app{grid-template-columns:200px minmax(240px,1fr) minmax(320px,420px)}
+}
+@media (max-width:900px){
+  body{overflow:auto}
+  #app{display:flex;flex-direction:column;height:auto}
+  .pane{border-right:0;border-bottom:1px solid var(--line);max-height:none}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title"><b>Texture Studio</b><span>· writes <code>.texture</code> files</span></div>
+  <span class="grow"></span>
+  <label class="row">Family <select id="familySelect"></select></label>
+  <button id="newFamily">New family</button>
+  <button id="newSprite">Sprite from PNG…</button>
+  <button id="importBtn">Import .texture…</button>
+  <button id="download" class="primary">Download .texture</button>
+  <button id="copy">Copy</button>
+  <input type="file" id="importFile" accept=".texture,.json,application/json" multiple hidden>
+  <input type="file" id="spriteFile" accept="image/png,image/*" hidden>
+</header>
+
+<div id="app">
+  <aside class="pane" id="library">
+    <h2>Textures</h2>
+    <div id="textureList" class="list"></div>
+    <form id="addTexForm" class="row">
+      <input id="addTexName" class="grow" placeholder="new_texture" spellcheck="false">
+      <button type="submit">Add</button>
+    </form>
+
+    <h3>Family</h3>
+    <div id="familySettings" class="settings"></div>
+
+    <h3>Defs</h3>
+    <div id="defsEditor" class="pairs"></div>
+    <div class="addop"><button id="addDef">Add def</button></div>
+
+    <p class="help">A <b>family</b> is one <code>.texture</code> file. Put it in
+      <code>textures/</code> and run <code>npm run textures</code>.</p>
+  </aside>
+
+  <section class="pane" id="stage">
+    <div class="row">
+      <h2 id="stageTitle">—</h2>
+      <span class="spacer"></span>
+      <label class="row">zoom <input id="zoom" type="range" min="1" max="16" value="5" style="width:90px"></label>
+      <label class="row"><input id="showGrid" type="checkbox" checked> grid</label>
+      <label class="row"><input id="showMarks" type="checkbox" checked> marks</label>
+    </div>
+    <div id="canvasWrap"><canvas id="preview" width="90" height="90"></canvas></div>
+    <div id="errors"></div>
+
+    <h3>Test parameters</h3>
+    <div id="paramForm"></div>
+    <p class="help">Values here are only used by the preview. A texture always
+      renders with <code>w h tw th ox oy</code> supplied by the engine, plus a
+      <code>seed</code> if it declares one.</p>
+
+    <h3>Recorded marks</h3>
+    <div id="markList"><span>Nothing recorded.</span></div>
+  </section>
+
+  <section class="pane" id="inspector">
+    <div id="texSettings"></div>
+    <h3>Ops</h3>
+    <div id="opEditor"></div>
+    <p class="help">Values are JSON: a number, <code>"#rrggbbaa"</code>, a list,
+      or an expression such as <code>["+", ["param","x"], 1]</code>.
+      Fields named <code>as</code>, <code>texture</code>, <code>file</code> and
+      <code>fn</code> are plain strings.</p>
+  </section>
+</div>
+
+<footer>
+  <span id="status">Ready.</span>
+  <span class="spacer"></span>
+  <small>Preview is live; the file is generated on download.</small>
+</footer>
+
+<script>window.TEXTURE_SOURCES = {"buildings":"{\n  // ===================================================================\n  // Buildings. Every type is a rule over its `seed`, so each plot gets a\n  // stable variation without storing a sprite per building.\n  //\n  // Ops used for dynamic behaviour:\n  //   win  - paints a window and records its pixel for night lighting\n  //   park - records a parking slot (v: 1 = perpendicular, 0 = parallel)\n  //   stat - status light position (carried by every type but metro/park/bus stop)\n  //   berth - where boats moor at a dock\n  //   spots - queue points for metro stations and bus stops\n  //   mark  - records visitor points without painting\n  // `wet(tx,ty)` is a function supplied by the caller, used by the dock.\n  // ===================================================================\n  \"format\": \"texture/1\",\n  \"name\": \"buildings\",\n  \"tile\": 9,\n\n  \"defs\": {\n    \"roofs\": [\"#c0504d\", \"#d2763a\", \"#8e5ea2\", \"#4f7cac\", \"#5f8f3a\", \"#b5651d\", \"#a83f5f\", \"#3f7f7f\"],\n    \"walls\": [\"#efe3c8\", \"#e6d3b3\", \"#dcd6d0\", \"#f3efe6\", \"#d9c3a5\"],\n    \"grey\": \"#6f727a\"\n  },\n\n  \"textures\": {\n    \"house\": {\n      \"size\": [9, 9],\n      \"params\": {\n        \"seed\": 0, \"wet\": null,\n        \"roof\": [\"pick\", [\"def\", \"roofs\"], [\"rnd\"]],\n        \"wall\": [\"pick\", [\"def\", \"walls\"], [\"rnd\"]]\n      },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 9, \"h\": 9, \"color\": \"#68ad52\" },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 7, \"h\": 3, \"color\": [\"param\", \"roof\"] },\n        { \"op\": \"rect\", \"x\": 2, \"y\": 1, \"w\": 5, \"h\": 1, \"color\": [\"shade\", [\"param\", \"roof\"], 28] },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 3, \"w\": 7, \"h\": 1, \"color\": [\"shade\", [\"param\", \"roof\"], -35] },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 4, \"w\": 7, \"h\": 3, \"color\": [\"param\", \"wall\"] },\n        { \"op\": \"rect\", \"x\": 4, \"y\": 5, \"w\": 1, \"h\": 2, \"color\": \"#6b4423\" },\n        { \"op\": \"win\", \"x\": 2, \"y\": 5 },\n        { \"op\": \"win\", \"x\": 6, \"y\": 5 },\n        { \"op\": \"if\", \"test\": [\"\u003c\", [\"rnd\"], 0.6], \"then\": [\n          { \"op\": \"rect\", \"x\": 6, \"y\": 0, \"w\": 1, \"h\": 2, \"color\": \"#7a4a3a\" }] },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 7, \"w\": 9, \"h\": 2, \"color\": \"#8c8f96\" },\n        { \"op\": \"park\", \"x\": 1, \"y\": 7, \"v\": 0 },\n        { \"op\": \"park\", \"x\": 5, \"y\": 7, \"v\": 0 },\n        { \"op\": \"stat\", \"x\": [\"-\", [\"param\", \"w\"], 2], \"y\": 0 }\n      ]\n    },\n\n    \"farmhouse\": {\n      \"size\": [9, 9],\n      \"params\": { \"seed\": 0, \"wet\": null },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 9, \"h\": 9, \"color\": \"#7fb35a\" },\n        { \"op\": \"each\", \"as\": \"x\", \"in\": [0, 2, 4, 6, 8], \"ops\": [\n          { \"op\": \"pixel\", \"x\": [\"var\", \"x\"], \"y\": 0, \"color\": \"#c9a66b\" },\n          { \"op\": \"pixel\", \"x\": 0, \"y\": [\"var\", \"x\"], \"color\": \"#c9a66b\" }] },\n        { \"op\": \"rect\", \"x\": 2, \"y\": 1, \"w\": 6, \"h\": 2, \"color\": \"#8b3a2e\" },\n        { \"op\": \"rect\", \"x\": 3, \"y\": 1, \"w\": 4, \"h\": 1, \"color\": \"#a8483a\" },\n        { \"op\": \"rect\", \"x\": 2, \"y\": 3, \"w\": 6, \"h\": 3, \"color\": \"#f0e2c0\" },\n        { \"op\": \"rect\", \"x\": 4, \"y\": 4, \"w\": 1, \"h\": 2, \"color\": \"#5a3a22\" },\n        { \"op\": \"win\", \"x\": 3, \"y\": 4 },\n        { \"op\": \"win\", \"x\": 6, \"y\": 4 },\n        { \"op\": \"win\", \"x\": 3, \"y\": 3 },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 7, \"w\": 3, \"h\": 1, \"color\": \"#5a8f3a\" },\n        { \"op\": \"pixel\", \"x\": 1, \"y\": 7, \"color\": \"#e05a3a\" },\n        { \"op\": \"pixel\", \"x\": 3, \"y\": 7, \"color\": \"#e0c03a\" },\n        { \"op\": \"rect\", \"x\": 5, \"y\": 6, \"w\": 3, \"h\": 3, \"color\": \"#a8946e\" },\n        { \"op\": \"park\", \"x\": 5, \"y\": 6, \"v\": 1 },\n        { \"op\": \"stat\", \"x\": [\"-\", [\"param\", \"w\"], 2], \"y\": 0 }\n      ]\n    },\n\n    \"apartment\": {\n      \"size\": [18, 18],\n      \"params\": {\n        \"seed\": 0, \"wet\": null,\n        \"wall\": [\"pick\", [\"#c9b79c\", \"#b8c4d0\", \"#d8c8b8\", \"#c7a98f\", \"#a9b7a0\"], [\"rnd\"]]\n      },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 18, \"h\": 18, \"color\": \"#68ad52\" },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 16, \"h\": 12, \"color\": [\"param\", \"wall\"] },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 16, \"h\": 2, \"color\": [\"shade\", [\"param\", \"wall\"], -45] },\n        { \"op\": \"rect\", \"x\": 3, \"y\": 1, \"w\": 2, \"h\": 1, \"color\": \"#8f9aa3\" },\n        { \"op\": \"rect\", \"x\": 12, \"y\": 1, \"w\": 3, \"h\": 1, \"color\": \"#8f9aa3\" },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 12, \"w\": 16, \"h\": 1, \"color\": [\"shade\", [\"param\", \"wall\"], -25] },\n        { \"op\": \"each\", \"as\": \"y\", \"in\": [4, 6, 8, 10], \"ops\": [\n          { \"op\": \"each\", \"as\": \"x\", \"in\": [3, 5, 7, 10, 12, 14], \"ops\": [\n            { \"op\": \"win\", \"x\": [\"var\", \"x\"], \"y\": [\"var\", \"y\"] }] }] },\n        { \"op\": \"rect\", \"x\": 8, \"y\": 10, \"w\": 2, \"h\": 3, \"color\": \"#5a3a22\" },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 13, \"w\": 18, \"h\": 5, \"color\": \"#6f727a\" },\n        { \"op\": \"each\", \"as\": \"y\", \"in\": [14, 16], \"ops\": [\n          { \"op\": \"each\", \"as\": \"x\", \"in\": [1, 5, 10, 14], \"ops\": [\n            { \"op\": \"park\", \"x\": [\"var\", \"x\"], \"y\": [\"var\", \"y\"], \"v\": 0 }] }] },\n        { \"op\": \"stat\", \"x\": [\"-\", [\"param\", \"w\"], 2], \"y\": 0 }\n      ]\n    },\n\n    \"tower\": {\n      \"size\": [27, 27],\n      \"params\": {\n        \"seed\": 0, \"wet\": null,\n        \"wall\": [\"pick\", [\"#9db0c4\", \"#b6a6c9\", \"#a7b9a2\", \"#c4b29a\"], [\"rnd\"]]\n      },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 27, \"h\": 27, \"color\": \"#68ad52\" },\n        { \"op\": \"rect\", \"x\": 2, \"y\": 1, \"w\": 23, \"h\": 19, \"color\": [\"param\", \"wall\"] },\n        { \"op\": \"rect\", \"x\": 2, \"y\": 1, \"w\": 23, \"h\": 2, \"color\": [\"shade\", [\"param\", \"wall\"], -50] },\n        { \"op\": \"rect\", \"x\": 2, \"y\": 19, \"w\": 23, \"h\": 1, \"color\": [\"shade\", [\"param\", \"wall\"], -30] },\n        { \"op\": \"pixel\", \"x\": 13, \"y\": 1, \"color\": \"#e0e0e0\" },\n        { \"op\": \"each\", \"as\": \"y\", \"in\": [4, 6, 8, 10, 12, 14, 16], \"ops\": [\n          { \"op\": \"each\", \"as\": \"x\", \"in\": [4, 6, 8, 10, 12, 14, 16, 18, 20, 22], \"ops\": [\n            { \"op\": \"win\", \"x\": [\"var\", \"x\"], \"y\": [\"var\", \"y\"] }] }] },\n        { \"op\": \"rect\", \"x\": 12, \"y\": 17, \"w\": 3, \"h\": 3, \"color\": \"#3a2a1a\" },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 21, \"w\": 27, \"h\": 6, \"color\": \"#6f727a\" },\n        { \"op\": \"each\", \"as\": \"y\", \"in\": [22, 24], \"ops\": [\n          { \"op\": \"each\", \"as\": \"x\", \"in\": [1, 5, 9, 13, 17, 21], \"ops\": [\n            { \"op\": \"park\", \"x\": [\"var\", \"x\"], \"y\": [\"var\", \"y\"], \"v\": 0 }] }] },\n        { \"op\": \"stat\", \"x\": [\"-\", [\"param\", \"w\"], 2], \"y\": 0 }\n      ]\n    },\n\n    \"shop\": {\n      \"size\": [9, 9],\n      \"params\": {\n        \"seed\": 0, \"wet\": null,\n        \"wall\": [\"pick\", [\"#f0e6d2\", \"#e2d6c2\", \"#f4ecec\"], [\"rnd\"]],\n        \"awn\": [\"pick\", [\"#d9534f\", \"#3e8ed0\", \"#3bb273\", \"#e69a2e\", \"#9b59b6\"], [\"rnd\"]]\n      },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 9, \"h\": 9, \"color\": \"#c9c2b0\" },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 7, \"h\": 5, \"color\": [\"param\", \"wall\"] },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 7, \"h\": 1, \"color\": [\"shade\", [\"param\", \"awn\"], -30] },\n        { \"op\": \"repeat\", \"as\": \"k\", \"times\": 7, \"ops\": [\n          { \"op\": \"pixel\", \"x\": [\"+\", [\"var\", \"k\"], 1], \"y\": 3,\n            \"color\": [\"if\", [\"mod\", [\"+\", [\"var\", \"k\"], 1], 2], [\"param\", \"awn\"], \"#ffffff\"] }] },\n        { \"op\": \"win\", \"x\": 2, \"y\": 4 },\n        { \"op\": \"win\", \"x\": 6, \"y\": 4 },\n        { \"op\": \"rect\", \"x\": 4, \"y\": 4, \"w\": 1, \"h\": 2, \"color\": \"#6b4423\" },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 6, \"w\": 9, \"h\": 3, \"color\": \"#7a7d84\" },\n        { \"op\": \"park\", \"x\": 0, \"y\": 7, \"v\": 0 },\n        { \"op\": \"park\", \"x\": 3, \"y\": 7, \"v\": 0 },\n        { \"op\": \"park\", \"x\": 6, \"y\": 7, \"v\": 0 },\n        { \"op\": \"stat\", \"x\": [\"-\", [\"param\", \"w\"], 2], \"y\": 0 }\n      ]\n    },\n\n    \"market\": {\n      \"size\": [18, 18],\n      \"params\": {\n        \"seed\": 0, \"wet\": null,\n        \"sign\": [\"pick\", [\"#d9534f\", \"#2f8f4f\", \"#e69a2e\", \"#3e6fd0\"], [\"rnd\"]]\n      },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 18, \"h\": 18, \"color\": \"#6f727a\" },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 16, \"h\": 9, \"color\": \"#e8e2d2\" },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 16, \"h\": 1, \"color\": \"#bdb5a2\" },\n        { \"op\": \"rect\", \"x\": 4, \"y\": 2, \"w\": 10, \"h\": 3, \"color\": [\"param\", \"sign\"] },\n        { \"op\": \"rect\", \"x\": 5, \"y\": 3, \"w\": 8, \"h\": 1, \"color\": \"#ffffff\" },\n        { \"op\": \"each\", \"as\": \"x\", \"in\": [2, 4, 6, 11, 13, 15], \"ops\": [\n          { \"op\": \"win\", \"x\": [\"var\", \"x\"], \"y\": 7 }] },\n        { \"op\": \"rect\", \"x\": 8, \"y\": 7, \"w\": 2, \"h\": 3, \"color\": \"#4c5566\" },\n        { \"op\": \"each\", \"as\": \"y\", \"in\": [11, 14], \"ops\": [\n          { \"op\": \"each\", \"as\": \"x\", \"in\": [1, 5, 10, 14], \"ops\": [\n            { \"op\": \"park\", \"x\": [\"var\", \"x\"], \"y\": [\"var\", \"y\"], \"v\": 0 }] }] },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 17, \"w\": 18, \"h\": 1, \"color\": \"#5f6168\" },\n        { \"op\": \"stat\", \"x\": [\"-\", [\"param\", \"w\"], 2], \"y\": 0 }\n      ]\n    },\n\n    \"mall\": {\n      \"size\": [27, 27],\n      \"params\": {\n        \"seed\": 0, \"wet\": null,\n        \"sign\": [\"pick\", [\"#c0392b\", \"#8e44ad\", \"#16a085\", \"#d35400\"], [\"rnd\"]]\n      },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 27, \"h\": 27, \"color\": \"#6f727a\" },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 25, \"h\": 14, \"color\": \"#d9d4e6\" },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 25, \"h\": 1, \"color\": \"#a9a3bb\" },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 14, \"w\": 25, \"h\": 1, \"color\": \"#b3adc4\" },\n        { \"op\": \"each\", \"as\": \"k\", \"in\": [0, 1, 2, 3, 4], \"ops\": [\n          { \"op\": \"rect\", \"x\": [\"+\", [\"*\", [\"var\", \"k\"], 4], 4], \"y\": 3, \"w\": 2, \"h\": 5, \"color\": \"#8fd3ff\" }] },\n        { \"op\": \"rect\", \"x\": 9, \"y\": 9, \"w\": 9, \"h\": 2, \"color\": [\"param\", \"sign\"] },\n        { \"op\": \"rect\", \"x\": 10, \"y\": 9, \"w\": 7, \"h\": 1, \"color\": [\"shade\", [\"param\", \"sign\"], 50] },\n        { \"op\": \"each\", \"as\": \"x\", \"in\": [3, 5, 7, 19, 21, 23], \"ops\": [\n          { \"op\": \"win\", \"x\": [\"var\", \"x\"], \"y\": 12 }] },\n        { \"op\": \"rect\", \"x\": 12, \"y\": 12, \"w\": 3, \"h\": 3, \"color\": \"#3c4250\" },\n        { \"op\": \"each\", \"as\": \"y\", \"in\": [17, 20, 23], \"ops\": [\n          { \"op\": \"each\", \"as\": \"x\", \"in\": [1, 5, 9, 14, 18, 22], \"ops\": [\n            { \"op\": \"park\", \"x\": [\"var\", \"x\"], \"y\": [\"var\", \"y\"], \"v\": 0 }] }] },\n        { \"op\": \"stat\", \"x\": [\"-\", [\"param\", \"w\"], 2], \"y\": 0 }\n      ]\n    },\n\n    \"office\": {\n      \"size\": [18, 18],\n      \"params\": {\n        \"seed\": 0, \"wet\": null,\n        \"glass\": [\"pick\", [\"#4f7fa8\", \"#4f8f96\", \"#5a6fa8\", \"#6a7f96\"], [\"rnd\"]]\n      },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 18, \"h\": 18, \"color\": \"#68ad52\" },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 11, \"h\": 16, \"color\": [\"param\", \"glass\"] },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 11, \"h\": 1, \"color\": [\"shade\", [\"param\", \"glass\"], 40] },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 16, \"w\": 11, \"h\": 1, \"color\": [\"shade\", [\"param\", \"glass\"], -35] },\n        { \"op\": \"rect\", \"x\": 11, \"y\": 1, \"w\": 1, \"h\": 16, \"color\": [\"shade\", [\"param\", \"glass\"], -20] },\n        { \"op\": \"each\", \"as\": \"y\", \"in\": [3, 5, 7, 9, 11], \"ops\": [\n          { \"op\": \"each\", \"as\": \"x\", \"in\": [3, 5, 7, 9], \"ops\": [\n            { \"op\": \"win\", \"x\": [\"var\", \"x\"], \"y\": [\"var\", \"y\"] }] }] },\n        { \"op\": \"rect\", \"x\": 5, \"y\": 14, \"w\": 2, \"h\": 3, \"color\": \"#1c2533\" },\n        { \"op\": \"rect\", \"x\": 13, \"y\": 0, \"w\": 5, \"h\": 18, \"color\": \"#6f727a\" },\n        { \"op\": \"each\", \"as\": \"y\", \"in\": [1, 5, 9, 13], \"ops\": [\n          { \"op\": \"each\", \"as\": \"x\", \"in\": [13, 15], \"ops\": [\n            { \"op\": \"park\", \"x\": [\"var\", \"x\"], \"y\": [\"var\", \"y\"], \"v\": 1 }] }] },\n        { \"op\": \"stat\", \"x\": [\"-\", [\"param\", \"w\"], 2], \"y\": 0 }\n      ]\n    },\n\n    \"hq\": {\n      \"size\": [27, 27],\n      \"params\": { \"seed\": 0, \"wet\": null },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 27, \"h\": 27, \"color\": \"#68ad52\" },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 22, \"w\": 21, \"h\": 5, \"color\": \"#c9c2b0\" },\n        { \"op\": \"rect\", \"x\": 3, \"y\": 1, \"w\": 17, \"h\": 21, \"color\": \"#22384f\" },\n        { \"op\": \"rect\", \"x\": 4, \"y\": 2, \"w\": 15, \"h\": 19, \"color\": \"#3d6488\" },\n        { \"op\": \"rect\", \"x\": 4, \"y\": 2, \"w\": 15, \"h\": 1, \"color\": \"#6f95b8\" },\n        { \"op\": \"each\", \"as\": \"y\", \"in\": [4, 6, 8, 10, 12, 14, 16, 18], \"ops\": [\n          { \"op\": \"each\", \"as\": \"x\", \"in\": [6, 8, 10, 12, 14, 16], \"ops\": [\n            { \"op\": \"win\", \"x\": [\"var\", \"x\"], \"y\": [\"var\", \"y\"] }] }] },\n        { \"op\": \"rect\", \"x\": 11, \"y\": 0, \"w\": 1, \"h\": 2, \"color\": \"#dddddd\" },\n        { \"op\": \"rect\", \"x\": 10, \"y\": 20, \"w\": 3, \"h\": 2, \"color\": \"#101820\" },\n        { \"op\": \"rect\", \"x\": 21, \"y\": 0, \"w\": 6, \"h\": 27, \"color\": \"#6f727a\" },\n        { \"op\": \"each\", \"as\": \"y\", \"in\": [1, 5, 9, 13, 17, 22], \"ops\": [\n          { \"op\": \"each\", \"as\": \"x\", \"in\": [21, 24], \"ops\": [\n            { \"op\": \"park\", \"x\": [\"var\", \"x\"], \"y\": [\"var\", \"y\"], \"v\": 1 }] }] },\n        { \"op\": \"stat\", \"x\": [\"-\", [\"param\", \"w\"], 2], \"y\": 0 }\n      ]\n    },\n\n    \"factory\": {\n      \"size\": [27, 18],\n      \"params\": { \"seed\": 0, \"wet\": null },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 27, \"h\": 18, \"color\": \"#8a8577\" },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 18, \"h\": 11, \"color\": \"#a8a090\" },\n        { \"op\": \"each\", \"as\": \"k\", \"in\": [0, 1, 2, 3, 4, 5], \"ops\": [\n          { \"op\": \"rect\", \"x\": [\"+\", [\"*\", [\"var\", \"k\"], 3], 1], \"y\": 1, \"w\": 3, \"h\": 3, \"color\": \"#bdb4a0\" },\n          { \"op\": \"rect\", \"x\": [\"+\", [\"*\", [\"var\", \"k\"], 3], 1], \"y\": 3, \"w\": 3, \"h\": 1, \"color\": \"#6f695d\" },\n          { \"op\": \"rect\", \"x\": [\"+\", [\"*\", [\"var\", \"k\"], 3], 1], \"y\": 1, \"w\": 1, \"h\": 2, \"color\": \"#d8cfba\" }] },\n        { \"op\": \"each\", \"as\": \"y\", \"in\": [6, 8], \"ops\": [\n          { \"op\": \"each\", \"as\": \"k\", \"in\": [0, 1, 2, 3, 4, 5, 6, 7], \"ops\": [\n            { \"op\": \"win\", \"x\": [\"+\", [\"*\", [\"var\", \"k\"], 2], 3], \"y\": [\"var\", \"y\"] }] }] },\n        { \"op\": \"rect\", \"x\": 8, \"y\": 10, \"w\": 3, \"h\": 2, \"color\": \"#4a4438\" },\n        { \"op\": \"rect\", \"x\": 21, \"y\": 1, \"w\": 2, \"h\": 8, \"color\": \"#7a5a4a\" },\n        { \"op\": \"rect\", \"x\": 21, \"y\": 1, \"w\": 2, \"h\": 1, \"color\": \"#2e2e2e\" },\n        { \"op\": \"rect\", \"x\": 23, \"y\": 4, \"w\": 3, \"h\": 3, \"color\": \"#b0b8c0\" },\n        { \"op\": \"rect\", \"x\": 23, \"y\": 4, \"w\": 3, \"h\": 1, \"color\": \"#d6dde3\" },\n        { \"op\": \"rect\", \"x\": 23, \"y\": 8, \"w\": 3, \"h\": 3, \"color\": \"#b0b8c0\" },\n        { \"op\": \"rect\", \"x\": 23, \"y\": 8, \"w\": 3, \"h\": 1, \"color\": \"#d6dde3\" },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 13, \"w\": 27, \"h\": 5, \"color\": \"#6f727a\" },\n        { \"op\": \"each\", \"as\": \"x\", \"in\": [1, 5, 9, 13, 17, 21], \"ops\": [\n          { \"op\": \"park\", \"x\": [\"var\", \"x\"], \"y\": 14, \"v\": 0 }] },\n        { \"op\": \"stat\", \"x\": [\"-\", [\"param\", \"w\"], 2], \"y\": 0 }\n      ]\n    },\n\n    \"warehouse\": {\n      \"size\": [27, 18],\n      \"params\": { \"seed\": 0, \"wet\": null },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 27, \"h\": 18, \"color\": \"#7a7d84\" },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 25, \"h\": 10, \"color\": \"#b9bcc2\" },\n        { \"op\": \"each\", \"as\": \"k\", \"in\": [0, 1, 2, 3, 4, 5, 6, 7, 8], \"ops\": [\n          { \"op\": \"rect\", \"x\": [\"+\", [\"*\", [\"var\", \"k\"], 3], 1], \"y\": 1, \"w\": 1, \"h\": 10, \"color\": \"#a3a6ad\" }] },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 10, \"w\": 25, \"h\": 1, \"color\": \"#8a8d93\" },\n        { \"op\": \"each\", \"as\": \"k\", \"in\": [0, 1, 2], \"ops\": [\n          { \"op\": \"rect\", \"x\": [\"+\", [\"*\", [\"var\", \"k\"], 5], 3], \"y\": 11, \"w\": 3, \"h\": 1, \"color\": \"#3a3d44\" }] },\n        { \"op\": \"each\", \"as\": \"k\", \"in\": [0, 1], \"ops\": [\n          { \"op\": \"rect\", \"x\": [\"+\", [\"*\", [\"var\", \"k\"], 5], 3], \"y\": 12, \"w\": 3, \"h\": 4, \"color\": \"#e6e6e6\" },\n          { \"op\": \"rect\", \"x\": [\"+\", [\"*\", [\"var\", \"k\"], 5], 3], \"y\": 16, \"w\": 3, \"h\": 1,\n            \"color\": [\"pick\", [\"#2f6fd0\", \"#c0392b\", \"#27ae60\"], [\"rnd\"]] }] },\n        { \"op\": \"rect\", \"x\": 19, \"y\": 12, \"w\": 7, \"h\": 5, \"color\": \"#d8d2c4\" },\n        { \"op\": \"rect\", \"x\": 19, \"y\": 12, \"w\": 7, \"h\": 1, \"color\": \"#a8a294\" },\n        { \"op\": \"win\", \"x\": 21, \"y\": 14 },\n        { \"op\": \"win\", \"x\": 23, \"y\": 14 },\n        { \"op\": \"park\", \"x\": 14, \"y\": 12, \"v\": 1 },\n        { \"op\": \"park\", \"x\": 16, \"y\": 12, \"v\": 1 },\n        { \"op\": \"stat\", \"x\": [\"-\", [\"param\", \"w\"], 2], \"y\": 0 }\n      ]\n    },\n\n    \"dock\": {\n      \"size\": [27, 18],\n      \"params\": { \"seed\": 0, \"wet\": null, \"crane\": false },\n      \"ops\": [\n        { \"op\": \"each\", \"as\": \"ty\", \"in\": [\"range\", [\"param\", \"th\"]], \"ops\": [\n          { \"op\": \"each\", \"as\": \"tx\", \"in\": [\"range\", [\"param\", \"tw\"]], \"ops\": [\n\n            { \"op\": \"if\", \"test\": [\"fn\", \"wet\", [\"var\", \"tx\"], [\"var\", \"ty\"]], \"then\": [\n              { \"op\": \"rect\", \"x\": [\"*\", [\"var\", \"tx\"], 9], \"y\": [\"+\", [\"*\", [\"var\", \"ty\"], 9], 1],\n                \"w\": 9, \"h\": 7, \"color\": \"#8b6a43\" },\n              { \"op\": \"each\", \"as\": \"k\", \"in\": [2, 4, 6], \"ops\": [\n                { \"op\": \"rect\", \"x\": [\"*\", [\"var\", \"tx\"], 9], \"y\": [\"+\", [\"*\", [\"var\", \"ty\"], 9], [\"var\", \"k\"]],\n                  \"w\": 9, \"h\": 1, \"color\": \"#6e5233\" }] },\n              { \"op\": \"pixel\", \"x\": [\"*\", [\"var\", \"tx\"], 9], \"y\": [\"+\", [\"*\", [\"var\", \"ty\"], 9], 1], \"color\": \"#3e2c1c\" },\n              { \"op\": \"pixel\", \"x\": [\"+\", [\"*\", [\"var\", \"tx\"], 9], 8], \"y\": [\"+\", [\"*\", [\"var\", \"ty\"], 9], 1], \"color\": \"#3e2c1c\" },\n              { \"op\": \"pixel\", \"x\": [\"*\", [\"var\", \"tx\"], 9], \"y\": [\"+\", [\"*\", [\"var\", \"ty\"], 9], 7], \"color\": \"#3e2c1c\" },\n              { \"op\": \"pixel\", \"x\": [\"+\", [\"*\", [\"var\", \"tx\"], 9], 8], \"y\": [\"+\", [\"*\", [\"var\", \"ty\"], 9], 7], \"color\": \"#3e2c1c\" },\n              { \"op\": \"berth\", \"x\": [\"var\", \"tx\"], \"y\": [\"var\", \"ty\"] }\n            ], \"else\": [\n              { \"op\": \"rect\", \"x\": [\"*\", [\"var\", \"tx\"], 9], \"y\": [\"*\", [\"var\", \"ty\"], 9],\n                \"w\": 9, \"h\": 9, \"color\": \"#9a9ca2\" },\n\n              { \"op\": \"if\", \"test\": [\"not\", [\"param\", \"crane\"]], \"then\": [\n                { \"op\": \"set\", \"as\": \"crane\", \"value\": true },\n                { \"op\": \"rect\", \"x\": [\"+\", [\"*\", [\"var\", \"tx\"], 9], 1], \"y\": [\"+\", [\"*\", [\"var\", \"ty\"], 9], 1],\n                  \"w\": 6, \"h\": 4, \"color\": \"#d8d2c4\" },\n                { \"op\": \"rect\", \"x\": [\"+\", [\"*\", [\"var\", \"tx\"], 9], 1], \"y\": [\"+\", [\"*\", [\"var\", \"ty\"], 9], 1],\n                  \"w\": 6, \"h\": 1, \"color\": \"#a8a294\" },\n                { \"op\": \"win\", \"x\": [\"+\", [\"*\", [\"var\", \"tx\"], 9], 2], \"y\": [\"+\", [\"*\", [\"var\", \"ty\"], 9], 3] },\n                { \"op\": \"win\", \"x\": [\"+\", [\"*\", [\"var\", \"tx\"], 9], 5], \"y\": [\"+\", [\"*\", [\"var\", \"ty\"], 9], 3] },\n                { \"op\": \"rect\", \"x\": [\"+\", [\"*\", [\"var\", \"tx\"], 9], 7], \"y\": [\"*\", [\"var\", \"ty\"], 9],\n                  \"w\": 1, \"h\": 6, \"color\": \"#e0b030\" },\n                { \"op\": \"rect\", \"x\": [\"+\", [\"*\", [\"var\", \"tx\"], 9], 3], \"y\": [\"*\", [\"var\", \"ty\"], 9],\n                  \"w\": 6, \"h\": 1, \"color\": \"#e0b030\" }\n              ], \"else\": [\n                { \"op\": \"rect\", \"x\": [\"+\", [\"*\", [\"var\", \"tx\"], 9], 1], \"y\": [\"+\", [\"*\", [\"var\", \"ty\"], 9], 1],\n                  \"w\": 3, \"h\": 3, \"color\": \"#b07a3a\" },\n                { \"op\": \"rect\", \"x\": [\"+\", [\"*\", [\"var\", \"tx\"], 9], 1], \"y\": [\"+\", [\"*\", [\"var\", \"ty\"], 9], 1],\n                  \"w\": 3, \"h\": 1, \"color\": \"#8a5a2a\" },\n                { \"op\": \"rect\", \"x\": [\"+\", [\"*\", [\"var\", \"tx\"], 9], 5], \"y\": [\"+\", [\"*\", [\"var\", \"ty\"], 9], 1],\n                  \"w\": 3, \"h\": 4, \"color\": [\"pick\", [\"#c0392b\", \"#2f6fd0\", \"#27ae60\", \"#e67e22\"], [\"rnd\"]] }\n              ] },\n\n              { \"op\": \"park\", \"x\": [\"+\", [\"*\", [\"var\", \"tx\"], 9], 5], \"y\": [\"+\", [\"*\", [\"var\", \"ty\"], 9], 6], \"v\": 0 }\n            ] }\n          ] }\n        ] },\n        { \"op\": \"stat\", \"x\": [\"-\", [\"param\", \"w\"], 2], \"y\": 0 }\n      ]\n    },\n\n    \"farm\": {\n      \"size\": [36, 27],\n      \"params\": { \"seed\": 0, \"wet\": null },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 36, \"h\": 27, \"color\": \"#7fb35a\" },\n        { \"op\": \"repeat\", \"as\": \"y\", \"times\": 17, \"ops\": [\n          { \"op\": \"rect\", \"x\": 0, \"y\": [\"var\", \"y\"], \"w\": 22, \"h\": 1,\n            \"color\": [\"if\", [\"==\", [\"mod\", [\"var\", \"y\"], 3], 0], \"#c9b24a\",\n                      [\"if\", [\"==\", [\"mod\", [\"var\", \"y\"], 3], 1], \"#a8c04a\", \"#86a83c\"]] }] },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 18, \"w\": 22, \"h\": 9, \"color\": \"#6d5a3a\" },\n        { \"op\": \"each\", \"as\": \"y\", \"in\": [19, 21, 23, 25], \"ops\": [\n          { \"op\": \"rect\", \"x\": 0, \"y\": [\"var\", \"y\"], \"w\": 22, \"h\": 1, \"color\": \"#5a4a30\" }] },\n        { \"op\": \"rect\", \"x\": 24, \"y\": 2, \"w\": 10, \"h\": 8, \"color\": \"#b33a2e\" },\n        { \"op\": \"rect\", \"x\": 24, \"y\": 2, \"w\": 10, \"h\": 2, \"color\": \"#7a2a22\" },\n        { \"op\": \"rect\", \"x\": 27, \"y\": 7, \"w\": 4, \"h\": 3, \"color\": \"#5a2420\" },\n        { \"op\": \"pixel\", \"x\": 28, \"y\": 8, \"color\": \"#e8e2d2\" },\n        { \"op\": \"pixel\", \"x\": 29, \"y\": 7, \"color\": \"#e8e2d2\" },\n        { \"op\": \"win\", \"x\": 25, \"y\": 5 },\n        { \"op\": \"win\", \"x\": 32, \"y\": 5 },\n        { \"op\": \"rect\", \"x\": 25, \"y\": 12, \"w\": 4, \"h\": 8, \"color\": \"#c8ccd2\" },\n        { \"op\": \"rect\", \"x\": 25, \"y\": 11, \"w\": 4, \"h\": 1, \"color\": \"#9aa0a8\" },\n        { \"op\": \"rect\", \"x\": 25, \"y\": 15, \"w\": 4, \"h\": 1, \"color\": \"#9aa0a8\" },\n        { \"op\": \"rect\", \"x\": 30, \"y\": 14, \"w\": 3, \"h\": 2, \"color\": \"#3a8a3a\" },\n        { \"op\": \"pixel\", \"x\": 30, \"y\": 16, \"color\": \"#222222\" },\n        { \"op\": \"pixel\", \"x\": 32, \"y\": 16, \"color\": \"#222222\" },\n        { \"op\": \"rect\", \"x\": 23, \"y\": 21, \"w\": 13, \"h\": 6, \"color\": \"#a8946e\" },\n        { \"op\": \"park\", \"x\": 24, \"y\": 22, \"v\": 0 },\n        { \"op\": \"park\", \"x\": 28, \"y\": 22, \"v\": 0 },\n        { \"op\": \"park\", \"x\": 32, \"y\": 22, \"v\": 0 },\n        { \"op\": \"stat\", \"x\": [\"-\", [\"param\", \"w\"], 2], \"y\": 0 }\n      ]\n    },\n\n    \"orchard\": {\n      \"size\": [27, 27],\n      \"params\": { \"seed\": 0, \"wet\": null },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 27, \"h\": 27, \"color\": \"#6fa84a\" },\n        { \"op\": \"each\", \"as\": \"ty\", \"in\": [1, 8, 15], \"ops\": [\n          { \"op\": \"each\", \"as\": \"tx\", \"in\": [1, 9, 17], \"ops\": [\n            { \"op\": \"rect\", \"x\": [\"+\", [\"var\", \"tx\"], 3], \"y\": [\"+\", [\"var\", \"ty\"], 4], \"w\": 1, \"h\": 2, \"color\": \"#6b4a2b\" },\n            { \"op\": \"rect\", \"x\": [\"+\", [\"var\", \"tx\"], 1], \"y\": [\"var\", \"ty\"], \"w\": 5, \"h\": 4, \"color\": \"#2f7d34\" },\n            { \"op\": \"rect\", \"x\": [\"+\", [\"var\", \"tx\"], 2], \"y\": [\"var\", \"ty\"], \"w\": 3, \"h\": 5, \"color\": \"#2f7d34\" },\n            { \"op\": \"rect\", \"x\": [\"+\", [\"var\", \"tx\"], 2], \"y\": [\"var\", \"ty\"], \"w\": 2, \"h\": 1, \"color\": \"#4fa84f\" },\n            { \"op\": \"pixel\", \"x\": [\"+\", [\"var\", \"tx\"], 2], \"y\": [\"+\", [\"var\", \"ty\"], 1], \"color\": \"#e04a3a\" },\n            { \"op\": \"pixel\", \"x\": [\"+\", [\"var\", \"tx\"], 4], \"y\": [\"+\", [\"var\", \"ty\"], 2], \"color\": \"#e04a3a\" },\n            { \"op\": \"pixel\", \"x\": [\"+\", [\"var\", \"tx\"], 1], \"y\": [\"+\", [\"var\", \"ty\"], 3], \"color\": \"#f0a030\" }] }] },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 22, \"w\": 6, \"h\": 4, \"color\": \"#8a6a4a\" },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 22, \"w\": 6, \"h\": 1, \"color\": \"#5a4030\" },\n        { \"op\": \"win\", \"x\": 3, \"y\": 24 },\n        { \"op\": \"rect\", \"x\": 8, \"y\": 22, \"w\": 19, \"h\": 5, \"color\": \"#a8946e\" },\n        { \"op\": \"park\", \"x\": 10, \"y\": 23, \"v\": 0 },\n        { \"op\": \"park\", \"x\": 15, \"y\": 23, \"v\": 0 },\n        { \"op\": \"park\", \"x\": 20, \"y\": 23, \"v\": 0 },\n        { \"op\": \"stat\", \"x\": [\"-\", [\"param\", \"w\"], 2], \"y\": 0 }\n      ]\n    },\n\n    \"school\": {\n      \"size\": [27, 18],\n      \"params\": { \"seed\": 0, \"wet\": null },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 27, \"h\": 18, \"color\": \"#68ad52\" },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 17, \"h\": 10, \"color\": \"#b5543c\" },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 17, \"h\": 1, \"color\": \"#7a3424\" },\n        { \"op\": \"each\", \"as\": \"y\", \"in\": [4, 7], \"ops\": [\n          { \"op\": \"each\", \"as\": \"x\", \"in\": [3, 5, 7, 11, 13, 15], \"ops\": [\n            { \"op\": \"win\", \"x\": [\"var\", \"x\"], \"y\": [\"var\", \"y\"] }] }] },\n        { \"op\": \"rect\", \"x\": 9, \"y\": 8, \"w\": 2, \"h\": 3, \"color\": \"#3a2a1a\" },\n        { \"op\": \"rect\", \"x\": 20, \"y\": 1, \"w\": 1, \"h\": 6, \"color\": \"#dddddd\" },\n        { \"op\": \"rect\", \"x\": 21, \"y\": 1, \"w\": 3, \"h\": 2, \"color\": \"#3a6fd0\" },\n        { \"op\": \"rect\", \"x\": 19, \"y\": 8, \"w\": 7, \"h\": 3, \"color\": \"#c9a66b\" },\n        { \"op\": \"rect\", \"x\": 20, \"y\": 8, \"w\": 4, \"h\": 1, \"color\": \"#c0392b\" },\n        { \"op\": \"rect\", \"x\": 24, \"y\": 9, \"w\": 1, \"h\": 2, \"color\": \"#f1c40f\" },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 12, \"w\": 27, \"h\": 6, \"color\": \"#6f727a\" },\n        { \"op\": \"each\", \"as\": \"x\", \"in\": [9, 13, 17, 21], \"ops\": [\n          { \"op\": \"park\", \"x\": [\"var\", \"x\"], \"y\": 13, \"v\": 0 }] },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 13, \"w\": 6, \"h\": 3, \"color\": \"#f5c518\" },\n        { \"op\": \"rect\", \"x\": 2, \"y\": 13, \"w\": 4, \"h\": 1, \"color\": \"#9fc4e0\" },\n        { \"op\": \"stat\", \"x\": [\"-\", [\"param\", \"w\"], 2], \"y\": 0 }\n      ]\n    },\n\n    \"hospital\": {\n      \"size\": [27, 27],\n      \"params\": { \"seed\": 0, \"wet\": null },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 27, \"h\": 27, \"color\": \"#68ad52\" },\n        { \"op\": \"rect\", \"x\": 2, \"y\": 1, \"w\": 20, \"h\": 16, \"color\": \"#eef0f2\" },\n        { \"op\": \"rect\", \"x\": 2, \"y\": 16, \"w\": 20, \"h\": 1, \"color\": \"#c4c8ce\" },\n        { \"op\": \"rect\", \"x\": 10, \"y\": 4, \"w\": 4, \"h\": 10, \"color\": \"#d63a3a\" },\n        { \"op\": \"rect\", \"x\": 7, \"y\": 7, \"w\": 10, \"h\": 4, \"color\": \"#d63a3a\" },\n        { \"op\": \"each\", \"as\": \"y\", \"in\": [3, 5, 7, 9, 11, 13], \"ops\": [\n          { \"op\": \"each\", \"as\": \"x\", \"in\": [3, 5, 18, 20], \"ops\": [\n            { \"op\": \"win\", \"x\": [\"var\", \"x\"], \"y\": [\"var\", \"y\"] }] }] },\n        { \"op\": \"rect\", \"x\": 22, \"y\": 2, \"w\": 5, \"h\": 5, \"color\": \"#5a5d64\" },\n        { \"op\": \"each\", \"as\": \"p\", \"in\": [[23, 3], [23, 4], [23, 5], [25, 3], [25, 4], [25, 5], [24, 4]], \"ops\": [\n          { \"op\": \"rect\", \"x\": [\"at\", [\"var\", \"p\"], 0], \"y\": [\"at\", [\"var\", \"p\"], 1], \"w\": 1, \"h\": 1, \"color\": \"#ffffff\" }] },\n        { \"op\": \"rect\", \"x\": 10, \"y\": 17, \"w\": 5, \"h\": 2, \"color\": \"#d63a3a\" },\n        { \"op\": \"rect\", \"x\": 17, \"y\": 18, \"w\": 3, \"h\": 2, \"color\": \"#ffffff\" },\n        { \"op\": \"rect\", \"x\": 18, \"y\": 18, \"w\": 1, \"h\": 2, \"color\": \"#d63a3a\" },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 20, \"w\": 27, \"h\": 7, \"color\": \"#6f727a\" },\n        { \"op\": \"each\", \"as\": \"y\", \"in\": [21, 24], \"ops\": [\n          { \"op\": \"each\", \"as\": \"x\", \"in\": [1, 5, 9, 13, 17, 21], \"ops\": [\n            { \"op\": \"park\", \"x\": [\"var\", \"x\"], \"y\": [\"var\", \"y\"], \"v\": 0 }] }] },\n        { \"op\": \"stat\", \"x\": [\"-\", [\"param\", \"w\"], 2], \"y\": 0 }\n      ]\n    },\n\n    \"airport\": {\n      \"size\": [90, 45],\n      \"params\": { \"seed\": 0, \"wet\": null },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 90, \"h\": 45, \"color\": \"#7fa85a\" },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 4, \"w\": 90, \"h\": 9, \"color\": \"#3a3d44\" },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 4, \"w\": 90, \"h\": 1, \"color\": \"#cfd2d6\" },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 12, \"w\": 90, \"h\": 1, \"color\": \"#cfd2d6\" },\n        { \"op\": \"each\", \"as\": \"k\", \"in\": [\"range\", 13], \"ops\": [\n          { \"op\": \"rect\", \"x\": [\"+\", [\"*\", [\"var\", \"k\"], 6], 8], \"y\": 8, \"w\": 3, \"h\": 1, \"color\": \"#ffffff\" }] },\n        { \"op\": \"each\", \"as\": \"k\", \"in\": [0, 1, 2, 3], \"ops\": [\n          { \"op\": \"rect\", \"x\": 1, \"y\": [\"+\", [\"*\", [\"var\", \"k\"], 2], 5], \"w\": 3, \"h\": 1, \"color\": \"#ffffff\" },\n          { \"op\": \"rect\", \"x\": 86, \"y\": [\"+\", [\"*\", [\"var\", \"k\"], 2], 5], \"w\": 3, \"h\": 1, \"color\": \"#ffffff\" }] },\n        { \"op\": \"rect\", \"x\": 10, \"y\": 13, \"w\": 70, \"h\": 3, \"color\": \"#4a4d55\" },\n        { \"op\": \"rect\", \"x\": 8, \"y\": 16, \"w\": 74, \"h\": 10, \"color\": \"#5a5d64\" },\n        { \"op\": \"each\", \"as\": \"x\", \"in\": [20, 34, 48], \"ops\": [\n          { \"op\": \"rect\", \"x\": [\"var\", \"x\"], \"y\": 20, \"w\": 7, \"h\": 1, \"color\": \"#f4f5f7\" },\n          { \"op\": \"rect\", \"x\": [\"+\", [\"var\", \"x\"], 3], \"y\": 18, \"w\": 1, \"h\": 5, \"color\": \"#f4f5f7\" },\n          { \"op\": \"rect\", \"x\": [\"var\", \"x\"], \"y\": 19, \"w\": 1, \"h\": 3, \"color\": \"#d63a3a\" }] },\n        { \"op\": \"rect\", \"x\": 14, \"y\": 27, \"w\": 52, \"h\": 10, \"color\": \"#d9dde4\" },\n        { \"op\": \"rect\", \"x\": 14, \"y\": 27, \"w\": 52, \"h\": 1, \"color\": \"#a8adb6\" },\n        { \"op\": \"each\", \"as\": \"k\", \"in\": [\"range\", 25], \"ops\": [\n          { \"op\": \"win\", \"x\": [\"+\", [\"*\", [\"var\", \"k\"], 2], 16], \"y\": 31 }] },\n        { \"op\": \"each\", \"as\": \"x\", \"in\": [22, 36, 50], \"ops\": [\n          { \"op\": \"rect\", \"x\": [\"var\", \"x\"], \"y\": 24, \"w\": 2, \"h\": 3, \"color\": \"#9aa0a8\" }] },\n        { \"op\": \"rect\", \"x\": 70, \"y\": 26, \"w\": 4, \"h\": 11, \"color\": \"#c8ccd2\" },\n        { \"op\": \"rect\", \"x\": 69, \"y\": 25, \"w\": 6, \"h\": 3, \"color\": \"#5a8fc0\" },\n        { \"op\": \"rect\", \"x\": 14, \"y\": 38, \"w\": 60, \"h\": 7, \"color\": \"#6f727a\" },\n        { \"op\": \"each\", \"as\": \"y\", \"in\": [39, 42], \"ops\": [\n          { \"op\": \"each\", \"as\": \"k\", \"in\": [\"range\", 14], \"ops\": [\n            { \"op\": \"park\", \"x\": [\"+\", [\"*\", [\"var\", \"k\"], 4], 15], \"y\": [\"var\", \"y\"], \"v\": 0 }] }] },\n        { \"op\": \"stat\", \"x\": [\"-\", [\"param\", \"w\"], 2], \"y\": 0 }\n      ]\n    },\n\n    \"park\": {\n      \"size\": [18, 18],\n      \"params\": { \"seed\": 0, \"wet\": null },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 18, \"h\": 18, \"color\": \"#5bb04a\" },\n        { \"op\": \"repeat\", \"as\": \"k\", \"times\": 18, \"ops\": [\n          { \"op\": \"rect\",\n            \"x\": [\"floor\", [\"*\", [\"rnd\"], 18]],\n            \"y\": [\"floor\", [\"*\", [\"rnd\"], 18]],\n            \"w\": 1, \"h\": 1,\n            \"color\": [\"if\", [\"\u003c\", [\"rnd\"], 0.5], \"#f5e663\", \"#ff9ec4\"] }] },\n        { \"op\": \"rect\", \"x\": 8, \"y\": 0, \"w\": 2, \"h\": 18, \"color\": \"#dbc99f\" },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 8, \"w\": 18, \"h\": 2, \"color\": \"#dbc99f\" },\n        { \"op\": \"rect\", \"x\": 11, \"y\": 12, \"w\": 5, \"h\": 4, \"color\": \"#3f82c8\" },\n        { \"op\": \"rect\", \"x\": 12, \"y\": 11, \"w\": 3, \"h\": 1, \"color\": \"#3f82c8\" },\n        { \"op\": \"pixel\", \"x\": 12, \"y\": 13, \"color\": \"#9fd0ff\" },\n        { \"op\": \"use\", \"file\": \"trees\", \"texture\": \"tree\", \"at\": [0, 0], \"params\": { \"v\": 1 } },\n        { \"op\": \"use\", \"file\": \"trees\", \"texture\": \"tree\", \"at\": [10, 0], \"params\": { \"v\": 2 } },\n        { \"op\": \"use\", \"file\": \"trees\", \"texture\": \"tree\", \"at\": [0, 9], \"params\": { \"v\": 3 } },\n        { \"op\": \"rect\", \"x\": 4, \"y\": 10, \"w\": 3, \"h\": 1, \"color\": \"#8b5a2b\" },\n        { \"op\": \"mark\", \"as\": \"win\", \"of\": [\n          [3, 7], [6, 6], [12, 6], [14, 3], [5, 12], [2, 15],\n          [6, 15], [11, 10], [15, 10], [4, 3], [13, 16], [16, 7]] }\n      ]\n    },\n\n    \"metro\": {\n      \"size\": [9, 9],\n      \"params\": { \"seed\": 0, \"wet\": null },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 9, \"h\": 9, \"color\": \"#cfc6b4\" },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 7, \"h\": 7, \"color\": \"#bdb39e\" },\n        { \"op\": \"rect\", \"x\": 2, \"y\": 1, \"w\": 5, \"h\": 4, \"color\": \"#1f4fb0\" },\n        { \"op\": \"each\", \"as\": \"p\", \"in\": [[3, 2], [3, 3], [4, 2], [5, 2], [5, 3]], \"ops\": [\n          { \"op\": \"pixel\", \"x\": [\"at\", [\"var\", \"p\"], 0], \"y\": [\"at\", [\"var\", \"p\"], 1], \"color\": \"#ffffff\" }] },\n        { \"op\": \"rect\", \"x\": 2, \"y\": 6, \"w\": 5, \"h\": 2, \"color\": \"#8a8170\" },\n        { \"op\": \"rect\", \"x\": 2, \"y\": 7, \"w\": 5, \"h\": 1, \"color\": \"#5f584b\" },\n        { \"op\": \"spots\", \"of\": [[1, 5], [7, 5], [1, 7], [7, 7], [1, 3], [7, 3]] }\n      ]\n    },\n\n    \"busstop\": {\n      \"size\": [9, 9],\n      \"params\": { \"seed\": 0, \"wet\": null },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 9, \"h\": 9, \"color\": \"#c4c7cd\" },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 7, \"h\": 3, \"color\": \"#3a6f9a\" },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 7, \"h\": 1, \"color\": \"#6f9fc8\" },\n        { \"op\": \"rect\", \"x\": 2, \"y\": 4, \"w\": 5, \"h\": 1, \"color\": \"#8b5a2b\" },\n        { \"op\": \"rect\", \"x\": 7, \"y\": 4, \"w\": 1, \"h\": 4, \"color\": \"#5c5f66\" },\n        { \"op\": \"rect\", \"x\": 6, \"y\": 4, \"w\": 3, \"h\": 2, \"color\": \"#f5c518\" },\n        { \"op\": \"pixel\", \"x\": 7, \"y\": 4, \"color\": \"#2f4f6f\" },\n        { \"op\": \"spots\", \"of\": [[2, 6], [4, 6], [3, 7], [5, 7], [1, 7], [2, 5]] }\n      ]\n    },\n\n    \"parking\": {\n      \"size\": [18, 18],\n      \"params\": { \"seed\": 0, \"wet\": null },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 18, \"h\": 18, \"color\": \"#4a4d55\" },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 18, \"h\": 1, \"color\": \"#8c8f96\" },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 17, \"w\": 18, \"h\": 1, \"color\": \"#8c8f96\" },\n        { \"op\": \"each\", \"as\": \"x\", \"in\": [0, 3, 6, 9, 12, 15], \"ops\": [\n          { \"op\": \"rect\", \"x\": [\"var\", \"x\"], \"y\": 1, \"w\": 1, \"h\": 4, \"color\": \"#d8d8d8\" },\n          { \"op\": \"rect\", \"x\": [\"var\", \"x\"], \"y\": 13, \"w\": 1, \"h\": 4, \"color\": \"#d8d8d8\" }] },\n        { \"op\": \"each\", \"as\": \"y\", \"in\": [1, 14], \"ops\": [\n          { \"op\": \"each\", \"as\": \"x\", \"in\": [1, 4, 7, 10, 13, 16], \"ops\": [\n            { \"op\": \"park\", \"x\": [\"var\", \"x\"], \"y\": [\"var\", \"y\"], \"v\": 1 }] }] },\n        { \"op\": \"rect\", \"x\": 7, \"y\": 8, \"w\": 4, \"h\": 1, \"color\": \"#d8d8d8\" },\n        { \"op\": \"rect\", \"x\": 10, \"y\": 7, \"w\": 1, \"h\": 3, \"color\": \"#d8d8d8\" },\n        { \"op\": \"stat\", \"x\": [\"-\", [\"param\", \"w\"], 2], \"y\": 0 }\n      ]\n    },\n\n    \"garage\": {\n      \"size\": [18, 18],\n      \"params\": { \"seed\": 0, \"wet\": null },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 18, \"h\": 18, \"color\": \"#9a9ca2\" },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 16, \"h\": 16, \"color\": \"#7d8087\" },\n        { \"op\": \"rect\", \"x\": 13, \"y\": 2, \"w\": 3, \"h\": 14, \"color\": \"#6a6d73\" },\n        { \"op\": \"repeat\", \"as\": \"k\", \"times\": 7, \"ops\": [\n          { \"op\": \"rect\", \"x\": 13, \"y\": [\"+\", [\"*\", [\"var\", \"k\"], 2], 3], \"w\": 3, \"h\": 1, \"color\": \"#8a8d93\" }] },\n        { \"op\": \"rect\", \"x\": 2, \"y\": 2, \"w\": 4, \"h\": 5, \"color\": \"#2f6fd0\" },\n        { \"op\": \"each\", \"as\": \"p\", \"in\": [[3, 3], [3, 4], [3, 5], [4, 3], [4, 4]], \"ops\": [\n          { \"op\": \"pixel\", \"x\": [\"at\", [\"var\", \"p\"], 0], \"y\": [\"at\", [\"var\", \"p\"], 1], \"color\": \"#ffffff\" }] },\n        { \"op\": \"each\", \"as\": \"y\", \"in\": [2, 6, 10], \"ops\": [\n          { \"op\": \"each\", \"as\": \"x\", \"in\": [7, 10], \"ops\": [\n            { \"op\": \"park\", \"x\": [\"var\", \"x\"], \"y\": [\"var\", \"y\"], \"v\": 1 }] }] },\n        { \"op\": \"each\", \"as\": \"x\", \"in\": [2, 4], \"ops\": [\n          { \"op\": \"park\", \"x\": [\"var\", \"x\"], \"y\": 10, \"v\": 1 }] },\n        { \"op\": \"each\", \"as\": \"x\", \"in\": [2, 7, 10], \"ops\": [\n          { \"op\": \"park\", \"x\": [\"var\", \"x\"], \"y\": 14, \"v\": 0 }] },\n        { \"op\": \"stat\", \"x\": [\"-\", [\"param\", \"w\"], 2], \"y\": 0 }\n      ]\n    }\n  }\n}\n","people":"{\n  // ===================================================================\n  // People. Pedestrians are a 1x2 sprite tinted by `color`; the mood\n  // faces are 5x5 row strings painted from a rule, so a new expression\n  // only needs one row list.\n  // ===================================================================\n  \"format\": \"texture/1\",\n  \"name\": \"people\",\n  \"tile\": 9,\n\n  \"defs\": {\n    \"skin\": \"#f1c9a0\",\n    \"ink\": \"#1a1d26\",\n    \"faces\": {\n      \"happy\": [\".FFF.\", \"FkFkF\", \"FFFFF\", \"kFFFk\", \".kkk.\"],\n      \"ok\":    [\".FFF.\", \"FkFkF\", \"FFFFF\", \"FkkkF\", \".FFF.\"],\n      \"sad\":   [\".FFF.\", \"FkFkF\", \"FFFFF\", \"FkkkF\", \"kFFFk\"],\n      \"angry\": [\"kFFFk\", \"FkFkF\", \"FFFFF\", \"FkkkF\", \"kFFFk\"]\n    },\n    \"faceCol\": {\n      \"happy\": \"#5fdc7a\",\n      \"ok\": \"#ffd75e\",\n      \"sad\": \"#ff9a4d\",\n      \"angry\": \"#ff4848\"\n    }\n  },\n\n  \"textures\": {\n    \"ped\": {\n      \"size\": [1, 2],\n      \"params\": { \"color\": \"#ff6b6b\" },\n      \"ops\": [\n        { \"op\": \"pixel\", \"x\": 0, \"y\": 0, \"color\": [\"def\", \"skin\"] },\n        { \"op\": \"pixel\", \"x\": 0, \"y\": 1, \"color\": [\"param\", \"color\"] }\n      ]\n    },\n\n    \"face\": {\n      \"size\": [5, 5],\n      \"params\": {\n        \"kind\": \"happy\",\n        \"rows\": [\"at\", [\"def\", \"faces\"], [\"param\", \"kind\"]],\n        \"fill\": [\"at\", [\"def\", \"faceCol\"], [\"param\", \"kind\"]]\n      },\n      \"ops\": [\n        { \"op\": \"repeat\", \"as\": \"r\", \"times\": 5, \"ops\": [\n          { \"op\": \"repeat\", \"as\": \"k\", \"times\": 5, \"ops\": [\n            { \"op\": \"if\",\n              \"test\": [\"!=\", [\"at\", [\"at\", [\"param\", \"rows\"], [\"var\", \"r\"]], [\"var\", \"k\"]], \".\"],\n              \"then\": [\n                { \"op\": \"pixel\", \"x\": [\"var\", \"k\"], \"y\": [\"var\", \"r\"],\n                  \"color\": [\"if\",\n                    [\"==\", [\"at\", [\"at\", [\"param\", \"rows\"], [\"var\", \"r\"]], [\"var\", \"k\"]], \"F\"],\n                    [\"param\", \"fill\"],\n                    [\"def\", \"ink\"]] }\n              ] }\n          ] }\n        ] }\n      ]\n    }\n  }\n}\n","roads":"{\n  // ===================================================================\n  // Roads. Every tile is generated from its connection mask, so one\n  // texture covers all 16 junction shapes. `px`/`py` are the tile's\n  // position modulo the dash period, which keeps lane dashes continuous\n  // across tile borders.\n  //\n  // Shared params: m = connection mask (bit0 N, bit1 E, bit2 S, bit3 W),\n  // hw = highway, ow = one-way direction, sw = sidewalks, ml = multi-lane\n  // highway lane id, ed = [north/west side, south/east side] lane edges.\n  // ===================================================================\n  \"format\": \"texture/1\",\n  \"name\": \"roads\",\n  \"tile\": 9,\n\n  \"defs\": {\n    \"arrow\": [[4, 2], [3, 3], [5, 3], [4, 3], [4, 4], [4, 5], [4, 6]]\n  },\n\n  \"textures\": {\n    // -----------------------------------------------------------------\n    // Lane markings, shared by plain road tiles and bridge decks.\n    // -----------------------------------------------------------------\n    \"markings\": {\n      \"size\": [9, 9],\n      \"params\": {\n        \"m\": 0, \"hw\": 0, \"ow\": 0, \"ml\": 0, \"px\": 0, \"py\": 0, \"ed\": null,\n        \"horiz\": [\"or\", [\"==\", [\"param\", \"ml\"], 2], [\"==\", [\"param\", \"ml\"], 4]],\n        \"edv\": [\"default\", [\"param\", \"ed\"],\n                [\"if\", [\"or\", [\"==\", [\"param\", \"ml\"], 4], [\"==\", [\"param\", \"ml\"], 3]], [0, 2], [2, 0]]],\n        \"dashBase\": [\"if\", [\"param\", \"horiz\"], [\"param\", \"px\"], [\"param\", \"py\"]],\n        \"H\": [\"and\", [\">\", [\"mask\", [\"param\", \"m\"], 10], 0], [\"==\", [\"mask\", [\"param\", \"m\"], 5], 0]],\n        \"V\": [\"and\", [\">\", [\"mask\", [\"param\", \"m\"], 5], 0], [\"==\", [\"mask\", [\"param\", \"m\"], 10], 0]],\n        \"lineCol\": [\"if\", [\"param\", \"hw\"], \"#e3b542\", \"#e8c55a\"]\n      },\n      \"ops\": [\n        { \"op\": \"if\", \"test\": [\"param\", \"ml\"], \"then\": [\n\n          // median dash down the middle of a wide highway\n          { \"op\": \"repeat\", \"as\": \"k\", \"times\": 9, \"ops\": [\n            { \"op\": \"if\",\n              \"test\": [\"\u003c\", [\"mod\", [\"+\", [\"param\", \"dashBase\"], [\"var\", \"k\"]], 6], 3],\n              \"then\": [\n                { \"op\": \"if\", \"test\": [\"param\", \"horiz\"],\n                  \"then\": [{ \"op\": \"pixel\", \"x\": [\"var\", \"k\"], \"y\": 4, \"color\": \"#e8e8e8\" }],\n                  \"else\": [{ \"op\": \"pixel\", \"x\": 4, \"y\": [\"var\", \"k\"], \"color\": \"#e8e8e8\" }] }\n              ] }\n          ] },\n\n          // each side of the carriageway: the edge, then a divider or the median\n          { \"op\": \"each\", \"as\": \"s\", \"in\": [0, 1], \"ops\": [\n            { \"op\": \"if\",\n              \"test\": [\"==\", [\"at\", [\"param\", \"edv\"], [\"var\", \"s\"]], 1],\n              \"then\": [\n                { \"op\": \"if\", \"test\": [\"param\", \"horiz\"],\n                  \"then\": [{ \"op\": \"rect\", \"x\": 0, \"y\": [\"if\", [\"var\", \"s\"], 8, 0], \"w\": 9, \"h\": 1, \"color\": \"#2e3038\" }],\n                  \"else\": [{ \"op\": \"rect\", \"x\": [\"if\", [\"var\", \"s\"], 8, 0], \"y\": 0, \"w\": 1, \"h\": 9, \"color\": \"#2e3038\" }] },\n                { \"op\": \"if\", \"test\": [\"param\", \"horiz\"],\n                  \"then\": [{ \"op\": \"rect\", \"x\": 0, \"y\": [\"if\", [\"var\", \"s\"], 7, 1], \"w\": 9, \"h\": 1, \"color\": \"#2e3038\" }],\n                  \"else\": [{ \"op\": \"rect\", \"x\": [\"if\", [\"var\", \"s\"], 7, 1], \"y\": 0, \"w\": 1, \"h\": 9, \"color\": \"#2e3038\" }] },\n                { \"op\": \"repeat\", \"as\": \"k\", \"times\": 9, \"ops\": [\n                  { \"op\": \"if\",\n                    \"test\": [\"\u003c\", [\"mod\", [\"+\", [\"param\", \"dashBase\"], [\"var\", \"k\"]], 6], 3],\n                    \"then\": [\n                      { \"op\": \"if\", \"test\": [\"param\", \"horiz\"],\n                        \"then\": [{ \"op\": \"pixel\", \"x\": [\"var\", \"k\"], \"y\": [\"if\", [\"var\", \"s\"], 8, 0], \"color\": \"#e8e8e8\" }],\n                        \"else\": [{ \"op\": \"pixel\", \"x\": [\"if\", [\"var\", \"s\"], 8, 0], \"y\": [\"var\", \"k\"], \"color\": \"#e8e8e8\" }] }\n                    ] }\n                ] }\n              ] },\n            { \"op\": \"if\",\n              \"test\": [\"==\", [\"at\", [\"param\", \"edv\"], [\"var\", \"s\"]], 2],\n              \"then\": [\n                { \"op\": \"if\", \"test\": [\"param\", \"horiz\"],\n                  \"then\": [{ \"op\": \"rect\", \"x\": 0, \"y\": [\"if\", [\"var\", \"s\"], 8, 0], \"w\": 9, \"h\": 1, \"color\": \"#a9acb3\" }],\n                  \"else\": [{ \"op\": \"rect\", \"x\": [\"if\", [\"var\", \"s\"], 8, 0], \"y\": 0, \"w\": 1, \"h\": 9, \"color\": \"#a9acb3\" }] },\n                { \"op\": \"if\", \"test\": [\"param\", \"horiz\"],\n                  \"then\": [{ \"op\": \"rect\", \"x\": 0, \"y\": [\"if\", [\"var\", \"s\"], 7, 1], \"w\": 9, \"h\": 1, \"color\": \"#e3b542\" }],\n                  \"else\": [{ \"op\": \"rect\", \"x\": [\"if\", [\"var\", \"s\"], 7, 1], \"y\": 0, \"w\": 1, \"h\": 9, \"color\": \"#e3b542\" }] }\n              ] }\n          ] }\n        ], \"else\": [\n\n          { \"op\": \"if\", \"test\": [\"param\", \"ow\"], \"then\": [\n            { \"op\": \"each\", \"as\": \"p\", \"in\": [\"def\", \"arrow\"], \"ops\": [\n              { \"op\": \"pixel\",\n                \"x\": [\"rotx\", [\"at\", [\"var\", \"p\"], 0], [\"at\", [\"var\", \"p\"], 1], [\"param\", \"ow\"]],\n                \"y\": [\"roty\", [\"at\", [\"var\", \"p\"], 0], [\"at\", [\"var\", \"p\"], 1], [\"param\", \"ow\"]],\n                \"color\": \"#f4f4f4\" }\n            ] }\n          ], \"else\": [\n\n            // centre line: solid on highways, dashed on streets\n            { \"op\": \"if\", \"test\": [\"param\", \"H\"], \"then\": [\n              { \"op\": \"repeat\", \"as\": \"x\", \"times\": 9, \"ops\": [\n                { \"op\": \"if\",\n                  \"test\": [\"or\", [\"param\", \"hw\"], [\"\u003c\", [\"mod\", [\"+\", [\"param\", \"px\"], [\"var\", \"x\"]], 6], 3]],\n                  \"then\": [{ \"op\": \"pixel\", \"x\": [\"var\", \"x\"], \"y\": 4, \"color\": [\"param\", \"lineCol\"] }] }\n              ] }\n            ] },\n            { \"op\": \"if\", \"test\": [\"param\", \"V\"], \"then\": [\n              { \"op\": \"repeat\", \"as\": \"y\", \"times\": 9, \"ops\": [\n                { \"op\": \"if\",\n                  \"test\": [\"or\", [\"param\", \"hw\"], [\"\u003c\", [\"mod\", [\"+\", [\"param\", \"py\"], [\"var\", \"y\"]], 6], 3]],\n                  \"then\": [{ \"op\": \"pixel\", \"x\": 4, \"y\": [\"var\", \"y\"], \"color\": [\"param\", \"lineCol\"] }] }\n              ] }\n            ] },\n\n            // crosswalk stripes at junctions\n            { \"op\": \"if\",\n              \"test\": [\"and\", [\">=\", [\"bits\", [\"param\", \"m\"]], 3], [\"not\", [\"param\", \"hw\"]]],\n              \"then\": [\n                { \"op\": \"if\", \"test\": [\"bit\", [\"param\", \"m\"], 0], \"then\": [\n                  { \"op\": \"each\", \"as\": \"x\", \"in\": [2, 4, 6], \"ops\": [\n                    { \"op\": \"pixel\", \"x\": [\"var\", \"x\"], \"y\": 1, \"color\": \"#d6d6d6\" }] }] },\n                { \"op\": \"if\", \"test\": [\"bit\", [\"param\", \"m\"], 2], \"then\": [\n                  { \"op\": \"each\", \"as\": \"x\", \"in\": [2, 4, 6], \"ops\": [\n                    { \"op\": \"pixel\", \"x\": [\"var\", \"x\"], \"y\": 7, \"color\": \"#d6d6d6\" }] }] },\n                { \"op\": \"if\", \"test\": [\"bit\", [\"param\", \"m\"], 3], \"then\": [\n                  { \"op\": \"each\", \"as\": \"y\", \"in\": [2, 4, 6], \"ops\": [\n                    { \"op\": \"pixel\", \"x\": 1, \"y\": [\"var\", \"y\"], \"color\": \"#d6d6d6\" }] }] },\n                { \"op\": \"if\", \"test\": [\"bit\", [\"param\", \"m\"], 1], \"then\": [\n                  { \"op\": \"each\", \"as\": \"y\", \"in\": [2, 4, 6], \"ops\": [\n                    { \"op\": \"pixel\", \"x\": 7, \"y\": [\"var\", \"y\"], \"color\": \"#d6d6d6\" }] }] }\n              ] }\n          ] }\n        ] }\n      ]\n    },\n\n    // -----------------------------------------------------------------\n    // A road tile on land: barrier, sidewalk or gravel shoulder, asphalt,\n    // then the markings.\n    // -----------------------------------------------------------------\n    \"road\": {\n      \"size\": [9, 9],\n      \"params\": {\n        \"m\": 0, \"hw\": 0, \"ow\": 0, \"sw\": 0, \"ml\": 0, \"px\": 0, \"py\": 0, \"ed\": null,\n        \"asph\": [\"if\", [\"param\", \"hw\"], \"#2e3038\", \"#3d4049\"],\n        \"corner\": [\"if\", [\"param\", \"sw\"], \"#a3a7ae\", \"#6f8a4a\"]\n      },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 9, \"h\": 9,\n          \"color\": [\"if\", [\"param\", \"hw\"], \"#7c8088\", [\"if\", [\"param\", \"sw\"], \"#c4c7cd\", \"#8d8262\"]] },\n\n        { \"op\": \"if\", \"test\": [\"not\", [\"param\", \"hw\"]], \"then\": [\n          { \"op\": \"each\", \"as\": \"k\", \"in\": [2, 6], \"ops\": [\n            { \"op\": \"if\", \"test\": [\"not\", [\"bit\", [\"param\", \"m\"], 0]], \"then\": [\n              { \"op\": \"pixel\", \"x\": [\"var\", \"k\"], \"y\": 0, \"color\": [\"param\", \"corner\"] }] },\n            { \"op\": \"if\", \"test\": [\"not\", [\"bit\", [\"param\", \"m\"], 2]], \"then\": [\n              { \"op\": \"pixel\", \"x\": [\"var\", \"k\"], \"y\": 8, \"color\": [\"param\", \"corner\"] }] },\n            { \"op\": \"if\", \"test\": [\"not\", [\"bit\", [\"param\", \"m\"], 3]], \"then\": [\n              { \"op\": \"pixel\", \"x\": 0, \"y\": [\"var\", \"k\"], \"color\": [\"param\", \"corner\"] }] },\n            { \"op\": \"if\", \"test\": [\"not\", [\"bit\", [\"param\", \"m\"], 1]], \"then\": [\n              { \"op\": \"pixel\", \"x\": 8, \"y\": [\"var\", \"k\"], \"color\": [\"param\", \"corner\"] }] }\n          ] }\n        ] },\n\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 7, \"h\": 7, \"color\": [\"param\", \"asph\"] },\n        { \"op\": \"if\", \"test\": [\"bit\", [\"param\", \"m\"], 0], \"then\": [{ \"op\": \"rect\", \"x\": 1, \"y\": 0, \"w\": 7, \"h\": 1, \"color\": [\"param\", \"asph\"] }] },\n        { \"op\": \"if\", \"test\": [\"bit\", [\"param\", \"m\"], 1], \"then\": [{ \"op\": \"rect\", \"x\": 8, \"y\": 1, \"w\": 1, \"h\": 7, \"color\": [\"param\", \"asph\"] }] },\n        { \"op\": \"if\", \"test\": [\"bit\", [\"param\", \"m\"], 2], \"then\": [{ \"op\": \"rect\", \"x\": 1, \"y\": 8, \"w\": 7, \"h\": 1, \"color\": [\"param\", \"asph\"] }] },\n        { \"op\": \"if\", \"test\": [\"bit\", [\"param\", \"m\"], 3], \"then\": [{ \"op\": \"rect\", \"x\": 0, \"y\": 1, \"w\": 1, \"h\": 7, \"color\": [\"param\", \"asph\"] }] },\n\n        { \"op\": \"if\", \"test\": [\"param\", \"hw\"], \"then\": [\n          { \"op\": \"if\", \"test\": [\"not\", [\"bit\", [\"param\", \"m\"], 0]], \"then\": [{ \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 7, \"h\": 1, \"color\": \"#d9d9d9\" }] },\n          { \"op\": \"if\", \"test\": [\"not\", [\"bit\", [\"param\", \"m\"], 2]], \"then\": [{ \"op\": \"rect\", \"x\": 1, \"y\": 7, \"w\": 7, \"h\": 1, \"color\": \"#d9d9d9\" }] },\n          { \"op\": \"if\", \"test\": [\"not\", [\"bit\", [\"param\", \"m\"], 3]], \"then\": [{ \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 1, \"h\": 7, \"color\": \"#d9d9d9\" }] },\n          { \"op\": \"if\", \"test\": [\"not\", [\"bit\", [\"param\", \"m\"], 1]], \"then\": [{ \"op\": \"rect\", \"x\": 7, \"y\": 1, \"w\": 1, \"h\": 7, \"color\": \"#d9d9d9\" }] }\n        ] },\n\n        { \"op\": \"use\", \"texture\": \"markings\", \"at\": [0, 0], \"params\": {\n          \"m\": [\"param\", \"m\"], \"hw\": [\"param\", \"hw\"], \"ow\": [\"param\", \"ow\"],\n          \"ml\": [\"param\", \"ml\"], \"px\": [\"param\", \"px\"], \"py\": [\"param\", \"py\"], \"ed\": [\"param\", \"ed\"] } }\n      ]\n    },\n\n    // -----------------------------------------------------------------\n    // Road over water: deck, railings, water at the open edges, then the\n    // deck's shadow and stone piers.\n    // -----------------------------------------------------------------\n    \"bridge\": {\n      \"size\": [9, 9],\n      \"params\": {\n        \"m\": 0, \"hw\": 0, \"ow\": 0, \"sw\": 0, \"ml\": 0, \"px\": 0, \"py\": 0, \"ed\": null,\n        \"L\": [\"if\", [\"bit\", [\"param\", \"m\"], 3], 0, 1],\n        \"R\": [\"if\", [\"bit\", [\"param\", \"m\"], 1], 8, 7],\n        \"Tp\": [\"if\", [\"bit\", [\"param\", \"m\"], 0], 0, 1],\n        \"Bt\": [\"if\", [\"bit\", [\"param\", \"m\"], 2], 8, 7],\n        \"rw\": [\"+\", [\"-\", [\"param\", \"R\"], [\"param\", \"L\"]], 1],\n        \"rh\": [\"+\", [\"-\", [\"param\", \"Bt\"], [\"param\", \"Tp\"]], 1],\n        \"asph\": [\"if\", [\"param\", \"hw\"], \"#2e3038\", \"#3d4049\"]\n      },\n      \"ops\": [\n        { \"op\": \"if\", \"test\": [\"not\", [\"bit\", [\"param\", \"m\"], 2]], \"then\": [\n          { \"op\": \"rect\", \"x\": [\"param\", \"L\"], \"y\": 8, \"w\": [\"param\", \"rw\"], \"h\": 1, \"color\": \"#00000057\" }] },\n        { \"op\": \"if\", \"test\": [\"not\", [\"bit\", [\"param\", \"m\"], 1]], \"then\": [\n          { \"op\": \"rect\", \"x\": 8, \"y\": [\"param\", \"Tp\"], \"w\": 1, \"h\": [\"param\", \"rh\"], \"color\": \"#00000057\" }] },\n\n        { \"op\": \"if\",\n          \"test\": [\"and\", [\"not\", [\"bit\", [\"param\", \"m\"], 2]], [\">\", [\"mask\", [\"param\", \"m\"], 10], 0]],\n          \"then\": [\n            { \"op\": \"pixel\", \"x\": 2, \"y\": 8, \"color\": \"#76695a\" },\n            { \"op\": \"pixel\", \"x\": 6, \"y\": 8, \"color\": \"#76695a\" }] },\n        { \"op\": \"if\",\n          \"test\": [\"and\", [\"not\", [\"bit\", [\"param\", \"m\"], 1]], [\">\", [\"mask\", [\"param\", \"m\"], 5], 0]],\n          \"then\": [\n            { \"op\": \"pixel\", \"x\": 8, \"y\": 2, \"color\": \"#76695a\" },\n            { \"op\": \"pixel\", \"x\": 8, \"y\": 6, \"color\": \"#76695a\" }] },\n\n        { \"op\": \"rect\", \"x\": [\"param\", \"L\"], \"y\": [\"param\", \"Tp\"], \"w\": [\"param\", \"rw\"], \"h\": [\"param\", \"rh\"],\n          \"color\": [\"param\", \"asph\"] },\n\n        { \"op\": \"if\", \"test\": [\"not\", [\"bit\", [\"param\", \"m\"], 0]], \"then\": [\n          { \"op\": \"rect\", \"x\": [\"param\", \"L\"], \"y\": 1, \"w\": [\"param\", \"rw\"], \"h\": 1, \"color\": [\"if\", [\"param\", \"sw\"], \"#d8dade\", \"#b3b6bd\"] }] },\n        { \"op\": \"if\", \"test\": [\"not\", [\"bit\", [\"param\", \"m\"], 2]], \"then\": [\n          { \"op\": \"rect\", \"x\": [\"param\", \"L\"], \"y\": 7, \"w\": [\"param\", \"rw\"], \"h\": 1, \"color\": [\"if\", [\"param\", \"sw\"], \"#d8dade\", \"#b3b6bd\"] }] },\n        { \"op\": \"if\", \"test\": [\"not\", [\"bit\", [\"param\", \"m\"], 3]], \"then\": [\n          { \"op\": \"rect\", \"x\": 1, \"y\": [\"param\", \"Tp\"], \"w\": 1, \"h\": [\"param\", \"rh\"], \"color\": [\"if\", [\"param\", \"sw\"], \"#d8dade\", \"#b3b6bd\"] }] },\n        { \"op\": \"if\", \"test\": [\"not\", [\"bit\", [\"param\", \"m\"], 1]], \"then\": [\n          { \"op\": \"rect\", \"x\": 7, \"y\": [\"param\", \"Tp\"], \"w\": 1, \"h\": [\"param\", \"rh\"], \"color\": [\"if\", [\"param\", \"sw\"], \"#d8dade\", \"#b3b6bd\"] }] },\n\n        { \"op\": \"each\", \"as\": \"k\", \"in\": [1, 4, 7], \"ops\": [\n          { \"op\": \"if\", \"test\": [\"not\", [\"bit\", [\"param\", \"m\"], 0]], \"then\": [\n            { \"op\": \"pixel\", \"x\": [\"var\", \"k\"], \"y\": 1, \"color\": \"#5c5f66\" }] },\n          { \"op\": \"if\", \"test\": [\"not\", [\"bit\", [\"param\", \"m\"], 2]], \"then\": [\n            { \"op\": \"pixel\", \"x\": [\"var\", \"k\"], \"y\": 7, \"color\": \"#5c5f66\" }] },\n          { \"op\": \"if\", \"test\": [\"not\", [\"bit\", [\"param\", \"m\"], 3]], \"then\": [\n            { \"op\": \"pixel\", \"x\": 1, \"y\": [\"var\", \"k\"], \"color\": \"#5c5f66\" }] },\n          { \"op\": \"if\", \"test\": [\"not\", [\"bit\", [\"param\", \"m\"], 1]], \"then\": [\n            { \"op\": \"pixel\", \"x\": 7, \"y\": [\"var\", \"k\"], \"color\": \"#5c5f66\" }] }\n        ] },\n\n        { \"op\": \"use\", \"texture\": \"markings\", \"at\": [0, 0], \"params\": {\n          \"m\": [\"param\", \"m\"], \"hw\": [\"param\", \"hw\"], \"ow\": [\"param\", \"ow\"],\n          \"ml\": [\"param\", \"ml\"], \"px\": [\"param\", \"px\"], \"py\": [\"param\", \"py\"], \"ed\": [\"param\", \"ed\"] } }\n      ]\n    },\n\n    // -----------------------------------------------------------------\n    // An east-west deck drawn over a north-south road (overpass).\n    // -----------------------------------------------------------------\n    \"deck\": {\n      \"size\": [9, 9],\n      \"params\": { \"hw\": 0, \"px\": 0 },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 8, \"w\": 9, \"h\": 1, \"color\": \"#00000066\" },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 1, \"w\": 9, \"h\": 7, \"color\": \"#c3c6cd\" },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 7, \"w\": 9, \"h\": 1, \"color\": \"#8d9098\" },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 2, \"w\": 9, \"h\": 5, \"color\": [\"if\", [\"param\", \"hw\"], \"#2e3038\", \"#3d4049\"] },\n        { \"op\": \"repeat\", \"as\": \"x\", \"times\": 9, \"ops\": [\n          { \"op\": \"if\",\n            \"test\": [\"or\", [\"param\", \"hw\"], [\"\u003c\", [\"mod\", [\"+\", [\"param\", \"px\"], [\"var\", \"x\"]], 6], 3]],\n            \"then\": [\n              { \"op\": \"pixel\", \"x\": [\"var\", \"x\"], \"y\": 4,\n                \"color\": [\"if\", [\"param\", \"hw\"], \"#e3b542\", \"#e8c55a\"] }] }\n        ] }\n      ]\n    },\n\n    // -----------------------------------------------------------------\n    // Footpaths and plazas.\n    // -----------------------------------------------------------------\n    \"path\": {\n      \"size\": [9, 9],\n      \"params\": {\n        \"m\": 0, \"br\": 0,\n        \"fill\": [\"if\", [\"param\", \"br\"], \"#a9875a\", \"#dbc99f\"],\n        \"speck\": [\"if\", [\"param\", \"br\"], \"#7a5d3b\", \"#c9b384\"]\n      },\n      \"ops\": [\n        { \"op\": \"if\", \"test\": [\"param\", \"br\"], \"then\": [\n          { \"op\": \"rect\", \"x\": 2, \"y\": 2, \"w\": 5, \"h\": 5, \"color\": \"#7a5d3b\" }] },\n        { \"op\": \"rect\", \"x\": 3, \"y\": 3, \"w\": 3, \"h\": 3, \"color\": [\"param\", \"fill\"] },\n        { \"op\": \"if\", \"test\": [\"bit\", [\"param\", \"m\"], 0], \"then\": [{ \"op\": \"rect\", \"x\": 3, \"y\": 0, \"w\": 3, \"h\": 3, \"color\": [\"param\", \"fill\"] }] },\n        { \"op\": \"if\", \"test\": [\"bit\", [\"param\", \"m\"], 1], \"then\": [{ \"op\": \"rect\", \"x\": 6, \"y\": 3, \"w\": 3, \"h\": 3, \"color\": [\"param\", \"fill\"] }] },\n        { \"op\": \"if\", \"test\": [\"bit\", [\"param\", \"m\"], 2], \"then\": [{ \"op\": \"rect\", \"x\": 3, \"y\": 6, \"w\": 3, \"h\": 3, \"color\": [\"param\", \"fill\"] }] },\n        { \"op\": \"if\", \"test\": [\"bit\", [\"param\", \"m\"], 3], \"then\": [{ \"op\": \"rect\", \"x\": 0, \"y\": 3, \"w\": 3, \"h\": 3, \"color\": [\"param\", \"fill\"] }] },\n        { \"op\": \"rect\", \"x\": 4, \"y\": 4, \"w\": 1, \"h\": 1, \"color\": [\"param\", \"speck\"] }\n      ]\n    },\n\n    \"plaza\": {\n      \"size\": [9, 9],\n      \"params\": { \"par\": 0, \"deco\": 0 },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 9, \"h\": 9, \"color\": \"#d3c9b4\" },\n        { \"op\": \"repeat\", \"as\": \"y\", \"times\": 9, \"ops\": [\n          { \"op\": \"repeat\", \"as\": \"x\", \"times\": 9, \"ops\": [\n            { \"op\": \"if\",\n              \"test\": [\"==\", [\"mod\", [\"+\", [\"param\", \"par\"], [\"var\", \"x\"], [\"var\", \"y\"]], 4], 0],\n              \"then\": [{ \"op\": \"pixel\", \"x\": [\"var\", \"x\"], \"y\": [\"var\", \"y\"], \"color\": \"#c3b8a0\" }] }\n          ] }\n        ] },\n        { \"op\": \"if\", \"test\": [\"param\", \"deco\"], \"then\": [\n          { \"op\": \"rect\", \"x\": 3, \"y\": 4, \"w\": 3, \"h\": 2, \"color\": \"#7a5b3a\" },\n          { \"op\": \"rect\", \"x\": 3, \"y\": 2, \"w\": 3, \"h\": 3, \"color\": \"#3f9a42\" },\n          { \"op\": \"rect\", \"x\": 3, \"y\": 2, \"w\": 2, \"h\": 1, \"color\": \"#5fbf5a\" }\n        ] }\n      ]\n    }\n  }\n}\n","trees":"{\n  // ===================================================================\n  // Trees. One texture, four variants: `v` picks which sides the canopy\n  // leans to (bits 0 and 1) and whether the leaves are the dark palette.\n  // ===================================================================\n  \"format\": \"texture/1\",\n  \"name\": \"trees\",\n  \"tile\": 9,\n\n  \"defs\": {\n    \"leafLight\": \"#2f7d34\",\n    \"leafDark\": \"#2b6e3a\",\n    \"leafLightHi\": \"#4fa84f\",\n    \"leafDarkHi\": \"#3f8d4a\",\n    \"trunk\": \"#6b4a2b\",\n    \"shadow\": \"#14321459\"\n  },\n\n  \"textures\": {\n    \"tree\": {\n      \"size\": [9, 9],\n      \"params\": {\n        \"v\": 1,\n        \"dx\": [\"if\", [\"bit\", [\"param\", \"v\"], 0], 1, -1],\n        \"dy\": [\"if\", [\"bit\", [\"param\", \"v\"], 1], 1, 0],\n        \"leaf\": [\"if\", [\">\", [\"param\", \"v\"], 2], [\"def\", \"leafDark\"], [\"def\", \"leafLight\"]],\n        \"hi\": [\"if\", [\">\", [\"param\", \"v\"], 2], [\"def\", \"leafDarkHi\"], [\"def\", \"leafLightHi\"]]\n      },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": [\"+\", 3, [\"param\", \"dx\"]], \"y\": [\"+\", 6, [\"param\", \"dy\"]],\n          \"w\": 4, \"h\": 2, \"color\": [\"def\", \"shadow\"] },\n\n        { \"op\": \"rect\", \"x\": [\"+\", 4, [\"param\", \"dx\"]], \"y\": [\"+\", 5, [\"param\", \"dy\"]],\n          \"w\": 1, \"h\": 2, \"color\": [\"def\", \"trunk\"] },\n\n        { \"op\": \"rect\", \"x\": [\"+\", 2, [\"param\", \"dx\"]], \"y\": [\"+\", 2, [\"param\", \"dy\"]],\n          \"w\": 5, \"h\": 3, \"color\": [\"param\", \"leaf\"] },\n        { \"op\": \"rect\", \"x\": [\"+\", 3, [\"param\", \"dx\"]], \"y\": [\"+\", 1, [\"param\", \"dy\"]],\n          \"w\": 3, \"h\": 5, \"color\": [\"param\", \"leaf\"] },\n\n        { \"op\": \"rect\", \"x\": [\"+\", 3, [\"param\", \"dx\"]], \"y\": [\"+\", 2, [\"param\", \"dy\"]],\n          \"w\": 2, \"h\": 1, \"color\": [\"param\", \"hi\"] }\n      ]\n    }\n  }\n}\n","underground":"{\n  // ===================================================================\n  // Underground. Nothing here is meant to look like a real photograph of\n  // a tunnel: it is a schematic, drawn the way a circuit board is drawn.\n  // Copper traces are the running rails, gold pads are the blocks a train\n  // can stand on, and the board itself is the dirt around them.\n  //\n  // Every tile is generated from its rail mask, so the same texture covers\n  // straights, corners, T junctions and crossings. Junction and reversing\n  // blocks are the same trace with a pad on top, which is how the network\n  // draws them: a place where lines meet, or where one stops and a train\n  // has to turn back.\n  // ===================================================================\n  \"format\": \"texture/1\",\n  \"name\": \"underground\",\n  \"tile\": 9,\n\n  \"defs\": {\n    \"board\": \"#06120e\",\n    \"trace\": \"#1e6b4f\",\n    \"core\": \"#45c98d\",\n    \"pad\": \"#e0b654\",\n    \"padLit\": \"#ffe6a1\"\n  },\n\n  \"textures\": {\n    // -----------------------------------------------------------------\n    // The running rail: one 3px trace toward every connected neighbour,\n    // with a 1px copper core so the network reads at a glance.\n    // -----------------------------------------------------------------\n    \"rail\": {\n      \"size\": [9, 9],\n      \"params\": { \"m\": 0 },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 9, \"h\": 9, \"color\": [\"def\", \"board\"] },\n        { \"op\": \"each\", \"as\": \"y\", \"in\": [0, 3, 6], \"ops\": [\n          { \"op\": \"rect\", \"x\": 0, \"y\": [\"var\", \"y\"], \"w\": 9, \"h\": 1, \"color\": \"#081a14\" }\n        ] },\n\n        { \"op\": \"if\", \"test\": [\"bit\", [\"param\", \"m\"], 0], \"then\": [\n          { \"op\": \"rect\", \"x\": 3, \"y\": 0, \"w\": 3, \"h\": 5, \"color\": [\"def\", \"trace\"] },\n          { \"op\": \"rect\", \"x\": 4, \"y\": 0, \"w\": 1, \"h\": 5, \"color\": [\"def\", \"core\"] }\n        ] },\n        { \"op\": \"if\", \"test\": [\"bit\", [\"param\", \"m\"], 2], \"then\": [\n          { \"op\": \"rect\", \"x\": 3, \"y\": 4, \"w\": 3, \"h\": 5, \"color\": [\"def\", \"trace\"] },\n          { \"op\": \"rect\", \"x\": 4, \"y\": 4, \"w\": 1, \"h\": 5, \"color\": [\"def\", \"core\"] }\n        ] },\n        { \"op\": \"if\", \"test\": [\"bit\", [\"param\", \"m\"], 1], \"then\": [\n          { \"op\": \"rect\", \"x\": 4, \"y\": 3, \"w\": 5, \"h\": 3, \"color\": [\"def\", \"trace\"] },\n          { \"op\": \"rect\", \"x\": 4, \"y\": 4, \"w\": 5, \"h\": 1, \"color\": [\"def\", \"core\"] }\n        ] },\n        { \"op\": \"if\", \"test\": [\"bit\", [\"param\", \"m\"], 3], \"then\": [\n          { \"op\": \"rect\", \"x\": 0, \"y\": 3, \"w\": 5, \"h\": 3, \"color\": [\"def\", \"trace\"] },\n          { \"op\": \"rect\", \"x\": 0, \"y\": 4, \"w\": 5, \"h\": 1, \"color\": [\"def\", \"core\"] }\n        ] },\n\n        // a plain through-via in the middle of a track section\n        { \"op\": \"rect\", \"x\": 3, \"y\": 3, \"w\": 3, \"h\": 3, \"color\": [\"def\", \"trace\"] },\n        { \"op\": \"pixel\", \"x\": 4, \"y\": 4, \"color\": [\"def\", \"core\"] }\n      ]\n    },\n\n    // -----------------------------------------------------------------\n    // A junction block: three or four rails meet here and a train may\n    // take any of them. The gold pad is the block itself.\n    // -----------------------------------------------------------------\n    \"junction\": {\n      \"extends\": \"rail\",\n      \"size\": [9, 9],\n      \"params\": { \"m\": 0 },\n      \"ops\": [\n        { \"op\": \"use\", \"texture\": \"rail\", \"at\": [0, 0], \"params\": { \"m\": [\"param\", \"m\"] } },\n        { \"op\": \"rect\", \"x\": 2, \"y\": 2, \"w\": 5, \"h\": 1, \"color\": [\"def\", \"pad\"] },\n        { \"op\": \"rect\", \"x\": 2, \"y\": 6, \"w\": 5, \"h\": 1, \"color\": [\"def\", \"pad\"] },\n        { \"op\": \"rect\", \"x\": 2, \"y\": 2, \"w\": 1, \"h\": 5, \"color\": [\"def\", \"pad\"] },\n        { \"op\": \"rect\", \"x\": 6, \"y\": 2, \"w\": 1, \"h\": 5, \"color\": [\"def\", \"pad\"] },\n        { \"op\": \"rect\", \"x\": 4, \"y\": 4, \"w\": 1, \"h\": 1, \"color\": [\"def\", \"padLit\"] }\n      ]\n    },\n\n    // -----------------------------------------------------------------\n    // A reversing block: the track ends here and a train cannot run round\n    // a loop, so it stops, the driver changes ends and it goes back the\n    // way it came. The ring is the turning pad.\n    // -----------------------------------------------------------------\n    \"reverse\": {\n      \"extends\": \"rail\",\n      \"size\": [9, 9],\n      \"params\": { \"m\": 0 },\n      \"ops\": [\n        { \"op\": \"use\", \"texture\": \"rail\", \"at\": [0, 0], \"params\": { \"m\": [\"param\", \"m\"] } },\n        { \"op\": \"rect\", \"x\": 3, \"y\": 2, \"w\": 3, \"h\": 1, \"color\": [\"def\", \"pad\"] },\n        { \"op\": \"rect\", \"x\": 3, \"y\": 6, \"w\": 3, \"h\": 1, \"color\": [\"def\", \"pad\"] },\n        { \"op\": \"rect\", \"x\": 2, \"y\": 3, \"w\": 1, \"h\": 3, \"color\": [\"def\", \"pad\"] },\n        { \"op\": \"rect\", \"x\": 6, \"y\": 3, \"w\": 1, \"h\": 3, \"color\": [\"def\", \"pad\"] },\n        { \"op\": \"pixel\", \"x\": 4, \"y\": 4, \"color\": [\"def\", \"padLit\"] }\n      ]\n    },\n\n    // -----------------------------------------------------------------\n    // A station platform seen from above the tunnels: a lit pad.\n    // -----------------------------------------------------------------\n    \"station\": {\n      \"size\": [9, 9],\n      \"params\": {},\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 9, \"h\": 9, \"color\": [\"def\", \"board\"] },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 7, \"h\": 7, \"color\": \"#0f3126\" },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 7, \"h\": 1, \"color\": [\"def\", \"pad\"] },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 7, \"w\": 7, \"h\": 1, \"color\": [\"def\", \"pad\"] },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 1, \"h\": 7, \"color\": [\"def\", \"pad\"] },\n        { \"op\": \"rect\", \"x\": 7, \"y\": 1, \"w\": 1, \"h\": 7, \"color\": [\"def\", \"pad\"] },\n        { \"op\": \"rect\", \"x\": 3, \"y\": 3, \"w\": 3, \"h\": 3, \"color\": [\"def\", \"trace\"] },\n        { \"op\": \"rect\", \"x\": 4, \"y\": 4, \"w\": 1, \"h\": 1, \"color\": [\"def\", \"padLit\"] }\n      ]\n    },\n\n    // -----------------------------------------------------------------\n    // The trains. They are drawn on the rail, so keep them flat: a copper\n    // body, a dark window band and gold ends.\n    // -----------------------------------------------------------------\n    \"train_h\": {\n      \"size\": [7, 3],\n      \"params\": {},\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 1, \"w\": 7, \"h\": 2, \"color\": \"#2a9b72\" },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 2, \"w\": 5, \"h\": 1, \"color\": \"#0b2119\" },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 1, \"w\": 1, \"h\": 2, \"color\": [\"def\", \"pad\"] },\n        { \"op\": \"rect\", \"x\": 6, \"y\": 1, \"w\": 1, \"h\": 2, \"color\": [\"def\", \"pad\"] },\n        { \"op\": \"pixel\", \"x\": 0, \"y\": 1, \"color\": [\"def\", \"padLit\"] }\n      ]\n    },\n    \"train_v\": {\n      \"size\": [3, 7],\n      \"params\": {},\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 1, \"y\": 0, \"w\": 2, \"h\": 7, \"color\": \"#2a9b72\" },\n        { \"op\": \"rect\", \"x\": 2, \"y\": 1, \"w\": 1, \"h\": 5, \"color\": \"#0b2119\" },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 0, \"w\": 2, \"h\": 1, \"color\": [\"def\", \"pad\"] },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 6, \"w\": 2, \"h\": 1, \"color\": [\"def\", \"pad\"] },\n        { \"op\": \"pixel\", \"x\": 1, \"y\": 0, \"color\": [\"def\", \"padLit\"] }\n      ]\n    }\n  }\n}\n","vehicles":"{\n  // ===================================================================\n  // Vehicles. Each texture is a tiny sprite; the runtime picks a variant\n  // and passes the agent's colour, so no sprite is duplicated per colour.\n  // ===================================================================\n  \"format\": \"texture/1\",\n  \"name\": \"vehicles\",\n  \"tile\": 9,\n\n  \"defs\": {\n    \"glass\": \"#a9d2ee\",\n    \"busGlass\": \"#2f4f6f\",\n    \"wake\": \"#9fd0ff\",\n    \"wood\": \"#5a3a22\",\n\n    // plane hulls, east and south-east, as [x, y, class] triples.\n    // class: 0 body, 1 tail, 2 strobe, 3 wingtip\n    \"planeE\": [[-4, 0, 0], [-3, 0, 0], [-2, 0, 0], [-1, 0, 0], [0, 0, 0], [1, 0, 0], [2, 0, 0], [3, 0, 0], [4, 0, 1],\n               [0, -1, 0], [0, -2, 0], [0, -3, 2], [0, 1, 0], [0, 2, 0], [0, 3, 2], [-1, -3, 0], [-1, 3, 0],\n               [-4, -1, 3], [-4, 1, 3], [-3, -1, 3], [-3, 1, 3]],\n    \"planeSE\": [[-3, -3, 0], [-2, -2, 0], [-1, -1, 0], [0, 0, 0], [1, 1, 0], [2, 2, 0], [3, 3, 1],\n                [1, -1, 0], [2, -2, 0], [3, -3, 2], [-1, 1, 0], [-2, 2, 0], [-3, 3, 2],\n                [-4, -3, 3], [-3, -4, 3], [-4, -4, 3]]\n  },\n\n  \"textures\": {\n    \"car_h\": {\n      \"size\": [3, 2],\n      \"params\": { \"color\": \"#e74c3c\" },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 3, \"h\": 2, \"color\": [\"param\", \"color\"] },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 0, \"w\": 1, \"h\": 2, \"color\": [\"def\", \"glass\"] }\n      ]\n    },\n    \"car_v\": {\n      \"size\": [2, 3],\n      \"params\": { \"color\": \"#e74c3c\" },\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 2, \"h\": 3, \"color\": [\"param\", \"color\"] },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 1, \"w\": 2, \"h\": 1, \"color\": [\"def\", \"glass\"] }\n      ]\n    },\n\n    \"bus_h\": {\n      \"size\": [5, 2],\n      \"params\": {},\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 5, \"h\": 2, \"color\": \"#f5c518\" },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 0, \"w\": 3, \"h\": 1, \"color\": [\"def\", \"busGlass\"] }\n      ]\n    },\n    \"bus_v\": {\n      \"size\": [2, 5],\n      \"params\": {},\n      \"ops\": [\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 2, \"h\": 5, \"color\": \"#f5c518\" },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 1, \"w\": 1, \"h\": 3, \"color\": [\"def\", \"busGlass\"] }\n      ]\n    },\n\n    // Boats are drawn around a centre point, so each heading gets its own\n    // canvas size and origin (see BOAT_AT in js/art.js).\n    \"boat_e\": {\n      \"size\": [8, 3],\n      \"params\": { \"color\": \"#f4f5f7\" },\n      \"ops\": [\n        { \"op\": \"pixel\", \"x\": 1, \"y\": 0, \"color\": [\"def\", \"wake\"] },\n        { \"op\": \"pixel\", \"x\": 1, \"y\": 2, \"color\": [\"def\", \"wake\"] },\n        { \"op\": \"pixel\", \"x\": 0, \"y\": 1, \"color\": [\"def\", \"wake\"] },\n        { \"op\": \"rect\", \"x\": 3, \"y\": 0, \"w\": 5, \"h\": 3, \"color\": [\"param\", \"color\"] },\n        { \"op\": \"pixel\", \"x\": 7, \"y\": 1, \"color\": [\"def\", \"wood\"] },\n        { \"op\": \"rect\", \"x\": 4, \"y\": 1, \"w\": 2, \"h\": 1, \"color\": [\"def\", \"busGlass\"] }\n      ]\n    },\n    \"boat_w\": {\n      \"size\": [8, 3],\n      \"params\": { \"color\": \"#f4f5f7\" },\n      \"ops\": [\n        { \"op\": \"pixel\", \"x\": 6, \"y\": 0, \"color\": [\"def\", \"wake\"] },\n        { \"op\": \"pixel\", \"x\": 6, \"y\": 2, \"color\": [\"def\", \"wake\"] },\n        { \"op\": \"pixel\", \"x\": 7, \"y\": 1, \"color\": [\"def\", \"wake\"] },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 5, \"h\": 3, \"color\": [\"param\", \"color\"] },\n        { \"op\": \"pixel\", \"x\": 0, \"y\": 1, \"color\": [\"def\", \"wood\"] },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 2, \"h\": 1, \"color\": [\"def\", \"busGlass\"] }\n      ]\n    },\n    \"boat_s\": {\n      \"size\": [3, 8],\n      \"params\": { \"color\": \"#f4f5f7\" },\n      \"ops\": [\n        { \"op\": \"pixel\", \"x\": 0, \"y\": 1, \"color\": [\"def\", \"wake\"] },\n        { \"op\": \"pixel\", \"x\": 2, \"y\": 1, \"color\": [\"def\", \"wake\"] },\n        { \"op\": \"pixel\", \"x\": 1, \"y\": 0, \"color\": [\"def\", \"wake\"] },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 3, \"w\": 3, \"h\": 5, \"color\": [\"param\", \"color\"] },\n        { \"op\": \"pixel\", \"x\": 1, \"y\": 7, \"color\": [\"def\", \"wood\"] },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 4, \"w\": 1, \"h\": 2, \"color\": [\"def\", \"busGlass\"] }\n      ]\n    },\n    \"boat_n\": {\n      \"size\": [3, 8],\n      \"params\": { \"color\": \"#f4f5f7\" },\n      \"ops\": [\n        { \"op\": \"pixel\", \"x\": 0, \"y\": 6, \"color\": [\"def\", \"wake\"] },\n        { \"op\": \"pixel\", \"x\": 2, \"y\": 6, \"color\": [\"def\", \"wake\"] },\n        { \"op\": \"pixel\", \"x\": 1, \"y\": 7, \"color\": [\"def\", \"wake\"] },\n        { \"op\": \"rect\", \"x\": 0, \"y\": 0, \"w\": 3, \"h\": 5, \"color\": [\"param\", \"color\"] },\n        { \"op\": \"pixel\", \"x\": 1, \"y\": 0, \"color\": [\"def\", \"wood\"] },\n        { \"op\": \"rect\", \"x\": 1, \"y\": 1, \"w\": 1, \"h\": 2, \"color\": [\"def\", \"busGlass\"] }\n      ]\n    },\n\n    \"plane\": {\n      \"size\": [9, 9],\n      \"params\": {\n        \"h\": 0, \"night\": 0, \"blink\": 0,\n        \"hull\": [\"rot\",\n                 [\"if\", [\"==\", [\"mod\", [\"param\", \"h\"], 2], 0], [\"def\", \"planeE\"], [\"def\", \"planeSE\"]],\n                 [\"floor\", [\"/\", [\"param\", \"h\"], 2]]]\n      },\n      \"ops\": [\n        { \"op\": \"each\", \"as\": \"p\", \"in\": [\"param\", \"hull\"], \"ops\": [\n          { \"op\": \"pixel\",\n            \"x\": [\"+\", [\"at\", [\"var\", \"p\"], 0], 4],\n            \"y\": [\"+\", [\"at\", [\"var\", \"p\"], 1], 4],\n            \"color\": [\n              \"if\", [\"==\", [\"at\", [\"var\", \"p\"], 2], 3], \"#d63a3a\",\n              [\"if\", [\"==\", [\"at\", [\"var\", \"p\"], 2], 1], \"#9aa3b5\",\n                [\"if\", [\"==\", [\"at\", [\"var\", \"p\"], 2], 2],\n                  [\"if\", [\"and\", [\"param\", \"night\"], [\"param\", \"blink\"]],\n                    [\"if\", [\">\", [\"+\", [\"at\", [\"var\", \"p\"], 0], [\"at\", [\"var\", \"p\"], 1]], 0],\n                      \"#3ef06b\", \"#ff4848\"],\n                    \"#c8ccd4\"],\n                  \"#f4f5f7\"]]]\n          }\n        ] }\n      ]\n    },\n\n    \"plane_shadow\": {\n      \"size\": [9, 9],\n      \"params\": {\n        \"h\": 0,\n        \"hull\": [\"rot\",\n                 [\"if\", [\"==\", [\"mod\", [\"param\", \"h\"], 2], 0], [\"def\", \"planeE\"], [\"def\", \"planeSE\"]],\n                 [\"floor\", [\"/\", [\"param\", \"h\"], 2]]]\n      },\n      \"ops\": [\n        { \"op\": \"each\", \"as\": \"p\", \"in\": [\"param\", \"hull\"], \"ops\": [\n          { \"op\": \"pixel\",\n            \"x\": [\"+\", [\"at\", [\"var\", \"p\"], 0], 4],\n            \"y\": [\"+\", [\"at\", [\"var\", \"p\"], 1], 4],\n            \"color\": \"#00000040\" }\n        ] }\n      ]\n    }\n  }\n}\n"};</script>
+<script>
+
+// ---- js/texture.js ----
+'use strict';
+// =====================================================================
+// Textures: .texture documents (JSONC) -> cached canvases + marks
+//
+// A document holds a family of named textures. Each texture is a list of
+// ops painting an RGBA image, with values taken from expression trees over
+// the texture's params. There is no eval: expressions are nested arrays
+// compiled to closures, so a malformed file fails the build, not the game.
+//
+// Ops that paint are pure functions of (params, defs, rng). Anything that
+// needs game state or heavier maths is registered in TEX_OPS and reached
+// from a file with { "op": "call", "fn": "name" } or ["fn", "name", ...].
+//
+// Load order: js/texture.js, js/textures.generated.js, then js/art.js.
+// =====================================================================
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.TEX = factory();
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+
+  const FORMAT = 'texture/1';
+  const MAX_CACHE = 3000;
+  const docs = Object.create(null);
+  const images = Object.create(null);
+  const cache = new Map();
+
+  // ---------------------------------------------------------------------
+  // Random / colour helpers (self-contained so Node can require this file)
+  // ---------------------------------------------------------------------
+  function hash(x, y, s) {
+    let h = (x * 374761393 + y * 668265263 + s * 1442695041) | 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+  }
+  function mulberry(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function vnoise(x, y, s) {
+    const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+    const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    const a = hash(xi, yi, s), b = hash(xi + 1, yi, s), c = hash(xi, yi + 1, s), d = hash(xi + 1, yi + 1, s);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  }
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  function parseColor(c) {
+    if (typeof c !== 'string') return [255, 0, 255, 255];
+    if (c === 'transparent' || c === 'none') return [0, 0, 0, 0];
+    if (c.charCodeAt(0) === 35 && c.length >= 4) {
+      const h = c.slice(1);
+      if (h.length === 3) return [parseInt(h[0] + h[0], 16), parseInt(h[1] + h[1], 16), parseInt(h[2] + h[2], 16), 255];
+      if (h.length === 6) return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16), 255];
+      if (h.length === 8) return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16), parseInt(h.slice(6, 8), 16)];
+    }
+    if (c.slice(0, 5) === 'rgba(' || c.slice(0, 4) === 'rgb(') {
+      const m = c.match(/[\d.]+/g) || [];
+      return [+m[0] | 0, +m[1] | 0, +m[2] | 0, m[3] === undefined ? 255 : Math.round(+m[3] * 255)];
+    }
+    return [255, 0, 255, 255];
+  }
+  const hex2 = v => ('0' + clamp(v | 0, 0, 255).toString(16)).slice(-2);
+  function rgbaStr(r, g, b, a) {
+    return a >= 255 ? '#' + hex2(r) + hex2(g) + hex2(b)
+      : 'rgba(' + (r | 0) + ',' + (g | 0) + ',' + (b | 0) + ',' + (Math.round(a) / 255) + ')';
+  }
+  // Same contract as core.js shade(): shift every channel of a #rrggbb colour.
+  function shade(c, amt) {
+    const [r, g, b] = parseColor(c);
+    return '#' + hex2(r + amt) + hex2(g + amt) + hex2(b + amt);
+  }
+  function mix(a, b, t) {
+    const A = parseColor(a), B = parseColor(b);
+    return rgbaStr(A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t, A[2] + (B[2] - A[2]) * t, A[3] + (B[3] - A[3]) * t);
+  }
+  const rot90 = spr => spr.map(p => [-p[1], p[0], p[2]]);
+
+  // ---------------------------------------------------------------------
+  // JSONC: comments and trailing commas, so these files stay readable
+  // ---------------------------------------------------------------------
+  function stripJsonc(src) {
+    let out = '', i = 0;
+    const n = src.length;
+    while (i < n) {
+      const ch = src[i];
+      if (ch === '"') {
+        out += ch; i++;
+        while (i < n) {
+          const k = src[i];
+          out += k;
+          if (k === '\\') { out += src[i + 1] || ''; i += 2; continue; }
+          i++;
+          if (k === '"') break;
+        }
+        continue;
+      }
+      if (ch === '/' && src[i + 1] === '/') { while (i < n && src[i] !== '\n') i++; continue; }
+      if (ch === '/' && src[i + 1] === '*') { i += 2; while (i < n && !(src[i] === '*' && src[i + 1] === '/')) i++; i += 2; continue; }
+      out += ch; i++;
+    }
+    return out.replace(/,(\s*[}\]])/g, '$1');
+  }
+
+  // ---------------------------------------------------------------------
+  // Expression compiler
+  // ---------------------------------------------------------------------
+  const EXPR = {
+    '+': a => a.reduce((s, v) => s + v, 0),
+    '-': a => a.length > 1 ? a[0] - a[1] : -a[0],
+    '*': a => a.reduce((s, v) => s * v, 1),
+    '/': a => a[0] / a[1],
+    '%': a => a[0] % a[1],
+    '<': a => a[0] < a[1],
+    '<=': a => a[0] <= a[1],
+    '>': a => a[0] > a[1],
+    '>=': a => a[0] >= a[1],
+    '==': a => a[0] === a[1],
+    '!=': a => a[0] !== a[1],
+    and: a => a.every(Boolean),
+    or: a => a.some(Boolean),
+    not: a => !a[0],
+    if: a => a[0] ? a[1] : a[2],
+    mod: a => ((a[0] % a[1]) + a[1]) % a[1],
+    mask: a => a[0] & a[1],
+    bit: a => (a[0] >> a[1]) & 1,
+    bits: a => (a[0] & 1) + (a[0] >> 1 & 1) + (a[0] >> 2 & 1) + (a[0] >> 3 & 1),
+    floor: a => Math.floor(a[0]),
+    ceil: a => Math.ceil(a[0]),
+    round: a => Math.round(a[0]),
+    abs: a => Math.abs(a[0]),
+    min: a => Math.min.apply(null, a),
+    max: a => Math.max.apply(null, a),
+    pick: a => a[0][Math.floor(a[1] * a[0].length) % a[0].length],
+    shade: a => shade(a[0], a[1]),
+    mix: a => mix(a[0], a[1], a[2]),
+    at: a => (a[0] == null ? undefined : a[0][a[1]]),
+    len: a => a[0].length,
+    range: a => { const r = []; for (let k = 0; k < a[0]; k++) r.push(k); return r; },
+    rot: a => { let s = a[0]; for (let k = 0; k < a[1]; k++) s = rot90(s); return s; },
+    // point rotation for lane arrows: direction 1=N 2=E 3=S 4=W on a 9x9 tile
+    rotx: a => a[2] === 1 ? a[0] : a[2] === 2 ? 8 - a[1] : a[2] === 3 ? 8 - a[0] : a[1],
+    roty: a => a[2] === 1 ? a[1] : a[2] === 2 ? a[0] : a[2] === 3 ? 8 - a[1] : 8 - a[0],
+    default: a => (a[0] == null ? a[1] : a[0]),
+    hash: a => hash(a[0], a[1], a[2]),
+    noise: a => vnoise(a[0], a[1], a[2])
+  };
+
+  // Heads that read the render environment rather than compute a value.
+  // They live outside EXPR because they need the env closure themselves.
+  const ENV_HEADS = { param: 1, def: 1, var: 1, rnd: 1, fn: 1 };
+  const isExpr = head => typeof head === 'string' &&
+    (Object.prototype.hasOwnProperty.call(EXPR, head) || Object.prototype.hasOwnProperty.call(ENV_HEADS, head));
+
+  function compile(node, where) {
+    if (Array.isArray(node)) {
+      const head = node[0];
+      if (isExpr(head)) {
+        if (head === 'param') {
+          const name = node[1];
+          return env => {
+            if (Object.prototype.hasOwnProperty.call(env.p, name)) return env.p[name];
+            if (name in env.locals) return env.locals[name];
+            // implicit locals: w, h, tw, th, ox, oy
+            if (name in env && name !== 'p' && name !== 'd' && name !== 'locals' && name !== 'imp') return env[name];
+            if (Object.prototype.hasOwnProperty.call(env.imp, name)) return env.imp[name];
+            return undefined;
+          };
+        }
+        if (head === 'def') {
+          const name = node[1];
+          return env => env.d[name];
+        }
+        if (head === 'var') {
+          const name = node[1];
+          return env => env.locals[name];
+        }
+        if (head === 'rnd') return env => env.rng();
+        if (head === 'fn') {
+          const name = node[1], args = node.slice(2).map(a => compile(a, where));
+          return env => {
+            const f = env.p[name] || TEX_OPS[name];
+            if (typeof f !== 'function') throw new Error('unknown fn "' + name + '" in ' + where);
+            return f.apply(null, args.map(g => g(env)));
+          };
+        }
+        const op = EXPR[head];
+        const args = node.slice(1).map(a => compile(a, where));
+        return env => op(args.map(g => g(env)));
+      }
+      // a plain literal list (a palette, a point, a list of pixel triples)
+      const items = node.map(a => compile(a, where));
+      return () => items.map(g => g());
+    }
+    if (node && typeof node === 'object') {
+      const keys = Object.keys(node);
+      const fns = keys.map(k => compile(node[k], where));
+      return env => { const o = {}; for (let k = 0; k < keys.length; k++) o[keys[k]] = fns[k](env); return o; };
+    }
+    return () => node;
+  }
+
+  // ---------------------------------------------------------------------
+  // Drawing backends
+  // ---------------------------------------------------------------------
+  function canvasBackend(w, h) {
+    const cv = document.createElement('canvas');
+    cv.width = w; cv.height = h;
+    const g = cv.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    const tmp = new Map();
+    return {
+      canvas: cv,
+      fillRect(x, y, ww, hh, color) {
+        if (color === 'transparent' || ww <= 0 || hh <= 0) return;
+        g.fillStyle = color;
+        g.fillRect(x, y, ww, hh);
+      },
+      blit(img, x, y, alpha) {
+        let c = tmp.get(img);
+        if (!c) {
+          c = document.createElement('canvas');
+          c.width = img.w; c.height = img.h;
+          const cg = c.getContext('2d');
+          cg.putImageData(new ImageData(new Uint8ClampedArray(img.data), img.w, img.h), 0, 0);
+          tmp.set(img, c);
+        }
+        if (alpha !== undefined && alpha !== 1) g.globalAlpha = alpha;
+        g.drawImage(c, x, y);
+        if (alpha !== undefined && alpha !== 1) g.globalAlpha = 1;
+      }
+    };
+  }
+
+  // Software rasteriser: same op semantics, no DOM. Used by the CLI so
+  // textures can be exported and diffed outside a browser.
+  function bufferBackend(w, h) {
+    const data = new Uint8ClampedArray(w * h * 4);
+    // Source-over with straight (non-premultiplied) colour, matching canvas.
+    // Multiplying the source by alpha here instead would darken translucent
+    // art, and darken it again every time it is blitted.
+    const blend = (x, y, r, g, b, a) => {
+      if (x < 0 || y < 0 || x >= w || y >= h || a <= 0) return;
+      const o = (y * w + x) * 4;
+      const sa = a / 255, da = data[o + 3] / 255, oa = sa + da * (1 - sa);
+      if (oa <= 0) { data[o] = data[o + 1] = data[o + 2] = data[o + 3] = 0; return; }
+      const dk = da * (1 - sa) / oa, sk = sa / oa;
+      data[o] = Math.round(r * sk + data[o] * dk);
+      data[o + 1] = Math.round(g * sk + data[o + 1] * dk);
+      data[o + 2] = Math.round(b * sk + data[o + 2] * dk);
+      data[o + 3] = Math.round(oa * 255);
+    };
+    return {
+      canvas: null, data, w, h,
+      fillRect(x, y, ww, hh, color) {
+        if (color === 'transparent' || ww <= 0 || hh <= 0) return;
+        const [r, g, b, a] = parseColor(color);
+        const x0 = Math.round(x), y0 = Math.round(y), x1 = x0 + Math.round(ww), y1 = y0 + Math.round(hh);
+        for (let yy = y0; yy < y1; yy++) for (let xx = x0; xx < x1; xx++) blend(xx, yy, r, g, b, a);
+      },
+      blit(img, x, y, alpha) {
+        const src = img.data, k = alpha === undefined ? 1 : alpha;
+        for (let yy = 0; yy < img.h; yy++) for (let xx = 0; xx < img.w; xx++) {
+          const o = (yy * img.w + xx) * 4;
+          blend(x + xx, y + yy, src[o], src[o + 1], src[o + 2], Math.round(src[o + 3] * k));
+        }
+      }
+    };
+  }
+
+  // ---------------------------------------------------------------------
+  // Ops. Each receives already-evaluated values; control-flow ops get the
+  // compiled child lists plus `run`.
+  // ---------------------------------------------------------------------
+  const TEX_OPS = Object.create(null);
+
+  const DRAW = {
+    rect(a, env, be) { be.fillRect(a.x + env.ox, a.y + env.oy, a.w, a.h, a.color); },
+    pixel(a, env, be) { be.fillRect(a.x + env.ox, a.y + env.oy, 1, 1, a.color); },
+    line(a, env, be) {
+      let x0 = a.x1 + env.ox, y0 = a.y1 + env.oy;
+      const x1 = a.x2 + env.ox, y1 = a.y2 + env.oy;
+      const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0);
+      const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+      let err = dx + dy;
+      for (;;) {
+        be.fillRect(x0, y0, 1, 1, a.color);
+        if (x0 === x1 && y0 === y1) break;
+        const e2 = 2 * err;
+        if (e2 >= dy) { err += dy; x0 += sx; }
+        if (e2 <= dx) { err += dx; y0 += sy; }
+      }
+    },
+    png(a, env, be) {
+      const img = images[a.ref] || a.image;
+      if (!img) throw new Error('missing image ref "' + a.ref + '"');
+      be.blit(img, a.x + env.ox, a.y + env.oy, a.alpha);
+    },
+    each(a, env, be, marks, run) {
+      const list = a.in, had = Object.prototype.hasOwnProperty.call(env.locals, a.as);
+      if (list == null) return;
+      const prev = env.locals[a.as];
+      for (let k = 0; k < list.length; k++) { env.locals[a.as] = list[k]; run(a.ops, env, be, marks); }
+      if (had) env.locals[a.as] = prev; else delete env.locals[a.as];
+    },
+    repeat(a, env, be, marks, run) {
+      const had = Object.prototype.hasOwnProperty.call(env.locals, a.as);
+      const prev = env.locals[a.as], from = a.from || 0;
+      for (let k = 0; k < a.times; k++) { env.locals[a.as] = from + k; run(a.ops, env, be, marks); }
+      if (had) env.locals[a.as] = prev; else delete env.locals[a.as];
+    },
+    if(a, env, be, marks, run) {
+      if (a.test) { if (a.then) run(a.then, env, be, marks); }
+      else if (a.else) run(a.else, env, be, marks);
+    },
+    win(a, env, be, marks) {
+      be.fillRect(a.x + env.ox, a.y + env.oy, 1, 1, a.color || '#2b3a4e');
+      marks.win.push([a.x + env.ox, a.y + env.oy]);
+    },
+    park(a, env, be, marks) { marks.park.push([a.x + env.ox, a.y + env.oy, a.v ? 1 : 0]); },
+    stat(a, env, be, marks) { marks.stat = [a.x + env.ox, a.y + env.oy]; },
+    berth(a, env, be, marks) { if (!marks.berth) marks.berth = [a.x, a.y]; },
+    spot(a, env, be, marks) { marks.spots.push([a.x + env.ox, a.y + env.oy]); },
+    // mark only records a point; nothing is painted (visitors/lots/queues)
+    mark(a, env, be, marks) {
+      const list = a.as === 'park' ? marks.park : a.as === 'spots' ? marks.spots : marks.win;
+      for (const p of a.of) list.push([p[0] + env.ox, p[1] + env.oy]);
+    },
+    spots(a, env, be, marks) { marks.spots = a.of.map(p => [p[0] + env.ox, p[1] + env.oy]); },
+    // writes a param for later ops in the same render (first-match flags)
+    set(a, env) { env.p[a.as] = a.value; },
+    use(a, env, be, marks) {
+      const file = a.file || env.__file;
+      const sub = getDef(file, a.texture);
+      const subEnv = makeEnv(sub.doc, sub.def, a.params || {}, env.__seed);
+      subEnv.__file = file;
+      subEnv.locals = Object.create(env.locals);
+      subEnv.ox = env.ox + a.at[0];
+      subEnv.oy = env.oy + a.at[1];
+      subEnv.depth = env.depth + 1;
+      if (subEnv.depth > 6) throw new Error('texture "use" nested too deeply');
+      runOps(sub.def._compiled, subEnv, be, marks);
+    },
+    call(a, env, be, marks) {
+      const f = TEX_OPS[a.fn];
+      if (typeof f !== 'function') throw new Error('unknown call fn "' + a.fn + '"');
+      f(be, env, a.args || {}, marks);
+    }
+  };
+
+  function runOps(ops, env, be, marks) {
+    for (let k = 0; k < ops.length; k++) {
+      const n = ops[k], a = {};
+      for (let j = 0; j < n.keys.length; j++) a[n.keys[j]] = n.fns[j](env);
+      if (n.ops) a.ops = n.ops;
+      if (n.then) a.then = n.then;
+      if (n.else) a.else = n.else;
+      n.impl(a, env, be, marks, runOps);
+    }
+  }
+
+  function compileOps(rawOps, def) {
+    return rawOps.map(raw => {
+      const impl = DRAW[raw.op];
+      if (!impl) throw new Error('unknown op "' + raw.op + '" in ' + def.__id);
+      const keys = [], fns = [];
+      for (const k of Object.keys(raw)) {
+        if (k === 'op' || k === 'ops' || k === 'then' || k === 'else') continue;
+        keys.push(k);
+        fns.push(compile(raw[k], def.__id));
+      }
+      const node = { impl, keys, fns };
+      if (raw.ops) node.ops = compileOps(raw.ops, def);
+      if (raw.then) node.then = compileOps(raw.then, def);
+      if (raw.else) node.else = compileOps(raw.else, def);
+      return node;
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Documents
+  // ---------------------------------------------------------------------
+  function define(files) { for (const k of Object.keys(files)) docs[k] = files[k]; }
+
+  // Images arrive as {w,h,b64} from the build; hand-written code may pass
+  // {w,h,data} directly.
+  function unpackImage(v) {
+    if (v && v.data && typeof v.data.length === 'number') return v;
+    const bin = typeof atob === 'function'
+      ? atob(v.b64)
+      : Buffer.from(v.b64, 'base64').toString('binary');
+    const arr = new Uint8ClampedArray(bin.length);
+    for (let k = 0; k < bin.length; k++) arr[k] = bin.charCodeAt(k);
+    return { w: v.w, h: v.h, data: arr };
+  }
+  function defineImages(map) { for (const k of Object.keys(map)) images[k] = unpackImage(map[k]); }
+
+  function getDef(file, texName) {
+    const doc = docs[file];
+    if (!doc) throw new Error('unknown texture file "' + file + '"');
+    const def = doc.textures && doc.textures[texName];
+    if (!def) throw new Error('unknown texture "' + texName + '" in ' + file);
+    prep(doc, def, file, texName);
+    return { doc, def };
+  }
+
+  function prep(doc, def, file, name) {
+    if (def._compiled) return def;
+    def.__id = file + ':' + name;
+    def.__file = file;
+    if (def.extends) {
+      const parts = def.extends.indexOf(':') >= 0 ? def.extends.split(':') : [file, def.extends];
+      const parent = getDef(parts[0], parts[1]);
+      if (!def.size) def.size = parent.def.size;
+      if (!def._parentParams) def._parentParams = parent.def._params;
+      if (!def.ops || !def.ops.length) def.ops = parent.def.ops;
+    }
+    def.size = def.size || [9, 9];
+    def._params = compileParams(def.params || {}, def.__id);
+    def._compiled = compileOps(def.ops || [], def);
+    return def;
+  }
+
+  function compileParams(decl, where) {
+    const keys = Object.keys(decl);
+    return { keys, fns: keys.map(k => compile(decl[k], where)) };
+  }
+
+  function makeEnv(doc, def, params, seedOverride) {
+    const p = {};
+    if (params) for (const k of Object.keys(params)) if (params[k] !== undefined) p[k] = params[k];
+    const seed = seedOverride !== undefined ? seedOverride : (p.seed !== undefined ? p.seed | 0 : 1);
+    const env = {
+      p, d: doc.defs || {}, locals: Object.create(null), imp: Object.create(null),
+      rng: mulberry(seed),
+      w: def.size[0], h: def.size[1],
+      tw: def.size[0] / (doc.tile || 9), th: def.size[1] / (doc.tile || 9),
+      ox: 0, oy: 0, depth: 0, __file: def.__file, __seed: seed
+    };
+    const run = cp => {
+      for (let k = 0; k < cp.keys.length; k++) {
+        const key = cp.keys[k];
+        if (Object.prototype.hasOwnProperty.call(p, key)) continue;
+        p[key] = cp.fns[k](env);
+      }
+    };
+    run(def._params);
+    if (def._parentParams) run(def._parentParams);
+    return env;
+  }
+
+  // ---------------------------------------------------------------------
+  // Render + cache
+  // ---------------------------------------------------------------------
+  function stableParams(params) {
+    if (!params) return '';
+    return Object.keys(params).filter(k => typeof params[k] !== 'function').sort()
+      .map(k => k + '=' + JSON.stringify(params[k])).join('&');
+  }
+
+  function renderWith(file, texName, params, be) {
+    const { doc, def } = getDef(file, texName);
+    const env = makeEnv(doc, def, params);
+    const marks = { win: [], park: [], stat: null, berth: null, spots: [] };
+    runOps(def._compiled, env, be, marks);
+    return marks;
+  }
+
+  function render(file, texName, params, keySuffix) {
+    const { def } = getDef(file, texName);
+    const ck = file + '|' + texName + '|' + (keySuffix != null ? keySuffix : stableParams(params));
+    const hit = cache.get(ck);
+    if (hit) { cache.delete(ck); cache.set(ck, hit); return hit; }
+    const be = canvasBackend(def.size[0], def.size[1]);
+    const marks = renderWith(file, texName, params, be);
+    const out = { canvas: be.canvas, marks };
+    cache.set(ck, out);
+    if (cache.size > MAX_CACHE) cache.delete(cache.keys().next().value);
+    return out;
+  }
+
+  // Deterministic RGBA render with no DOM, for build/export/diff tooling.
+  function renderBuffer(file, texName, params) {
+    const { def } = getDef(file, texName);
+    const be = bufferBackend(def.size[0], def.size[1]);
+    const marks = renderWith(file, texName, params, be);
+    return { w: be.w, h: be.h, data: be.data, marks };
+  }
+
+  function draw(ctx, file, texName, x, y, params, keySuffix) {
+    const t = render(file, texName, params, keySuffix);
+    ctx.drawImage(t.canvas, x, y);
+    return t.marks;
+  }
+
+  const clear = () => cache.clear();
+
+  // ---------------------------------------------------------------------
+  // Static validation, run by the build so a bad file never ships
+  // ---------------------------------------------------------------------
+  const OPSET = Object.keys(DRAW);
+  const IMPLICIT = ['w', 'h', 'tw', 'th', 'ox', 'oy'];
+
+  function validate(files) {
+    const errs = [];
+    for (const file of Object.keys(files)) {
+      const doc = files[file];
+      if (doc.format !== FORMAT) errs.push(file + ': bad format "' + doc.format + '" (expected "' + FORMAT + '")');
+      if (!doc.textures) { errs.push(file + ': no "textures" object'); continue; }
+      const defs = doc.defs || {};
+      for (const name of Object.keys(doc.textures)) {
+        const def = doc.textures[name], where = file + ':' + name;
+        if (!def.size && !def.extends) errs.push(where + ': missing size');
+        if (!def.ops && !def.extends) errs.push(where + ': missing ops');
+        const known = new Set(Object.keys(def.params || {}).concat(IMPLICIT));
+        for (const k of Object.keys(def.params || {})) checkExpr(def.params[k], where + '.params.' + k, errs, known, defs, new Set());
+        checkOps(def.ops || [], where, errs, known, defs, new Set(), files);
+      }
+    }
+    return errs;
+  }
+
+  function checkOps(ops, where, errs, known, defs, scope, files) {
+    if (!Array.isArray(ops)) { errs.push(where + ': ops is not a list'); return; }
+    for (const op of ops) {
+      if (!op || typeof op.op !== 'string') { errs.push(where + ': op without a name'); continue; }
+      if (OPSET.indexOf(op.op) < 0) { errs.push(where + ': unknown op "' + op.op + '"'); continue; }
+      const at = where + '.' + op.op;
+      for (const k of Object.keys(op)) {
+        if (k === 'op' || k === 'ops' || k === 'then' || k === 'else') continue;
+        checkExpr(op[k], at + '.' + k, errs, known, defs, scope);
+      }
+      if (op.op === 'each' || op.op === 'repeat') {
+        if (!op.as) errs.push(at + ': missing "as"');
+        if (!Array.isArray(op.ops)) errs.push(at + ': missing "ops"');
+        const inner = new Set(scope);
+        inner.add(op.as || '_');
+        checkOps(op.ops || [], at, errs, known, defs, inner, files);
+      } else if (op.op === 'if') {
+        checkOps(op.then || [], at + '.then', errs, known, defs, scope, files);
+        checkOps(op.else || [], at + '.else', errs, known, defs, scope, files);
+      } else if (op.op === 'use') {
+        const tf = op.file;
+        if (typeof tf === 'string' && (!files[tf] || !files[tf].textures[op.texture])) errs.push(at + ': unknown texture "' + tf + ':' + op.texture + '"');
+        if (!Array.isArray(op.at)) errs.push(at + ': use needs "at"');
+      } else if (op.op === 'png') {
+        // `src` is resolved to `ref` by the build (file path or data URI)
+        if (!op.ref && !op.image && !op.src) errs.push(at + ': png needs "src"');
+      } else if (op.op === 'call') {
+        if (typeof op.fn !== 'string') errs.push(at + ': call needs "fn"');
+      }
+    }
+  }
+
+  function checkExpr(node, where, errs, known, defs, scope) {
+    if (Array.isArray(node)) {
+      const head = node[0];
+      if (isExpr(head)) {
+        if (head === 'param') {
+          if (!known.has(node[1]) && !scope.has(node[1])) errs.push(where + ': unknown param "' + node[1] + '"');
+          return;
+        }
+        if (head === 'def') {
+          if (!Object.prototype.hasOwnProperty.call(defs, node[1])) errs.push(where + ': unknown def "' + node[1] + '"');
+          return;
+        }
+        if (head === 'var') {
+          if (!scope.has(node[1]) && !known.has(node[1])) errs.push(where + ': unknown loop var "' + node[1] + '"');
+          return;
+        }
+        for (let k = 1; k < node.length; k++) checkExpr(node[k], where, errs, known, defs, scope);
+        return;
+      }
+      for (const v of node) if (Array.isArray(v)) checkExpr(v, where, errs, known, defs, scope);
+    }
+  }
+
+  return {
+    FORMAT, EXPR, TEX_OPS, docs, images,
+    define, defineImages, render, renderBuffer, draw, clear, validate,
+    stripJsonc, parse: src => JSON.parse(stripJsonc(src)),
+    shade, mix, hash, mulberry, parseColor, getDef,
+    cacheSize: () => cache.size
+  };
+});
+
+
+// ---- tools/texture-editor.js ----
+'use strict';
+// =====================================================================
+// Texture Studio
+//
+// A visual editor for .texture files. The engine (js/texture.js) does the
+// real work: this file only builds documents, validates them with
+// TEX.validate and renders them with TEX.render. Whatever is downloaded is
+// the same JSONC the build would have read from textures/*.texture.
+//
+// Build: node scripts/build.mjs -> dist/textures/index.html (route /textures)
+// =====================================================================
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const state = {
+    families: Object.create(null),   // family name -> pristine doc
+    family: null,
+    current: null,
+    test: Object.create(null),       // "family/texture" -> {param: value}
+    fnTest: Object.create(null),     // "family/texture" -> {param: "(tx, ty) => true"}
+    scale: 5,
+    grid: true,
+    marks: true,
+    errors: [],
+    images: new Map(),               // data URI -> {w,h,data}
+    rev: 0,
+  };
+
+  // -------------------------------------------------------------------
+  // DOM helpers
+  // -------------------------------------------------------------------
+  function h(tag, attrs, ...kids) {
+    const n = document.createElement(tag);
+    if (attrs) {
+      for (const k of Object.keys(attrs)) {
+        const v = attrs[k];
+        if (v === null || v === undefined || v === false) continue;
+        if (k === 'class') n.className = v;
+        else if (k === 'text') n.textContent = v;
+        else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+        else if (k === 'checked' || k === 'disabled' || k === 'selected') n[k] = !!v;
+        else n.setAttribute(k, v === true ? '' : v);
+      }
+    }
+    for (const kid of kids.flat()) {
+      if (kid === null || kid === undefined || kid === false) continue;
+      n.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+    }
+    return n;
+  }
+  const clone = v => v === undefined ? undefined : JSON.parse(JSON.stringify(v));
+  function clean(v) {
+    if (Array.isArray(v)) return v.map(clean);
+    if (v && typeof v === 'object') {
+      const out = {};
+      for (const k of Object.keys(v)) if (k.charCodeAt(0) !== 95) out[k] = clean(v[k]);
+      return out;
+    }
+    return v;
+  }
+
+  function status(msg, kind) {
+    const s = $('status');
+    s.textContent = msg;
+    s.className = kind || '';
+  }
+
+  // -------------------------------------------------------------------
+  // Value inputs
+  // -------------------------------------------------------------------
+  // A field holds any JSON value: number, string, list or expression.
+  function exprInput(value, onChange, placeholder) {
+    const inp = h('input', {type: 'text', spellcheck: 'false', placeholder: placeholder || ''});
+    inp.value = value === undefined ? '' : JSON.stringify(value);
+    const commit = () => {
+      const txt = inp.value.trim();
+      if (!txt) { inp.classList.remove('invalid'); onChange(undefined); return; }
+      try { const v = JSON.parse(txt); inp.classList.remove('invalid'); onChange(v); }
+      catch (e) { inp.classList.add('invalid'); status('That value is not valid JSON: ' + e.message, 'bad'); }
+    };
+    inp.addEventListener('change', commit);
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
+    return inp;
+  }
+  function textInput(value, onChange, placeholder) {
+    const inp = h('input', {type: 'text', spellcheck: 'false', placeholder: placeholder || ''});
+    inp.value = value === undefined ? '' : String(value);
+    const commit = () => onChange(inp.value.trim());
+    inp.addEventListener('change', commit);
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
+    return inp;
+  }
+  function numberInput(value, onChange, attrs) {
+    const inp = h('input', Object.assign({type: 'number', step: '1'}, attrs || {}));
+    inp.value = value === undefined ? '' : String(value);
+    const commit = () => {
+      const n = Number(inp.value);
+      if (!Number.isFinite(n) || inp.value === '') { inp.classList.remove('invalid'); onChange(undefined); return; }
+      inp.classList.add('valid'); onChange(n);
+    };
+    inp.addEventListener('change', commit);
+    return inp;
+  }
+  function field(label, control, hint) {
+    const wrap = h('div', {class: 'field'}, h('label', null, label), control);
+    if (hint) wrap.append(h('div', {class: 'hint'}, hint));
+    return wrap;
+  }
+
+  // Key/value editor: keys are plain strings, values are expressions.
+  function pairsEditor(obj, onChange) {
+    const box = h('div', {class: 'pairs'});
+    const render = () => {
+      box.replaceChildren();
+      for (const key of Object.keys(obj)) {
+        const keyIn = textInput(key, v => {
+          if (v === key) return;
+          if (!v) { delete obj[key]; onChange(); render(); return; }
+          const old = obj[key];
+          delete obj[key]; obj[v] = old;
+          onChange(); render();
+        });
+        const row = h('div', {class: 'pair'},
+          keyIn,
+          exprInput(obj[key], v => {
+            if (v === undefined) delete obj[key]; else obj[key] = v;
+            onChange();
+          }),
+          h('button', {class: 'danger', title: 'Remove', onclick: () => { delete obj[key]; onChange(); render(); }}, '✕')
+        );
+        box.append(row);
+      }
+      box.append(h('button', {onclick: () => {
+        let n = 'param', k = 1;
+        while (Object.prototype.hasOwnProperty.call(obj, n)) n = 'param' + (++k);
+        obj[n] = 0; onChange(); render();
+      }}, '+ pair'));
+    };
+    render();
+    return box;
+  }
+
+  // -------------------------------------------------------------------
+  // Documents
+  // -------------------------------------------------------------------
+  function blankDoc(name) {
+    return {format: 'texture/1', name, tile: 9, defs: {}, textures: {}};
+  }
+  function blankTexture() {
+    return {size: [9, 9], params: {}, ops: []};
+  }
+  const familyName = () => (state.family ? state.families[state.family] : null);
+  const texDoc = () => {
+    const doc = familyName();
+    return doc && state.current ? doc.textures[state.current] : null;
+  };
+  const testKey = () => state.family + '/' + state.current;
+
+  function parseSource(text) {
+    return TEX.parse(text);
+  }
+
+  // -------------------------------------------------------------------
+  // Op schema — mirrors DRAW in js/texture.js
+  // -------------------------------------------------------------------
+  const OP_FIELDS = {
+    rect: ['x', 'y', 'w', 'h', 'color'],
+    pixel: ['x', 'y', 'color'],
+    line: ['x1', 'y1', 'x2', 'y2', 'color'],
+    png: ['src', 'x', 'y', 'alpha'],
+    each: ['as', 'in'],
+    repeat: ['as', 'times', 'from'],
+    if: ['test'],
+    win: ['x', 'y', 'color'],
+    park: ['x', 'y', 'v'],
+    stat: ['x', 'y'],
+    berth: ['x', 'y'],
+    spot: ['x', 'y'],
+    spots: ['of'],
+    mark: ['as', 'of'],
+    use: ['texture', 'file', 'at', 'params'],
+    set: ['as', 'value'],
+    call: ['fn', 'args'],
+  };
+  const RAW_FIELDS = new Set(['as', 'texture', 'file', 'fn']);
+  const PAIR_FIELDS = new Set(['params', 'args']);
+  const OP_DEFAULTS = {
+    rect: {op: 'rect', x: 0, y: 0, w: 1, h: 1, color: '#ffffff'},
+    pixel: {op: 'pixel', x: 0, y: 0, color: '#ffffff'},
+    line: {op: 'line', x1: 0, y1: 0, x2: 8, y2: 8, color: '#ffffff'},
+    png: {op: 'png', src: '', x: 0, y: 0},
+    each: {op: 'each', as: 'i', in: [0, 1], ops: []},
+    repeat: {op: 'repeat', as: 'i', times: 4, ops: []},
+    if: {op: 'if', test: true, then: [], else: []},
+    win: {op: 'win', x: 0, y: 0},
+    park: {op: 'park', x: 0, y: 0, v: 0},
+    stat: {op: 'stat', x: 0, y: 0},
+    berth: {op: 'berth', x: 0, y: 0},
+    spot: {op: 'spot', x: 0, y: 0},
+    spots: {op: 'spots', of: []},
+    mark: {op: 'mark', as: 'win', of: []},
+    use: {op: 'use', texture: '', at: [0, 0]},
+    set: {op: 'set', as: 'flag', value: true},
+    call: {op: 'call', fn: '', args: {}},
+  };
+  const OP_KINDS = Object.keys(OP_FIELDS);
+
+  // -------------------------------------------------------------------
+  // PNG
+  // -------------------------------------------------------------------
+  function decodeImage(uri) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const cv = document.createElement('canvas');
+        cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+        const g = cv.getContext('2d');
+        g.drawImage(img, 0, 0);
+        resolve({w: cv.width, h: cv.height, data: g.getImageData(0, 0, cv.width, cv.height).data});
+      };
+      img.onerror = () => reject(new Error('That image could not be decoded.'));
+      img.src = uri;
+    });
+  }
+  function readAsDataUri(file) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.onerror = () => reject(new Error('That file could not be read.'));
+      r.readAsDataURL(file);
+    });
+  }
+  async function ensureImage(uri) {
+    if (!uri || !uri.startsWith('data:')) return null;
+    if (state.images.has(uri)) return state.images.get(uri);
+    const img = await decodeImage(uri);
+    state.images.set(uri, img);
+    return img;
+  }
+  async function ensureAllImages() {
+    const uris = new Set();
+    for (const fam of Object.keys(state.families)) {
+      const walk = (ops) => {
+        for (const op of ops || []) {
+          if (!op) continue;
+          if (op.op === 'png' && typeof op.src === 'string' && op.src.startsWith('data:')) uris.add(op.src);
+          if (op.ops) walk(op.ops);
+          if (op.then) walk(op.then);
+          if (op.else) walk(op.else);
+        }
+      };
+      for (const name of Object.keys(state.families[fam].textures || {})) walk(state.families[fam].textures[name].ops);
+    }
+    let added = false;
+    for (const uri of uris) {
+      if (state.images.has(uri)) continue;
+      try { await ensureImage(uri); added = true; }
+      catch (e) { state.errors.push(e.message); }
+    }
+    if (added) preview();
+  }
+
+  // Turn `src` into the `ref` the engine expects, exactly as the build does.
+  function resolvePng(ops, fam, images, problems) {
+    for (const op of ops || []) {
+      if (op && op.op === 'png' && typeof op.src === 'string') {
+        const src = op.src;
+        if (src.startsWith('data:')) {
+          const key = fam + ':' + (op.name || 'inline') + ':' + src.length + ':' + src.slice(-24);
+          const img = state.images.get(src);
+          if (img) images[key] = img;
+          else problems.push(fam + ': an embedded image is still decoding.');
+          delete op.src; op.ref = key;
+        } else if (src) {
+          problems.push(fam + ': "' + src + '" is a file path. Preview can only show embedded PNGs — upload it instead.');
+        }
+      }
+      if (op) { resolvePng(op.ops, fam, images, problems); resolvePng(op.then, fam, images, problems); resolvePng(op.else, fam, images, problems); }
+    }
+  }
+
+  // -------------------------------------------------------------------
+  // Preview
+  // -------------------------------------------------------------------
+  // Only overrides the user typed here. Declared defaults are left to the
+  // engine: passing an expression back in would evaluate it a second time and
+  // consume `rnd` differently from the real render.
+  function testParams() {
+    const p = Object.assign({}, state.test[testKey()] || {});
+    const fns = state.fnTest[testKey()] || {};
+    for (const k of Object.keys(fns)) {
+      const src = (fns[k] || '').trim();
+      if (!src) continue;
+      let fn;
+      try { fn = new Function('"use strict"; return (' + src + ');')(); }
+      catch (e) { throw new Error('callback ' + k + ': ' + e.message); }
+      if (typeof fn !== 'function') throw new Error('callback ' + k + ' is not a function');
+      p[k] = fn;
+    }
+    return p;
+  }
+
+  // Parameters the texture calls as functions, e.g. `["fn", "wet", ...]`.
+  // The engine passes those in (art.js hands the dock a real wet mask), so the
+  // editor needs a stand-in to preview them.
+  function callbackParams(doc, tex) {
+    const out = new Set();
+    const scan = v => {
+      if (Array.isArray(v)) {
+        if (v[0] === 'fn' && typeof v[1] === 'string') {
+          if (!TEX.TEX_OPS[v[1]]) out.add(v[1]);
+        }
+        for (const a of v) scan(a);
+      } else if (v && typeof v === 'object') {
+        for (const k of Object.keys(v)) scan(v[k]);
+      }
+    };
+    scan(tex.ops || []);
+    return [...out];
+  }
+
+  function preview() {
+    const doc = familyName();
+    const tex = texDoc();
+    const errs = [];
+    const marksEl = $('markList');
+    if (!doc || !tex) { $('errors').replaceChildren(); return; }
+    if (!state.current) return;
+
+    const files = {};
+    for (const fam of Object.keys(state.families)) files[fam] = clone(state.families[fam]);
+    try {
+      errs.push(...TEX.validate(files));
+    } catch (e) { errs.push(e.message); }
+
+    const problems = [];
+    const images = {};
+    for (const fam of Object.keys(files)) {
+      for (const n of Object.keys(files[fam].textures || {})) resolvePng(files[fam].textures[n].ops, fam, images, problems);
+    }
+    errs.push(...problems);
+
+    TEX.defineImages(images);
+    TEX.define(files);
+    TEX.clear();
+
+    let rendered = null;
+    try {
+      rendered = TEX.render(state.family, state.current, testParams(), 'editor' + (state.rev++));
+    } catch (e) {
+      errs.push(e.message);
+    }
+
+    $('errors').replaceChildren(...errs.slice(0, 14).map(e => h('div', {class: 'err'}, e)));
+    if (rendered) draw(rendered);
+    else { const cv = $('preview'); const g = cv.getContext('2d'); g.clearRect(0, 0, cv.width, cv.height); }
+
+    if (state.current) {
+      const n = `${state.family}.texture › ${state.current}`;
+      $('stageTitle').textContent = n + '  ·  ' + tex.size[0] + '×' + tex.size[1] + ' px';
+    }
+    marksEl.replaceChildren();
+    if (rendered) {
+      const m = rendered.marks;
+      const bits = [
+        ['windows', m.win.length], ['parking', m.park.length],
+        ['spots', m.spots.length], ['status light', m.stat ? 'yes' : 'no'],
+        ['berth', m.berth ? m.berth.join(',') : 'none'],
+      ];
+      for (const [k, v] of bits) marksEl.append(h('span', null, k + ' ', h('b', null, String(v))));
+    } else marksEl.append(h('span', null, 'Nothing recorded.'));
+
+    if (!errs.length) status('Valid. ' + $('stageTitle').textContent, 'good');
+  }
+
+  function draw(t) {
+    const cv = $('preview'), g = cv.getContext('2d');
+    const s = state.scale;
+    cv.width = t.canvas.width * s; cv.height = t.canvas.height * s;
+    g.imageSmoothingEnabled = false;
+    g.clearRect(0, 0, cv.width, cv.height);
+    // checkerboard so transparency is obvious
+    for (let y = 0; y < cv.height; y += s) {
+      for (let x = 0; x < cv.width; x += s) {
+        g.fillStyle = (((x / s) + (y / s)) & 1) ? '#1b2233' : '#151a27';
+        g.fillRect(x, y, s, s);
+      }
+    }
+    g.drawImage(t.canvas, 0, 0, cv.width, cv.height);
+    if (state.grid && s >= 3) {
+      g.strokeStyle = 'rgba(255,255,255,.07)';
+      g.lineWidth = 1;
+      g.beginPath();
+      for (let x = 0; x <= t.canvas.width; x++) { g.moveTo(x * s + .5, 0); g.lineTo(x * s + .5, cv.height); }
+      for (let y = 0; y <= t.canvas.height; y++) { g.moveTo(0, y * s + .5); g.lineTo(cv.width, y * s + .5); }
+      g.stroke();
+    }
+    if (state.marks) {
+      const dot = (x, y, col) => {
+        g.strokeStyle = col; g.lineWidth = 1;
+        g.strokeRect(x * s + .5, y * s + .5, Math.max(1, s - 1), Math.max(1, s - 1));
+      };
+      for (const p of t.marks.win) dot(p[0], p[1], 'rgba(255,215,94,.65)');
+      for (const p of t.marks.park) dot(p[0], p[1], 'rgba(111,179,255,.75)');
+      for (const p of t.marks.spots) dot(p[0], p[1], 'rgba(95,220,122,.75)');
+      if (t.marks.stat) dot(t.marks.stat[0], t.marks.stat[1], 'rgba(255,107,107,.9)');
+      if (t.marks.berth) dot(t.marks.berth[0], t.marks.berth[1], 'rgba(219,201,159,.9)');
+    }
+  }
+
+  // -------------------------------------------------------------------
+  // Library
+  // -------------------------------------------------------------------
+  function renderLibrary() {
+    const sel = $('familySelect');
+    sel.replaceChildren(...Object.keys(state.families).sort().map(f =>
+      h('option', {value: f, selected: f === state.family}, f)));
+    const doc = familyName();
+    const list = $('textureList');
+    list.replaceChildren();
+    if (!doc) return;
+    for (const name of Object.keys(doc.textures)) {
+      const d = doc.textures[name];
+      const size = d.size ? d.size[0] + '×' + d.size[1] : 'inherited';
+      list.append(h('button', {class: name === state.current ? 'on' : '', onclick: () => selectTexture(name)},
+        h('span', null, name), h('span', {class: 'meta'}, size)));
+    }
+    if (!Object.keys(doc.textures).length) list.append(h('small', null, 'No textures yet.'));
+  }
+
+  function renderFamilySettings() {
+    const doc = familyName(), box = $('familySettings');
+    if (!doc) { box.replaceChildren(); return; }
+    box.replaceChildren(
+      field('file name', textInput(doc.name, v => renameFamily(v)), 'textures/<name>.texture'),
+      field('tile', numberInput(doc.tile, v => { if (v) { doc.tile = v; preview(); renderTextureSettings(); } }), 'art pixels per tile (usually 9)'),
+      h('div', {class: 'row'}, h('button', {class: 'danger', onclick: deleteFamily}, 'Delete family'))
+    );
+    renderDefs();
+  }
+
+  function renderDefs() {
+    const doc = familyName(), box = $('defsEditor');
+    box.replaceChildren();
+    if (!doc) return;
+    doc.defs = doc.defs || {};
+    for (const key of Object.keys(doc.defs)) {
+      box.append(h('div', {class: 'pair'},
+        textInput(key, v => {
+          if (!v || v === key) return;
+          const val = doc.defs[key]; delete doc.defs[key]; doc.defs[v] = val;
+          preview(); renderDefs();
+        }),
+        exprInput(doc.defs[key], v => { if (v === undefined) delete doc.defs[key]; else doc.defs[key] = v; preview(); }),
+        h('button', {class: 'danger', onclick: () => { delete doc.defs[key]; preview(); renderDefs(); }}, '✕')
+      ));
+    }
+  }
+
+  function renderTextureSettings() {
+    const doc = familyName(), tex = texDoc(), box = $('texSettings');
+    if (!doc || !tex) { box.replaceChildren(); return; }
+    const nameIn = textInput(state.current, v => renameTexture(v));
+    const wIn = numberInput(tex.size ? tex.size[0] : undefined, v => { if (!tex.size) tex.size = [9, 9]; if (v) tex.size[0] = v; preview(); });
+    const hIn = numberInput(tex.size ? tex.size[1] : undefined, v => { if (!tex.size) tex.size = [9, 9]; if (v) tex.size[1] = v; preview(); });
+    box.replaceChildren(
+      h('div', {class: 'settings'},
+        h('h2', null, 'Texture'),
+        field('name', nameIn),
+        field('size', h('div', {class: 'row'}, wIn, h('span', null, '×'), hIn), 'omit when inheriting via extends'),
+        field('extends', textInput(tex.extends, v => { if (v) tex.extends = v; else delete tex.extends; preview(); }), 'other texture, or "family:name"'),
+        h('div', {class: 'row'},
+          h('button', {onclick: duplicateTexture}, 'Duplicate'),
+          h('button', {class: 'danger', onclick: deleteTexture}, 'Delete'))
+      ),
+      h('div', {class: 'settings'},
+        h('h2', null, 'Params'),
+        h('div', {class: 'pairs'}, pairsEditor(tex.params = tex.params || {}, () => { preview(); renderParamForm(); })),
+        h('small', null, 'Defaults are evaluated top to bottom, so a param may use the ones above it.')
+      )
+    );
+    renderParamForm();
+  }
+
+  function renderParamForm() {
+    const tex = texDoc(), box = $('paramForm');
+    box.replaceChildren();
+    if (!tex) return;
+    const values = state.test[testKey()] = state.test[testKey()] || {};
+    const params = tex.params || {};
+    if (!Object.keys(params).length) {
+      box.append(h('small', null, 'This texture takes no parameters.'));
+    }
+    for (const k of Object.keys(params)) {
+      const inp = exprInput(k in values ? values[k] : undefined, v => {
+        if (v === undefined) delete values[k]; else values[k] = v;
+        preview();
+      });
+      inp.placeholder = JSON.stringify(params[k]);
+      box.append(field(k, inp, 'default ' + JSON.stringify(params[k])));
+    }
+    const cb = callbackParams(familyName(), tex);
+    if (cb.length) {
+      const fnValues = state.fnTest[testKey()] = state.fnTest[testKey()] || {};
+      box.append(h('h3', null, 'Test callbacks'));
+      for (const name of cb) {
+        box.append(field('fn ' + name, textInput(fnValues[name] || '', v => {
+          if (v) fnValues[name] = v; else delete fnValues[name];
+          preview();
+        }, '(tx, ty) => true'), 'JS arrow function used in place of the one the game supplies'));
+      }
+    }
+    box.append(h('div', {class: 'field'}, h('label', null, 'implicit'),
+      h('small', null, 'w h tw th ox oy'), h('small', {class: 'hint'}, 'supplied by the engine')));
+  }
+
+  function selectFamily(fam) {
+    if (!state.families[fam]) return;
+    state.family = fam;
+    const names = Object.keys(state.families[fam].textures);
+    state.current = names[0] || null;
+    renderAll();
+  }
+  function selectTexture(name) {
+    state.current = name;
+    renderAll();
+  }
+  function renderAll() {
+    renderLibrary();
+    renderFamilySettings();
+    renderTextureSettings();
+    renderOps();
+    preview();
+  }
+
+  // -------------------------------------------------------------------
+  // Ops editor
+  // -------------------------------------------------------------------
+  function renderOps() {
+    const tex = texDoc(), box = $('opEditor');
+    box.replaceChildren();
+    if (!tex) return;
+    tex.ops = tex.ops || [];
+    box.append(opsEditor(tex.ops, renderOps));
+  }
+
+  function opsEditor(ops, refresh) {
+    const box = h('div', {class: 'ops'});
+    for (let i = 0; i < ops.length; i++) box.append(opCard(ops[i], i, ops, refresh));
+    box.append(addOpRow(ops, refresh));
+    return box;
+  }
+
+  function addOpRow(ops, refresh) {
+    const sel = h('select', null, ...OP_KINDS.map(k => h('option', {value: k}, k)));
+    return h('div', {class: 'addop'}, sel,
+      h('button', {onclick: () => {
+        ops.push(clone(OP_DEFAULTS[sel.value]));
+        refresh(); preview();
+      }}, '+ op'));
+  }
+
+  function opCard(op, index, arr, refresh) {
+    const head = h('header', null,
+      h('span', {class: 'kind'}, op.op),
+      h('button', {title: 'Move up', onclick: () => { if (index > 0) { [arr[index - 1], arr[index]] = [arr[index], arr[index - 1]]; refresh(); preview(); } }}, '↑'),
+      h('button', {title: 'Move down', onclick: () => { if (index < arr.length - 1) { [arr[index + 1], arr[index]] = [arr[index], arr[index + 1]]; refresh(); preview(); } }}, '↓'),
+      h('button', {title: 'Duplicate', onclick: () => { arr.splice(index + 1, 0, clone(op)); refresh(); preview(); }}, '⧉'),
+      h('button', {class: 'danger', title: 'Delete', onclick: () => { arr.splice(index, 1); refresh(); preview(); }}, '✕')
+    );
+    const body = h('div', {class: 'body'});
+    const fields = OP_FIELDS[op.op] || [];
+    for (const f of fields) body.append(opField(op, f, refresh));
+
+    if (op.op === 'each' || op.op === 'repeat') {
+      op.ops = op.ops || [];
+      body.append(h('div', {class: 'sub-label'}, 'inside'), opsEditor(op.ops, refresh));
+    } else if (op.op === 'if') {
+      op.then = op.then || []; op.else = op.else || [];
+      body.append(h('div', {class: 'sub-label'}, 'then'), opsEditor(op.then, refresh));
+      body.append(h('div', {class: 'sub-label'}, 'else'), opsEditor(op.else, refresh));
+    }
+    return h('div', {class: 'op'}, head, body);
+  }
+
+  function opField(op, f, refresh) {
+    if (f === 'src') return field('png', pngControl(op, refresh));
+    if (PAIR_FIELDS.has(f)) {
+      op[f] = op[f] || {};
+      return field(f, pairsEditor(op[f], () => preview()), f === 'params' ? 'passed to the used texture' : 'arguments for the capability');
+    }
+    if (RAW_FIELDS.has(f)) {
+      return field(f, textInput(op[f], v => {
+        if (!v) delete op[f]; else op[f] = v;
+        preview(); refresh();
+      }));
+    }
+    if (f === 'of' || f === 'at') {
+      return field(f, exprInput(op[f], v => { if (v === undefined) delete op[f]; else op[f] = v; preview(); }), 'a list of points, e.g. [[1,2],[3,4]]');
+    }
+    if (f === 'alpha') {
+      return field(f, exprInput(op[f], v => { if (v === undefined) delete op[f]; else op[f] = v; }), '0–1');
+    }
+    return field(f, exprInput(op[f], v => { if (v === undefined) delete op[f]; else op[f] = v; preview(); }));
+  }
+
+  function pngControl(op, refresh) {
+    const box = h('div', {class: 'pngbox'});
+    const render = () => {
+      box.replaceChildren();
+      if (op.src && op.src.startsWith('data:')) {
+        const km = Math.round((op.src.length * 3 / 4) / 1024);
+        box.append(h('div', {class: 'row'},
+          h('img', {class: 'thumb', src: op.src, alt: ''}),
+          h('span', {class: 'grow'}, h('small', null, 'embedded · ' + km + ' KB')),
+          h('button', {class: 'danger', onclick: () => { delete op.src; render(); preview(); }}, 'Remove')
+        ));
+      } else if (op.src) {
+        box.append(h('div', {class: 'row'}, h('small', null, op.src),
+          h('button', {class: 'danger', onclick: () => { delete op.src; render(); preview(); }}, 'Remove')));
+      } else {
+        box.append(h('small', null, 'No image yet.'));
+      }
+      const input = h('input', {type: 'file', accept: 'image/png,image/*', hidden: true});
+      input.addEventListener('change', async () => {
+        const file = input.files && input.files[0];
+        input.value = '';
+        if (!file) return;
+        try {
+          const uri = await readAsDataUri(file);
+          await ensureImage(uri);
+          op.src = uri;
+          render(); preview();
+        } catch (e) { status(e.message, 'bad'); }
+      });
+      box.append(h('button', {type: 'button', onclick: () => input.click()}, op.src ? 'Replace PNG…' : 'Upload PNG…'), input);
+    };
+    render();
+    return box;
+  }
+
+  // -------------------------------------------------------------------
+  // Item actions
+  // -------------------------------------------------------------------
+  function renameFamily(raw) {
+    const name = String(raw || '').toLowerCase().replace(/[^a-z0-9_-]/g, '_').replace(/^_+|_+$/g, '');
+    const doc = familyName();
+    if (!doc) return;
+    if (!name) { renderFamilySettings(); return; }
+    if (name !== state.family) {
+      if (state.families[name]) { status('A family called "' + name + '" already exists.', 'bad'); renderFamilySettings(); return; }
+      delete state.families[state.family];
+      state.families[name] = doc;
+      doc.name = name;
+      state.family = name;
+    }
+    renderAll();
+  }
+
+  function renameTexture(raw) {
+    const doc = familyName();
+    if (!doc) return;
+    const name = String(raw || '').trim().replace(/[^A-Za-z0-9_]/g, '_');
+    if (!name) { renderTextureSettings(); return; }
+    if (name !== state.current) {
+      if (doc.textures[name]) { status('A texture called "' + name + '" already exists.', 'bad'); renderTextureSettings(); return; }
+      const t = doc.textures[state.current];
+      delete doc.textures[state.current];
+      doc.textures[name] = t;
+      state.current = name;
+    }
+    renderAll();
+  }
+
+  function duplicateTexture() {
+    const doc = familyName(), tex = texDoc();
+    if (!doc || !tex) return;
+    let n = state.current + '_copy', k = 1;
+    while (doc.textures[n]) n = state.current + '_copy' + (++k);
+    doc.textures[n] = clone(tex);
+    state.current = n;
+    renderAll();
+  }
+
+  function deleteTexture() {
+    const doc = familyName();
+    if (!doc || !state.current) return;
+    if (!confirm('Delete texture "' + state.current + '"?')) return;
+    delete doc.textures[state.current];
+    state.current = Object.keys(doc.textures)[0] || null;
+    renderAll();
+  }
+
+  function deleteFamily() {
+    if (!state.family) return;
+    if (!confirm('Delete the whole family "' + state.family + '"?')) return;
+    delete state.families[state.family];
+    const fam = Object.keys(state.families)[0];
+    if (fam) { state.family = fam; state.current = Object.keys(state.families[fam].textures)[0] || null; renderAll(); }
+    else { state.family = null; state.current = null; renderAll(); }
+  }
+
+  // -------------------------------------------------------------------
+  // Import / export
+  // -------------------------------------------------------------------
+  function toJSONC(doc) {
+    const body = JSON.stringify(clean(doc), null, 2);
+    if (body.length <= 2) return '{}\n';
+    return '{\n  // written by Texture Studio — JSONC: comments and trailing commas are allowed\n' + body.slice(2) + '\n';
+  }
+
+  function download() {
+    const doc = familyName();
+    if (!doc) return;
+    const text = toJSONC(doc);
+    const blob = new Blob([text], {type: 'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (doc.name || state.family) + '.texture';
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    status('Downloaded ' + a.download + ' (' + Math.round(text.length / 1024) + ' KB).', 'good');
+  }
+
+  async function importFiles(files) {
+    for (const file of files) {
+      try {
+        const text = await file.text();
+        const doc = parseSource(text);
+        const fam = (doc.name || file.name.replace(/\.texture$/i, '') || 'imported').replace(/[^a-z0-9_-]/gi, '_');
+        doc.name = fam;
+        state.families[fam] = doc;
+        state.family = fam;
+        state.current = Object.keys(doc.textures)[0] || null;
+        renderAll();
+        status('Imported ' + file.name + '.', 'good');
+      } catch (e) {
+        status('Could not import ' + file.name + ': ' + e.message, 'bad');
+      }
+    }
+    ensureAllImages();
+  }
+
+  async function newSprite(file) {
+    try {
+      const uri = await readAsDataUri(file);
+      const img = await ensureImage(uri);
+      const base = (file.name || 'sprite').replace(/\.[^.]+$/, '').replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
+      if (!state.family) {
+        state.families.props = blankDoc('props');
+        state.family = 'props';
+        state.current = null;
+      }
+      const doc = familyName();
+      let name = base || 'sprite', k = 1;
+      while (doc.textures[name]) name = base + '_' + (++k);
+      doc.textures[name] = {size: [img.w, img.h], params: {}, ops: [{op: 'png', src: uri, x: 0, y: 0}]};
+      state.current = name;
+      renderAll();
+      status('Added ' + name + ' (' + img.w + '×' + img.h + ') with an embedded PNG.', 'good');
+    } catch (e) { status(e.message, 'bad'); }
+  }
+
+  // -------------------------------------------------------------------
+  // Wiring
+  // -------------------------------------------------------------------
+  $('familySelect').addEventListener('change', e => selectFamily(e.target.value));
+  $('newFamily').addEventListener('click', () => {
+    let name = 'props', k = 1;
+    while (state.families[name]) name = 'family' + (++k);
+    state.families[name] = blankDoc(name);
+    state.family = name;
+    state.current = null;
+    renderAll();
+    status('New family. Add a texture to start painting.', 'good');
+  });
+  $('addTexForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const doc = familyName();
+    if (!doc) { status('Create or import a family first.', 'bad'); return; }
+    const input = $('addTexName');
+    const name = (input.value || '').trim().replace(/[^A-Za-z0-9_]/g, '_') || 'texture';
+    if (doc.textures[name]) { status('"' + name + '" already exists.', 'bad'); return; }
+    doc.textures[name] = blankTexture();
+    state.current = name;
+    input.value = '';
+    renderAll();
+  });
+  $('importBtn').addEventListener('click', () => $('importFile').click());
+  $('importFile').addEventListener('change', e => {
+    const files = [...(e.target.files || [])];
+    e.target.value = '';
+    if (files.length) importFiles(files);
+  });
+  $('newSprite').addEventListener('click', () => $('spriteFile').click());
+  $('spriteFile').addEventListener('change', e => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (file) newSprite(file);
+  });
+  $('download').addEventListener('click', download);
+  $('copy').addEventListener('click', async () => {
+    const doc = familyName();
+    if (!doc) return;
+    try { await navigator.clipboard.writeText(toJSONC(doc)); status('Copied the .texture text.', 'good'); }
+    catch (e) { status('Clipboard blocked by the browser. Use Download instead.', 'bad'); }
+  });
+  $('zoom').addEventListener('input', e => { state.scale = +e.target.value; preview(); });
+  $('showGrid').addEventListener('change', e => { state.grid = e.target.checked; preview(); });
+  $('showMarks').addEventListener('change', e => { state.marks = e.target.checked; preview(); });
+  $('addDef').addEventListener('click', () => {
+    const doc = familyName();
+    if (!doc) return;
+    doc.defs = doc.defs || {};
+    let n = 'def', k = 1;
+    while (Object.prototype.hasOwnProperty.call(doc.defs, n)) n = 'def' + (++k);
+    doc.defs[n] = '#ffffff';
+    renderDefs(); preview();
+  });
+  addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); download(); }
+  });
+
+  // -------------------------------------------------------------------
+  // Boot
+  // -------------------------------------------------------------------
+  const sources = window.TEXTURE_SOURCES || {};
+  for (const fam of Object.keys(sources)) {
+    try {
+      const doc = parseSource(sources[fam]);
+      doc.name = doc.name || fam;
+      state.families[fam] = doc;
+    } catch (e) {
+      state.errors.push(fam + ': ' + e.message);
+    }
+  }
+  if (!Object.keys(state.families).length) {
+    state.families.props = blankDoc('props');
+  }
+  state.family = Object.keys(state.families).sort()[0];
+  state.current = Object.keys(state.families[state.family].textures)[0] || null;
+  renderAll();
+  ensureAllImages();
+  if (!Object.keys(sources).length) {
+    status('No texture files were embedded in this build. Import a .texture, or start a new family.', '');
+  } else {
+    status('Loaded ' + Object.keys(sources).length + ' families from textures/.', 'good');
+  }
+})();
+
+</script>
+
+</body>
+</html>

@@ -19,6 +19,11 @@ function makeIcon(id) {
     if (wet) { t.fillStyle = '#2e6cb4'; t.fillRect((d.w - 1) * T, 0, T, ah); }
     drawBuilding(t, ty, 0, 0, 4242, wet);
   } else switch (id) {
+    case 'rail': aw = ah = 9; drawRailTile(t, 0, 0, 15, 'junction'); break;
+    case 'unrail': aw = ah = 9; drawRailTile(t, 0, 0, 5, 'rail');
+      t.fillStyle = '#ff5050';
+      for (let k = 1; k < 8; k++) { t.fillRect(k, k, 1, 1); t.fillRect(8 - k, k, 1, 1); }
+      break;
     case 'road': grass(); drawRoadTile(t, 0, 0, 4, 0, 0, 0, 1, 0); drawRoadTile(t, 0, 9, 3, 0, 0, 0, 1, 0); drawRoadTile(t, 9, 9, 8, 0, 0, 0, 1, 0); break;
     case 'country': grass(); drawRoadTile(t, 0, 4, 10, 0, 0, 0, 0, 0); drawRoadTile(t, 9, 4, 10, 0, 0, 0, 0, 0); break;
     case 'sidewalk': grass(); drawRoadTile(t, 0, 4, 10, 0, 0, 0, 1, 0); drawRoadTile(t, 9, 4, 10, 0, 0, 0, 1, 0);
@@ -32,6 +37,8 @@ function makeIcon(id) {
     case 'tree': aw = ah = 9; grass(); drawTree(t, 0, 0, 1); break;
     case 'water': aw = ah = 9; t.fillStyle = '#2e6cb4'; t.fillRect(0, 0, 9, 9); t.fillStyle = '#68a2e0'; t.fillRect(1, 2, 3, 1); t.fillRect(5, 5, 3, 1); t.fillRect(2, 7, 2, 1); break;
     case 'land': aw = ah = 9; t.fillStyle = '#589c44'; t.fillRect(0, 0, 9, 9); t.fillStyle = '#d6c48c'; t.fillRect(0, 7, 9, 2); t.fillStyle = '#2e6cb4'; t.fillRect(0, 8, 9, 1); break;
+    case 'district': aw = ah = 18; t.fillStyle = '#5ce08a'; t.fillRect(0, 0, 18, 18); t.fillStyle = '#5a9e45'; t.fillRect(3, 3, 12, 12); t.strokeStyle = '#ffffff'; t.lineWidth = 1; t.strokeRect(0.5, 0.5, 17, 17); break;
+    case 'undistrict': aw = ah = 18; t.fillStyle = '#5a9e45'; t.fillRect(0, 0, 18, 18); t.fillStyle = '#ff5050'; for (let k = 3; k < 15; k++) { t.fillRect(k, k, 1, 1); t.fillRect(17 - k, k, 1, 1); } break;
     default: {
       aw = ah = 9; const s = SPR[id];
       t.fillStyle = id === 'bulldoze' ? '#f2c94c' : id === 'select' ? '#6fb3ff' : '#e9ecf5';
@@ -63,6 +70,19 @@ function showTip(el, id) {
   tipEl.style.top = Math.max(8, r.top - tr.height - 10) + 'px';
 }
 function hideTip() { tipEl.classList.add('hidden'); }
+// The toolbar takes whatever width its contents need; this only nudges it left
+// when that would otherwise put it under the zoom panel. Both values are read
+// from the live DOM, so a different font, label or zoom control still fits.
+function layoutBottom() {
+  const zoom = document.getElementById('zoom'), bottom = document.getElementById('bottom');
+  if (!zoom || !bottom) return;
+  const style = document.documentElement.style;
+  const zw = Math.ceil(zoom.getBoundingClientRect().width);
+  style.setProperty('--zoomw', zw + 'px');
+  const w = bottom.offsetWidth;                       // re-measured with the new max-width
+  const shift = Math.min(0, innerWidth / 2 - zw - 18 - w / 2);
+  style.setProperty('--bshift', Math.ceil(shift) + 'px');
+}
 function buildBar() {
   barEl.innerHTML = '';
   for (const id of ['inspect', 'select', 'bulldoze']) {
@@ -80,7 +100,10 @@ function buildBar() {
     b.onclick = () => openCat(curCat === cat.id ? null : cat.id);
     barEl.append(b);
   }
+  layoutBottom();
 }
+// the pixel font settles after first paint and changes the width of every label
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => layoutBottom());
 function openCat(cat) {
   curCat = cat;
   barEl.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.cat === cat));
@@ -98,8 +121,16 @@ function openCat(cat) {
     b.onmouseenter = () => showTip(b, id); b.onmouseleave = hideTip;
     flyEl.append(b);
   }
+  if (cat === 'districts') {
+    const wrap = document.createElement('div');
+    wrap.id = 'districtList';
+    wrap.className = 'list';
+    flyEl.append(wrap);
+    updateDistrictUI();
+  }
   flyEl.classList.remove('hidden');
   markTool();
+  layoutBottom();
 }
 function markTool() { document.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === curTool)); }
 function setTool(id) {
@@ -107,15 +138,29 @@ function setTool(id) {
   if (id !== 'select') pasteMode = false;
   updateSelBar();
   const cat = TOOLS[id].cat;
+  // The Metro tab edits what is under the city, so opening it shows the tunnels.
+  // Switching to an ordinary tool puts the surface back, unless the player had
+  // already switched the Underground layer on by hand.
+  if (cat === 'metro') {
+    if (!overlays.underground) { overlays.underground = true; railViewAuto = true; syncOverlayButtons(); }
+  } else if (railViewAuto) {
+    overlays.underground = false; railViewAuto = false; syncOverlayButtons();
+  }
   if (cat && cat !== curCat) openCat(cat);
   markTool();
   cv.style.cursor = id === 'inspect' ? 'pointer' : 'crosshair';
 }
 function setSpeed(s) { speed = s; document.querySelectorAll('#speeds button').forEach(b => b.classList.toggle('on', +b.dataset.s === s)); }
 document.querySelectorAll('#speeds button').forEach(b => b.onclick = () => setSpeed(+b.dataset.s));
+let railViewAuto = false;
+function syncOverlayButtons() {
+  document.querySelectorAll('#overlays button').forEach(b => b.classList.toggle('on', !!overlays[b.dataset.o]));
+}
 function toggleOverlay(o) {
+  if (o === 'power') return;   // electricity is scaffolding only
   overlays[o] = !overlays[o];
-  document.querySelectorAll('#overlays button').forEach(b => b.classList.toggle('on', overlays[b.dataset.o]));
+  if (o === 'underground') railViewAuto = false;   // switched by hand: leave it alone
+  syncOverlayButtons();
   if (o === 'heat') { document.getElementById('cong').classList.toggle('hidden', !overlays.heat); if (overlays.heat) { computeArea(); updateHotspots(); } }
 }
 // Worst spots: peaks of the area congestion field, at least 8 tiles apart.
@@ -230,6 +275,9 @@ function select(sel) {
     if (b.type === 'airport') html += row('Planes in the air', 'ivPlanes');
     if (b.type === 'dock') html += row('Boats on the water', 'ivBoats');
     html += row('Road access', 'ivRoad') + row('Walk score', 'ivWalk') + row('Cars heading here', 'ivIncoming');
+    html += row('District', 'ivDistrict');
+    if (d.homes) html += row('Job mood', 'ivMoodJob') + row('Transport mood', 'ivMoodRide') + row('Birth mood', 'ivMoodBirth');
+    if (POWER_REQ[b.type]) html += row('Power output', 'ivPower') + row('Needs', 'ivPowerNeed');
     html += `<div class="btns"><button class="danger" id="iDel">Bulldoze</button></div>`;
   } else if (sel.kind === 'light') {
     const L = lights.get(sel.i);
@@ -300,6 +348,17 @@ function updateInspector() {
     if (b.type === 'metro') { let r = 0; for (const p of peds) if (p.mode === 'metro') r++; setT('ivRiders', r); }
     if (b.type === 'airport') setT('ivPlanes', planes.filter(p => p.ap === b.id).length);
     if (b.type === 'dock') setT('ivBoats', boats.length);
+    const dist = districtAt(b.y * MW + b.x);
+    setT('ivDistrict', dist ? dist.name : 'none');
+    if (d.homes) {
+      setT('ivMoodJob', Math.round(b.moodJob * 100) + '%');
+      setT('ivMoodRide', Math.round(b.moodTransport * 100) + '%');
+      setT('ivMoodBirth', Math.round(b.moodRepro * 100) + '%');
+    }
+    if (POWER_REQ[b.type]) {
+      setT('ivPower', POWER_REQ[b.type].out + ' MW (not wired up yet)');
+      setT('ivPowerNeed', powerReqMet(b.type) ? 'met' : 'missing ' + powerGap(b.type));
+    }
   } else if (s.kind === 'light') {
     const L = lights.get(s.i); if (!L) { select(null); return; }
     const nm = ['GREEN', 'YELLOW', 'RED'];
@@ -363,6 +422,8 @@ function hud(dt) {
   const fl = document.getElementById('sFlow'); fl.textContent = cars.length ? g : '-'; fl.style.color = gc;
   const avg = stats.trips.length ? stats.trips.reduce((s, v) => s + v, 0) / stats.trips.length : 0;
   setT('sTrip', stats.trips.length ? `${Math.round(avg)} min` : '-');
+  setT('sWx', weatherNow().name);
+  setT('sPow', `${power.capacity}/${power.demand}`);
   setT('gTi', Math.round(stats.ti * 100) + '%');
   setT('gWait', Math.round(stats.wait || 0));
   setT('gFail', stats.frustrated);
@@ -370,10 +431,12 @@ function hud(dt) {
   setT('gThru', connections.length >= 2 ? thru : 'no edge roads');
   setT('gHappy', agents.length ? Math.round(moodSum / agents.length * 100) + '%' : '-');
   setT('gSleep', sleep);
+  setT('gMoodCity', `job ${Math.round(cityMood.job * 100)} · ride ${Math.round(cityMood.transport * 100)} · birth ${Math.round(cityMood.repro * 100)}`);
+  setT('gIncidents', `${incidents.filter(i => i.state !== 'done').length} · ${units.filter(u => u.state !== 'idle').length} out`);
   setT('gAir', `${planes.length} · ${boats.length}`);
   let buses = 0, riders = 0; for (const c of cars) if (c.bus) { buses++; riders += c.riders.length; }
-  for (const p of peds) if (p.hidden && p.mode === 'metro') riders++;
   setT('gTransit', `${buses} · ${riders}`);
+  setT('gMetro', `${metros.length} · ${metroRiders()}`);
   const m = {car: 0, walk: 0, metro: 0, bus: 0}; for (const v of stats.modes) m[v]++;
   document.getElementById('mBus').style.width = (m.bus / (stats.modes.length || 1) * 100) + '%';
   setT('lBus', `bus ${Math.round(m.bus / (stats.modes.length || 1) * 100)}%`);

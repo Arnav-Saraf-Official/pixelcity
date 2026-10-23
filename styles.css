@@ -65,7 +65,10 @@ input[type=range]{width:100%;accent-color:var(--hi)}
 body.region #regionHint{display:block}
 body.region #side,body.region #bottom,body.region #inspector,body.region #cong,body.region #hover{display:none!important}
 #mapChip{cursor:pointer;font-size:19px}
-#bottom{position:fixed;left:50%;bottom:calc(10px + var(--sb));transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;max-width:calc(100vw - 20px);z-index:5}
+/* The toolbar sizes itself to its contents and is only pushed left as far as
+   needed to clear the zoom panel, which --zoomw / --bshift are measured for in
+   js/ui.js. The max-width keeps it out from under those controls at any width. */
+#bottom{position:fixed;left:50%;bottom:calc(10px + var(--sb));transform:translateX(calc(-50% + var(--bshift,0px)));display:flex;flex-direction:column;align-items:center;gap:8px;max-width:calc(100vw - 28px - var(--zoomw,0px));z-index:5}
 #flyout{display:flex;gap:6px;padding:6px;overflow-x:auto;max-width:100%}
 .card{width:86px;flex:none;padding:4px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:17px;line-height:1}
 .card canvas{width:54px;height:54px;image-rendering:pixelated}

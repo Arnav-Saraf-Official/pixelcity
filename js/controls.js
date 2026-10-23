@@ -16,14 +16,23 @@ const TOOLS = {
   'b:house': {cat: 'res'}, 'b:apartment': {cat: 'res'}, 'b:tower': {cat: 'res'},
   'b:shop': {cat: 'com'}, 'b:market': {cat: 'com'}, 'b:mall': {cat: 'com'},
   'b:office': {cat: 'work'}, 'b:hq': {cat: 'work'}, 'b:factory': {cat: 'work'}, 'b:warehouse': {cat: 'work'}, 'b:dock': {cat: 'work'},
-  'b:farmhouse': {cat: 'rural'}, 'b:farm': {cat: 'rural'}, 'b:orchard': {cat: 'rural'},
+  'b:farmhouse': {cat: 'rural'}, 'b:farm': {cat: 'rural'}, 'b:orchard': {cat: 'rural'}, 'b:greenhouse': {cat: 'rural'},
+  'b:fishery': {cat: 'work'}, 'b:seafoodMarket': {cat: 'com'}, 'b:seafoodPlant': {cat: 'work'},
+  'b:oilRig': {cat: 'resource'}, 'b:gasWell': {cat: 'resource'}, 'b:loggingCamp': {cat: 'resource'}, 'b:quarry': {cat: 'resource'}, 'b:mine': {cat: 'resource'},
   'b:school': {cat: 'civic'}, 'b:hospital': {cat: 'civic'}, 'b:airport': {cat: 'civic'},
+  'b:fireStation': {cat: 'civic'}, 'b:policeStation': {cat: 'civic'}, 'b:researchLab': {cat: 'civic'},
+  'b:woodPlant': {cat: 'power'}, 'b:coalPlant': {cat: 'power'}, 'b:gasPlant': {cat: 'power'}, 'b:hydroPlant': {cat: 'power'}, 'b:solarPlant': {cat: 'power'}, 'b:nuclearPlant': {cat: 'power'},
   path:      {cat: 'ped', name: 'Footpath', kind: 'line', key: 'F', desc: 'Pedestrian path. Makes nearby buildings walkable, so fewer people drive.'},
   plaza:     {cat: 'ped', name: 'Plaza', kind: 'rect', desc: 'Paved pedestrian square. Drag a box. Raises the walk score of everything nearby.'},
-  'b:park': {cat: 'ped'}, 'b:busstop': {cat: 'ped'}, 'b:metro': {cat: 'ped'},
+  'b:park': {cat: 'ped'}, 'b:busstop': {cat: 'ped'},
+  rail:      {cat: 'metro', name: 'Metro Rails', kind: 'line', key: 'T', desc: 'Drag to lay track under the city. Rails that share an edge connect on their own, so a crossing becomes a junction and a loose end becomes a reversing block. Draw from a station tile to join the line to it.'},
+  unrail:    {cat: 'metro', name: 'Lift Rails', kind: 'rect', desc: 'Drag a box to take up track. Bulldoze does the same while the Underground layer is showing.'},
+  'b:metro': {cat: 'metro'},
   tree:      {cat: 'nature', name: 'Trees', kind: 'brush', desc: 'Paint trees on empty grass.'},
   water:     {cat: 'nature', name: 'Water', kind: 'rect', desc: 'Drag a box to flood land. Roads over water become bridges.'},
   land:      {cat: 'nature', name: 'Land', kind: 'rect', desc: 'Drag a box to fill in water.'},
+  district:  {cat: 'districts', name: 'District', kind: 'rect', key: 'D', desc: 'Drag a box to paint the active district over those tiles. Draw as many districts as you like, of any shape; nothing is fixed to a grid.'},
+  undistrict:{cat: 'districts', name: 'Erase District', kind: 'rect', desc: 'Drag a box to remove district paint from those tiles.'},
 };
 for (const id in TOOLS) if (id.startsWith('b:')) {
   const d = BT[id.slice(2)];
@@ -36,7 +45,8 @@ for (const id in TOOLS) if (id.startsWith('b:')) {
 }
 const CATS = [
   {id: 'roads', name: 'Roads'}, {id: 'res', name: 'Homes'}, {id: 'com', name: 'Shops'}, {id: 'work', name: 'Work'},
-  {id: 'rural', name: 'Rural'}, {id: 'civic', name: 'Civic'}, {id: 'ped', name: 'Walk & Transit'}, {id: 'nature', name: 'Nature'},
+  {id: 'rural', name: 'Rural'}, {id: 'resource', name: 'Resources'}, {id: 'civic', name: 'Civic'}, {id: 'power', name: 'Power'},
+  {id: 'ped', name: 'Walk & Transit'}, {id: 'metro', name: 'Metro'}, {id: 'districts', name: 'Districts'}, {id: 'nature', name: 'Nature'},
 ];
 let curTool = 'inspect', curCat = null;
 let hoverT = {x: -1, y: -1}, drag = null, pan = null, spaceDown = false;
@@ -73,6 +83,16 @@ function commitLine(tool, sx, sy, ex, ey) {
     if (!n) { toast('Sidewalks go along streets. Drag over a street.'); return; }
     markTiles(tiles); mapChanged(); return;
   }
+  if (tool === 'rail') {
+    // Drawing always lays track, so a line can start on an existing rail and
+    // branch off it; `Lift Rails` is the separate eraser. Adjacent rails connect
+    // by themselves, and mapChanged() rebuilds the connection masks.
+    let n = 0;
+    for (const i of tiles) if (!railOn[i]) { railOn[i] = 1; n++; }
+    if (!n) { toast('There is already rail along that line.'); return; }
+    mapChanged();
+    return;
+  }
   let changed = false;
   tiles.forEach((i, k) => {
     if (bldAt[i]) return;
@@ -88,24 +108,80 @@ function commitLine(tool, sx, sy, ex, ey) {
 function commitRect(tool, sx, sy, ex, ey) {
   const tiles = rectTiles(sx, sy, ex, ey);
   if (tool === 'bulldoze') {
-    const kill = new Set();
-    for (const i of tiles) { if (bldAt[i]) kill.add(bldAt[i]); tile[i] = 0; oneway[i] = 0; walkway[i] = 0; tree[i] = 0; overpass[i] = 0; lights.delete(i); }
-    for (const id of kill) { const b = B(id); if (b) removeBuilding(b); }
+    // In the Underground view the same tool clears tunnels instead of the city.
+    if (curTool === 'bulldoze' && overlays.underground) {
+      for (const i of tiles) railOn[i] = 0;
+    } else {
+      const kill = new Set();
+      for (const i of tiles) { if (bldAt[i]) kill.add(bldAt[i]); tile[i] = 0; oneway[i] = 0; walkway[i] = 0; tree[i] = 0; overpass[i] = 0; lights.delete(i); }
+      for (const id of kill) { const b = B(id); if (b) removeBuilding(b); }
+    }
   } else if (tool === 'plaza') {
     for (const i of tiles) if (!bldAt[i] && !isRoad(i) && !water[i]) { tile[i] = 4; tree[i] = 0; }
   } else if (tool === 'water') {
     for (const i of tiles) if (!bldAt[i] && tile[i] !== 4) { water[i] = 1; tree[i] = 0; }
   } else if (tool === 'land') {
     for (const i of tiles) if (!bldAt[i] || !BT[B(bldAt[i]).type].water) water[i] = 0;
+  } else if (tool === 'unrail') {
+    for (const i of tiles) railOn[i] = 0;
+  } else if (tool === 'district') {
+    let d = districts.get(activeDistrict);
+    if (!d) {
+      const name = (typeof prompt === 'function' ? prompt('District name:', 'District ' + (districts.size + 1)) : '') || '';
+      d = newDistrict(name.trim().slice(0, 24));
+      activeDistrict = d.id;
+    }
+    for (const i of tiles) districtLayer[i] = d.id;
+    markTiles(tiles);
+    updateDistrictUI();
+  } else if (tool === 'undistrict') {
+    for (const i of tiles) districtLayer[i] = 0;
+    markTiles(tiles);
+    updateDistrictUI();
   }
-  markTiles(tiles);
+  if (tool !== 'district' && tool !== 'undistrict') { markTiles(tiles); }
   mapChanged();
+}
+let activeDistrict = 0;
+function updateDistrictUI() {
+  const box = document.getElementById('districtList');
+  if (!box) return;
+  box.replaceChildren();
+  for (const d of districts.values()) {
+    let n = 0;
+    for (let i = 0; i < N; i++) if (districtLayer[i] === d.id) n++;
+    const b = document.createElement('button');
+    b.className = 'card' + (d.id === activeDistrict ? ' on' : '');
+    b.style.borderColor = d.color;
+    b.textContent = d.name + '  (' + n + ' tiles)';
+    b.onclick = () => { activeDistrict = d.id; updateDistrictUI(); };
+    box.append(b);
+  }
+  if (!districts.size) {
+    const p = document.createElement('small');
+    p.textContent = 'No districts yet. Use District and drag a box to draw one.';
+    box.append(p);
+  }
 }
 function tryBuild(t) {
   const type = curTool.slice(2), a = anchorFor(type, t);
-  if (!canPlace(type, a.x, a.y)) { if (BT[type].water && !drag) toast('Docks go on a shore: part on land, part on water.'); return false; }
+  if (!canPlace(type, a.x, a.y)) {
+    if (!drag) {
+      if (BT[type].water) toast('Docks go on a shore: part on land, part on water.');
+      else if (BT[type].shore) toast('This one has to sit on a shoreline.');
+      else if (BT[type].rock) toast('That needs rocky ground.');
+      else if (BT[type].jungle) toast('That needs jungle.');
+      else if (POWER_REQ[type] && !powerReqMet(type)) toast('Needs ' + powerGap(type) + ' first.');
+    }
+    return false;
+  }
   const b = placeBuilding(type, a.x, a.y);
   markDirty(a.x, a.y, a.x + BT[type].w - 1, a.y + BT[type].h - 1);
+  if (type === 'metro') {
+    // a station always sits on track, even before the player draws a line to it
+    railOn[b.y * MW + b.x] = 1;
+    if (!stations.length || stations.length === 1) toast('Station built. Draw Metro Rails to connect it to another station.');
+  }
   mapChanged();
   if (b.road < 0 && b.walk < 0 && type !== 'park') toast(`${BT[type].name} needs a road next to it.`);
   return true;
@@ -260,15 +336,16 @@ function drawPreview(f) {
   }
   if (drag && tool.kind === 'line') {
     const {tiles} = lineTiles(drag.sx, drag.sy, drag.ex, drag.ey);
-    const col = curTool === 'highway' ? 'rgba(120,130,150,.6)' : curTool === 'path' ? 'rgba(230,210,160,.6)' : curTool === 'country' ? 'rgba(170,150,110,.6)' : curTool === 'sidewalk' ? 'rgba(220,225,235,.55)' : 'rgba(200,210,230,.55)';
+    const col = curTool === 'rail' ? 'rgba(69,201,141,.55)'
+      : curTool === 'highway' ? 'rgba(120,130,150,.6)' : curTool === 'path' ? 'rgba(230,210,160,.6)' : curTool === 'country' ? 'rgba(170,150,110,.6)' : curTool === 'sidewalk' ? 'rgba(220,225,235,.55)' : 'rgba(200,210,230,.55)';
     for (const i of tiles) { f.fillStyle = bldAt[i] ? 'rgba(255,70,70,.5)' : col; f.fillRect((i % MW) * T, (i / MW | 0) * T, T, T); }
     return;
   }
   if (drag && tool.kind === 'rect') {
     const x0 = Math.min(drag.sx, drag.ex), y0 = Math.min(drag.sy, drag.ey), x1 = Math.max(drag.sx, drag.ex), y1 = Math.max(drag.sy, drag.ey);
-    const col = curTool === 'bulldoze' ? 'rgba(255,70,70,.35)' : curTool === 'water' ? 'rgba(60,130,220,.5)' : curTool === 'plaza' ? 'rgba(230,220,190,.55)' : 'rgba(120,200,90,.5)';
+    const col = curTool === 'bulldoze' || curTool === 'unrail' ? 'rgba(255,70,70,.35)' : curTool === 'water' ? 'rgba(60,130,220,.5)' : curTool === 'plaza' ? 'rgba(230,220,190,.55)' : 'rgba(120,200,90,.5)';
     f.fillStyle = col; f.fillRect(x0 * T, y0 * T, (x1 - x0 + 1) * T, (y1 - y0 + 1) * T);
-    outline(x0 * T, y0 * T, (x1 - x0 + 1) * T, (y1 - y0 + 1) * T, curTool === 'bulldoze' ? '#ff5050' : '#ffffff');
+    outline(x0 * T, y0 * T, (x1 - x0 + 1) * T, (y1 - y0 + 1) * T, curTool === 'bulldoze' || curTool === 'unrail' ? '#ff5050' : '#ffffff');
     return;
   }
   if (!inb(hoverT.x, hoverT.y)) return;
@@ -348,6 +425,11 @@ function centerOn(i, z) {
   if (z) cam.z = z;
   cam.x = (i % MW) * T + 4 - innerWidth / 2 / cam.z; cam.y = (i / MW | 0) * T + 4 - innerHeight / 2 / cam.z; zoomTo(cam.z);
 }
+function fitRegion() {
+  let z = ZOOMS[0];
+  for (const zz of ZOOMS) if (MW * T * zz <= innerWidth - 20 && MH * T * zz <= innerHeight - 120) z = zz;
+  centerOn(Math.floor(MH / 2) * MW + Math.floor(MW / 2), z);
+}
 function fitDistrict(m) {
   let z = ZOOMS[0];
   for (const zz of ZOOMS) if (DW * T * zz <= innerWidth - 20 && DH * T * zz <= innerHeight - 120) z = zz;
@@ -382,6 +464,7 @@ addEventListener('keydown', e => {
   else if (k === 'p') setSpeed(speed ? 0 : 1);
   else if (k === '1') setSpeed(1); else if (k === '2') setSpeed(3); else if (k === '3') setSpeed(8);
   else if (k === 'v') toggleOverlay('heat'); else if (k === 'c') toggleOverlay('occ'); else if (k === 'g') toggleOverlay('grid'); else if (k === 'm') toggleOverlay('mood');
+  else if (k === 'n') toggleOverlay('underground'); else if (k === 'y') toggleOverlay('sky');
   else if (k === '=' || k === '+') zoomStep(1); else if (k === '-' || k === '_') zoomStep(-1); else if (k === 'z') { if (regionView) closeRegion(); fitDistrict(camDistrict()); }
   else for (const id in TOOLS) if (TOOLS[id].key && TOOLS[id].key.toLowerCase() === k) { setTool(id); break; }
 });

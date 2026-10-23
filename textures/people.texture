@@ -1,0 +1,62 @@
+{
+  // ===================================================================
+  // People. Pedestrians are a 1x2 sprite tinted by `color`; the mood
+  // faces are 5x5 row strings painted from a rule, so a new expression
+  // only needs one row list.
+  // ===================================================================
+  "format": "texture/1",
+  "name": "people",
+  "tile": 9,
+
+  "defs": {
+    "skin": "#f1c9a0",
+    "ink": "#1a1d26",
+    "faces": {
+      "happy": [".FFF.", "FkFkF", "FFFFF", "kFFFk", ".kkk."],
+      "ok":    [".FFF.", "FkFkF", "FFFFF", "FkkkF", ".FFF."],
+      "sad":   [".FFF.", "FkFkF", "FFFFF", "FkkkF", "kFFFk"],
+      "angry": ["kFFFk", "FkFkF", "FFFFF", "FkkkF", "kFFFk"]
+    },
+    "faceCol": {
+      "happy": "#5fdc7a",
+      "ok": "#ffd75e",
+      "sad": "#ff9a4d",
+      "angry": "#ff4848"
+    }
+  },
+
+  "textures": {
+    "ped": {
+      "size": [1, 2],
+      "params": { "color": "#ff6b6b" },
+      "ops": [
+        { "op": "pixel", "x": 0, "y": 0, "color": ["def", "skin"] },
+        { "op": "pixel", "x": 0, "y": 1, "color": ["param", "color"] }
+      ]
+    },
+
+    "face": {
+      "size": [5, 5],
+      "params": {
+        "kind": "happy",
+        "rows": ["at", ["def", "faces"], ["param", "kind"]],
+        "fill": ["at", ["def", "faceCol"], ["param", "kind"]]
+      },
+      "ops": [
+        { "op": "repeat", "as": "r", "times": 5, "ops": [
+          { "op": "repeat", "as": "k", "times": 5, "ops": [
+            { "op": "if",
+              "test": ["!=", ["at", ["at", ["param", "rows"], ["var", "r"]], ["var", "k"]], "."],
+              "then": [
+                { "op": "pixel", "x": ["var", "k"], "y": ["var", "r"],
+                  "color": ["if",
+                    ["==", ["at", ["at", ["param", "rows"], ["var", "r"]], ["var", "k"]], "F"],
+                    ["param", "fill"],
+                    ["def", "ink"]] }
+              ] }
+          ] }
+        ] }
+      ]
+    }
+  }
+}

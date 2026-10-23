@@ -1,0 +1,145 @@
+{
+  // ===================================================================
+  // Underground. Nothing here is meant to look like a real photograph of
+  // a tunnel: it is a schematic, drawn the way a circuit board is drawn.
+  // Copper traces are the running rails, gold pads are the blocks a train
+  // can stand on, and the board itself is the dirt around them.
+  //
+  // Every tile is generated from its rail mask, so the same texture covers
+  // straights, corners, T junctions and crossings. Junction and reversing
+  // blocks are the same trace with a pad on top, which is how the network
+  // draws them: a place where lines meet, or where one stops and a train
+  // has to turn back.
+  // ===================================================================
+  "format": "texture/1",
+  "name": "underground",
+  "tile": 9,
+
+  "defs": {
+    "board": "#06120e",
+    "trace": "#1e6b4f",
+    "core": "#45c98d",
+    "pad": "#e0b654",
+    "padLit": "#ffe6a1"
+  },
+
+  "textures": {
+    // -----------------------------------------------------------------
+    // The running rail: one 3px trace toward every connected neighbour,
+    // with a 1px copper core so the network reads at a glance.
+    // -----------------------------------------------------------------
+    "rail": {
+      "size": [9, 9],
+      "params": { "m": 0 },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 9, "h": 9, "color": ["def", "board"] },
+        { "op": "each", "as": "y", "in": [0, 3, 6], "ops": [
+          { "op": "rect", "x": 0, "y": ["var", "y"], "w": 9, "h": 1, "color": "#081a14" }
+        ] },
+
+        { "op": "if", "test": ["bit", ["param", "m"], 0], "then": [
+          { "op": "rect", "x": 3, "y": 0, "w": 3, "h": 5, "color": ["def", "trace"] },
+          { "op": "rect", "x": 4, "y": 0, "w": 1, "h": 5, "color": ["def", "core"] }
+        ] },
+        { "op": "if", "test": ["bit", ["param", "m"], 2], "then": [
+          { "op": "rect", "x": 3, "y": 4, "w": 3, "h": 5, "color": ["def", "trace"] },
+          { "op": "rect", "x": 4, "y": 4, "w": 1, "h": 5, "color": ["def", "core"] }
+        ] },
+        { "op": "if", "test": ["bit", ["param", "m"], 1], "then": [
+          { "op": "rect", "x": 4, "y": 3, "w": 5, "h": 3, "color": ["def", "trace"] },
+          { "op": "rect", "x": 4, "y": 4, "w": 5, "h": 1, "color": ["def", "core"] }
+        ] },
+        { "op": "if", "test": ["bit", ["param", "m"], 3], "then": [
+          { "op": "rect", "x": 0, "y": 3, "w": 5, "h": 3, "color": ["def", "trace"] },
+          { "op": "rect", "x": 0, "y": 4, "w": 5, "h": 1, "color": ["def", "core"] }
+        ] },
+
+        // a plain through-via in the middle of a track section
+        { "op": "rect", "x": 3, "y": 3, "w": 3, "h": 3, "color": ["def", "trace"] },
+        { "op": "pixel", "x": 4, "y": 4, "color": ["def", "core"] }
+      ]
+    },
+
+    // -----------------------------------------------------------------
+    // A junction block: three or four rails meet here and a train may
+    // take any of them. The gold pad is the block itself.
+    // -----------------------------------------------------------------
+    "junction": {
+      "extends": "rail",
+      "size": [9, 9],
+      "params": { "m": 0 },
+      "ops": [
+        { "op": "use", "texture": "rail", "at": [0, 0], "params": { "m": ["param", "m"] } },
+        { "op": "rect", "x": 2, "y": 2, "w": 5, "h": 1, "color": ["def", "pad"] },
+        { "op": "rect", "x": 2, "y": 6, "w": 5, "h": 1, "color": ["def", "pad"] },
+        { "op": "rect", "x": 2, "y": 2, "w": 1, "h": 5, "color": ["def", "pad"] },
+        { "op": "rect", "x": 6, "y": 2, "w": 1, "h": 5, "color": ["def", "pad"] },
+        { "op": "rect", "x": 4, "y": 4, "w": 1, "h": 1, "color": ["def", "padLit"] }
+      ]
+    },
+
+    // -----------------------------------------------------------------
+    // A reversing block: the track ends here and a train cannot run round
+    // a loop, so it stops, the driver changes ends and it goes back the
+    // way it came. The ring is the turning pad.
+    // -----------------------------------------------------------------
+    "reverse": {
+      "extends": "rail",
+      "size": [9, 9],
+      "params": { "m": 0 },
+      "ops": [
+        { "op": "use", "texture": "rail", "at": [0, 0], "params": { "m": ["param", "m"] } },
+        { "op": "rect", "x": 3, "y": 2, "w": 3, "h": 1, "color": ["def", "pad"] },
+        { "op": "rect", "x": 3, "y": 6, "w": 3, "h": 1, "color": ["def", "pad"] },
+        { "op": "rect", "x": 2, "y": 3, "w": 1, "h": 3, "color": ["def", "pad"] },
+        { "op": "rect", "x": 6, "y": 3, "w": 1, "h": 3, "color": ["def", "pad"] },
+        { "op": "pixel", "x": 4, "y": 4, "color": ["def", "padLit"] }
+      ]
+    },
+
+    // -----------------------------------------------------------------
+    // A station platform seen from above the tunnels: a lit pad.
+    // -----------------------------------------------------------------
+    "station": {
+      "size": [9, 9],
+      "params": {},
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 9, "h": 9, "color": ["def", "board"] },
+        { "op": "rect", "x": 1, "y": 1, "w": 7, "h": 7, "color": "#0f3126" },
+        { "op": "rect", "x": 1, "y": 1, "w": 7, "h": 1, "color": ["def", "pad"] },
+        { "op": "rect", "x": 1, "y": 7, "w": 7, "h": 1, "color": ["def", "pad"] },
+        { "op": "rect", "x": 1, "y": 1, "w": 1, "h": 7, "color": ["def", "pad"] },
+        { "op": "rect", "x": 7, "y": 1, "w": 1, "h": 7, "color": ["def", "pad"] },
+        { "op": "rect", "x": 3, "y": 3, "w": 3, "h": 3, "color": ["def", "trace"] },
+        { "op": "rect", "x": 4, "y": 4, "w": 1, "h": 1, "color": ["def", "padLit"] }
+      ]
+    },
+
+    // -----------------------------------------------------------------
+    // The trains. They are drawn on the rail, so keep them flat: a copper
+    // body, a dark window band and gold ends.
+    // -----------------------------------------------------------------
+    "train_h": {
+      "size": [7, 3],
+      "params": {},
+      "ops": [
+        { "op": "rect", "x": 0, "y": 1, "w": 7, "h": 2, "color": "#2a9b72" },
+        { "op": "rect", "x": 1, "y": 2, "w": 5, "h": 1, "color": "#0b2119" },
+        { "op": "rect", "x": 0, "y": 1, "w": 1, "h": 2, "color": ["def", "pad"] },
+        { "op": "rect", "x": 6, "y": 1, "w": 1, "h": 2, "color": ["def", "pad"] },
+        { "op": "pixel", "x": 0, "y": 1, "color": ["def", "padLit"] }
+      ]
+    },
+    "train_v": {
+      "size": [3, 7],
+      "params": {},
+      "ops": [
+        { "op": "rect", "x": 1, "y": 0, "w": 2, "h": 7, "color": "#2a9b72" },
+        { "op": "rect", "x": 2, "y": 1, "w": 1, "h": 5, "color": "#0b2119" },
+        { "op": "rect", "x": 1, "y": 0, "w": 2, "h": 1, "color": ["def", "pad"] },
+        { "op": "rect", "x": 1, "y": 6, "w": 2, "h": 1, "color": ["def", "pad"] },
+        { "op": "pixel", "x": 1, "y": 0, "color": ["def", "padLit"] }
+      ]
+    }
+  }
+}

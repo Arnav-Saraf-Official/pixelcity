@@ -26,6 +26,14 @@ function getChunk(cx, cy) {
   if (chunks.size > MAX_CHUNKS) chunks.delete(chunks.keys().next().value);
   return c;
 }
+// base, dark speck, light speck, flower, flower — per biome
+const BIOME_PAL = {
+  1: [88, 156, 68, 78, 144, 60, 104, 172, 80, 236, 224, 120, 240, 140, 170],
+  2: [46, 112, 54, 38, 98, 46, 60, 132, 64, 214, 210, 96, 200, 120, 180],
+  3: [214, 190, 122, 198, 172, 104, 228, 206, 144, 240, 232, 180, 226, 176, 120],
+  4: [226, 233, 242, 210, 220, 234, 240, 246, 252, 196, 214, 236, 232, 238, 248],
+  5: [126, 122, 116, 110, 106, 100, 142, 138, 132, 168, 164, 158, 96, 92, 88],
+};
 function buildChunk(cx, cy) {
   const tx0 = cx * CW, ty0 = cy * CHH, pw = CW * T, ph = CHH * T;
   const cvs = mk(pw, ph), c = cvs.getContext('2d');
@@ -41,8 +49,12 @@ function buildChunk(cx, cy) {
         if (shore) { r = 214; g = 196; b = 140; }
         else { r = 46; g = 108; b = 180; if (n > 0.95) { r = 104; g = 162; b = 224; } else if (n > 0.8) { r = 54; g = 120; b = 194; } }
       } else {
-        r = 88; g = 156; b = 68;
-        if (n > 0.88) { r = 78; g = 144; b = 60; } else if (n < 0.06) { r = 104; g = 172; b = 80; } else if (n < 0.064) { r = 236; g = 224; b = 120; } else if (n < 0.067) { r = 240; g = 140; b = 170; }
+        const pal = BIOME_PAL[biome[i]] || BIOME_PAL[1];
+        r = pal[0]; g = pal[1]; b = pal[2];
+        if (n > 0.88) { r = pal[3]; g = pal[4]; b = pal[5]; }
+        else if (n < 0.06) { r = pal[6]; g = pal[7]; b = pal[8]; }
+        else if (n < 0.064) { r = pal[9]; g = pal[10]; b = pal[11]; }
+        else if (n < 0.067) { r = pal[12]; g = pal[13]; b = pal[14]; }
       }
       const o = (yy * pw + xx) * 4; d[o] = r; d[o + 1] = g; d[o + 2] = b; d[o + 3] = 255;
     }
@@ -75,7 +87,8 @@ function miniColor(i) {
   if (t) return MINIC[t];
   if (water[i]) return [46, 108, 180];
   if (tree[i]) return [47, 120, 52];
-  return MINIC[0];
+  const pal = BIOME_PAL[biome[i]];
+  return pal ? [pal[0], pal[1], pal[2]] : MINIC[0];
 }
 function updateMini(x0, y0, x1, y1) {
   const d = miniImg.data;
@@ -173,7 +186,68 @@ function canPlace(type, x, y) {
     if (water[i]) { if (!d.water) return false; wet++; }
   }
   if (d.water && (wet === 0 || wet === d.w * d.h)) return false;
+  if (d.shore && !shoreAdjacent(x, y, d.w, d.h)) return false;
+  if (d.rock && biome[y * MW + x] !== 5) return false;
+  if (d.jungle && biome[y * MW + x] !== 2) return false;
+  if (POWER_REQ[type] && !powerReqMet(type)) return false;
   return true;
+}
+// Loading an old save must not lose buildings when placement rules get stricter
+// later: this checks bounds and overlap only.
+function canPlaceLoose(type, x, y) {
+  const d = BT[type];
+  if (!d || x < 0 || y < 0 || x + d.w > MW || y + d.h > MH) return false;
+  for (let yy = y; yy < y + d.h; yy++) for (let xx = x; xx < x + d.w; xx++) {
+    const i = yy * MW + xx;
+    if (tile[i] || bldAt[i]) return false;
+    if (water[i] && !d.water) return false;
+  }
+  return true;
+}
+// Power plants of a higher tier need the industry and research behind them.
+function countType(type) { let n = 0; for (const b of buildings.values()) if (b.type === type) n++; return n; }
+function powerReqMet(type) {
+  const r = POWER_REQ[type];
+  if (!r) return true;
+  return countType('quarry') >= r.quarry && countType('mine') >= r.mine &&
+    countType('researchLab') >= r.labs && countType('gasWell') >= r.gas;
+}
+function powerGap(type) {
+  const r = POWER_REQ[type];
+  if (!r) return '';
+  const out = [];
+  if (countType('quarry') < r.quarry) out.push(`${r.quarry} quarry`);
+  if (countType('mine') < r.mine) out.push(`${r.mine} mine`);
+  if (countType('researchLab') < r.labs) out.push(`${r.labs} research lab`);
+  if (countType('gasWell') < r.gas) out.push(`${r.gas} gas well`);
+  return out.join(', ');
+}
+function computePower() {
+  power.plants = [];
+  let capacity = 0, demand = 0;
+  for (const b of buildings.values()) {
+    const r = POWER_REQ[b.type];
+    if (r) {
+      const ok = powerReqMet(b.type);
+      if (ok) capacity += r.out;
+      power.plants.push({id: b.id, type: b.type, out: r.out, ok, load: 0});
+    }
+    demand += BT[b.type].jobs * 2 + BT[b.type].homes * 1.5 + 4;
+  }
+  power.capacity = capacity;
+  power.demand = Math.round(demand);
+  power.served = 0;   // scaffolding: the grid is not wired to anything yet
+}
+function shoreAdjacent(x, y, w, h) {
+  for (let xx = x; xx < x + w; xx++) {
+    if (inb(xx, y - 1) && water[(y - 1) * MW + xx]) return true;
+    if (inb(xx, y + h) && water[(y + h) * MW + xx]) return true;
+  }
+  for (let yy = y; yy < y + h; yy++) {
+    if (inb(x - 1, yy) && water[yy * MW + x - 1]) return true;
+    if (inb(x + w, yy) && water[yy * MW + x + w]) return true;
+  }
+  return false;
 }
 function perimeter(x, y, w, h) {
   const out = [];
@@ -186,7 +260,8 @@ function touchesStreet(type, x, y) { const d = BT[type]; return perimeter(x, y, 
 function placeBuilding(type, x, y, seed) {
   const d = BT[type];
   const b = {id: nextBid++, type, x, y, w: d.w, h: d.h, seed: seed ?? (Math.random() * 1e9 | 0),
-    cars: 0, people: 0, residents: 0, workers: 0, asleep: 0, mood: 0.75, road: -1, walk: -1, ws: 0, queue: [], spawnCd: 0, art: null,
+    cars: 0, people: 0, residents: 0, workers: 0, asleep: 0, mood: 0.75,
+    moodJob: 0.7, moodTransport: 0.7, moodOverall: 0.7, moodRepro: 0.55, road: -1, walk: -1, ws: 0, queue: [], spawnCd: 0, art: null,
     cx: x + d.w / 2, cy: y + d.h / 2};
   for (let yy = y; yy < y + d.h; yy++) for (let xx = x; xx < x + d.w; xx++) { const i = yy * MW + xx; bldAt[i] = b.id; tree[i] = 0; }
   b.art = drawBuilding(NULLC, type, x * T, y * T, b.seed, wetFor(b));
@@ -296,6 +371,7 @@ function laneEdges(i) {
   });
 }
 function mapChanged() {
+  relinkRail();
   computeLinks();
   connections = []; overpassList = [];
   for (let i = 0; i < N; i++) {
@@ -321,8 +397,39 @@ function mapChanged() {
     if (b.type === 'dock') docks.push(b);
     if (b.type === 'airport') airports.push(b);
   }
+  mergeAccess();
+  syncUnits();
+  computePower();
   roadVersion++;
   validateMovers();
+  syncMetros();   // two trains per station, wherever the rails happen to run
+}
+// Attribute merging: five like buildings that touch each other need only one
+// road between them; farms and orchards merge in twenties.
+const mergeLimit = type => (type === 'farm' || type === 'orchard' || type === 'farmhouse' || type === 'greenhouse') ? 20 : 5;
+function mergeAccess() {
+  const seen = new Set();
+  for (const b of buildings.values()) b.roadShared = false;
+  for (const start of buildings.values()) {
+    if (seen.has(start.id) || start.road < 0) continue;
+    const cluster = [], queue = [start];
+    seen.add(start.id);
+    while (queue.length) {
+      const b = queue.pop();
+      cluster.push(b);
+      for (const i of perimeter(b.x, b.y, b.w, b.h)) {
+        const oid = bldAt[i];
+        if (!oid || oid === b.id || seen.has(oid)) continue;
+        const o = B(oid);
+        if (!o || o.type !== start.type) continue;
+        seen.add(oid);
+        queue.push(o);
+      }
+    }
+    if (cluster.length < mergeLimit(start.type)) continue;
+    const donor = start;   // every building in the cluster can use its road
+    for (const o of cluster) if (o.road < 0) { o.road = donor.road; o.roadShared = true; }
+  }
 }
 function removeBuilding(b) {
   buildings.delete(b.id);

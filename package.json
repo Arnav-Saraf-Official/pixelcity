@@ -2,6 +2,7 @@
   "name": "pixelcity",
   "private": true,
   "scripts": {
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "textures": "node scripts/textures.mjs build"
   }
 }

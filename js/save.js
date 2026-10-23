@@ -202,10 +202,13 @@ function diffEnc(arr, gen, skip) { let s = '', last = 0; for (let i = 0; i < N; 
 function serialize() {
   const gw = new Uint8Array(N), gt = new Uint8Array(N); genTerrainInto(worldSeed, gw, gt);
   return {v: 5, seed: worldSeed, t: Math.round(gameMin),
-    tile: rle(tile), oneway: rle(oneway), overpass: rle(overpass), walkway: rle(walkway),
+    tile: rle(tile), oneway: rle(oneway), overpass: rle(overpass), walkway: rle(walkway), rail: rle(railOn),
     water: diffEnc(water, gw), tree: diffEnc(tree, gt, i => tile[i] || bldAt[i]),
     lights: [...lights].map(([i, L]) => [i, L.ns, L.ew, Math.round(L.off)]),
     b: [...buildings.values()].map(b => [b.type, b.x, b.y, b.seed >>> 0]),
+    districts: [...districts.values()].map(d => [d.id, d.name, d.color]),
+    dlayer: rle(districtLayer),
+    wx: [WEATHER.kind, Math.round(WEATHER.until)],
     cam: [Math.round(cam.x), Math.round(cam.y), cam.z]};
 }
 // Everything loaded from a file or a code is checked before it touches the current region:
@@ -239,18 +242,32 @@ function loadData(d) {
   if (!isInt(d.seed, 0, 1e9)) throw new Error(BAD);
   for (const k of ['tile', 'oneway', 'overpass', 'walkway', 'water', 'tree']) if (typeof d[k] !== 'string' || d[k].length > 5e6) throw new Error(BAD);
   if (!Array.isArray(d.b) || d.b.length > 40000 || !Array.isArray(d.lights) || d.lights.length > 40000) throw new Error(BAD);
-  const nt = new Uint8Array(N), no = new Uint8Array(N), nov = new Uint8Array(N), nw = new Uint8Array(N), nwa = new Uint8Array(N), ntr = new Uint8Array(N);
+  // rail was added after the first v5 saves, so it may be missing: an old region
+  // simply has no tunnels until you draw some
+  if (d.rail !== undefined && (typeof d.rail !== 'string' || d.rail.length > 5e6)) throw new Error(BAD);
+  const nt = new Uint8Array(N), no = new Uint8Array(N), nov = new Uint8Array(N), nw = new Uint8Array(N), nwa = new Uint8Array(N), ntr = new Uint8Array(N), nra = new Uint8Array(N);
   unrleInto(d.tile, nt, 4); unrleInto(d.oneway, no, 4); unrleInto(d.overpass, nov, 1); unrleInto(d.walkway, nw, 1);
+  if (typeof d.rail === 'string') unrleInto(d.rail, nra, 1);
   genTerrainInto(d.seed, nwa, ntr); applyDiff(d.water, nwa, 1); applyDiff(d.tree, ntr, 4);
   for (const e of d.b) if (!Array.isArray(e) || !hasType(e[0]) || !isInt(e[1], 0, MW - 1) || !isInt(e[2], 0, MH - 1) || !isInt(e[3], 0, 4294967295)) throw new Error(BAD);
   for (const e of d.lights) if (!Array.isArray(e) || !isInt(e[0], 0, N - 1) || !isInt(e[1], 3, 25) || !isInt(e[2], 3, 25) || !isInt(e[3], 0, 60)) throw new Error(BAD);
   // the save is valid: replace the region
   clearWorld();
   worldSeed = d.seed;
-  tile.set(nt); oneway.set(no); overpass.set(nov); walkway.set(nw); water.set(nwa); tree.set(ntr);
+  tile.set(nt); oneway.set(no); overpass.set(nov); walkway.set(nw); water.set(nwa); tree.set(ntr); railOn.set(nra);
   for (let i = 0; i < N; i++) if (tile[i]) tree[i] = 0;
-  for (const [type, x, y, seed] of d.b) if (canPlace(type, x, y)) placeBuilding(type, x, y, seed);
+  for (const [type, x, y, seed] of d.b) if (canPlace(type, x, y) || canPlaceLoose(type, x, y)) placeBuilding(type, x, y, seed);
   for (const [i, ns, ew, off] of d.lights) lights.set(i, {ns, ew, off});
+  if (typeof d.dlayer === 'string') {
+    const nd = new Int32Array(N); unrleInto(d.dlayer, nd, 4);
+    districtLayer.set(nd);
+  }
+  if (Array.isArray(d.districts)) for (const e of d.districts) {
+    if (!Array.isArray(e) || !isInt(e[0], 1, 1e6) || typeof e[1] !== 'string' || typeof e[2] !== 'string') continue;
+    districts.set(e[0], {id: e[0], name: e[1].slice(0, 24), color: e[2].slice(0, 16), policy: {}});
+    nextDid = Math.max(nextDid, e[0] + 1);
+  }
+  if (Array.isArray(d.wx) && WEATHER_KINDS[d.wx[0]]) { WEATHER.kind = d.wx[0]; WEATHER.until = d.wx[1]; }
   gameMin = isInt(d.t, 0, 1e9) ? d.t : 6.5 * 60;
   finishWorld();
   if (Array.isArray(d.cam) && d.cam.length === 3 && d.cam.every(Number.isFinite) && ZOOMS.includes(d.cam[2])) { cam.x = d.cam[0]; cam.y = d.cam[1]; cam.z = d.cam[2]; }

@@ -20,6 +20,8 @@
     <div class="chip"><b>Cars</b><span id="sCars">0</span></div>
     <div class="chip"><b>Flow</b><span id="sFlow">A</span></div>
     <div class="chip"><b>Avg trip</b><span id="sTrip">-</span></div>
+    <div class="chip"><b>Weather</b><span id="sWx">Sunny</span></div>
+    <div class="chip"><b>Power</b><span id="sPow">0/0</span></div>
   </div>
   <div class="grow"></div>
   <div class="seg" id="overlays">
@@ -27,6 +29,11 @@
     <button data-o="mood" class="on" title="Traffic moods over homes (M)">Moods</button>
     <button data-o="occ" title="Building occupancy (C)">Occupancy</button>
     <button data-o="grid" title="Grid (G)">Grid</button>
+    <button data-o="sky" class="on" title="Aircraft in flight (Y)">Sky</button>
+    <button data-o="underground" title="Metro tunnels, junctions and reversing blocks (N)">Underground</button>
+    <button data-o="districts" class="on" title="Show district paint (D)">Districts</button>
+    <button data-o="weather" class="on" title="Weather (W)">Weather</button>
+    <button data-o="power" disabled title="The electricity grid is scaffolding only">Electricity</button>
   </div>
   <button id="menuBtn" title="Menu">☰</button>
 </div>
@@ -51,6 +58,9 @@
   <div class="row"><span>Asleep</span><span id="gSleep">0</span></div>
   <div class="row"><span>Planes · boats</span><span id="gAir">0 · 0</span></div>
   <div class="row"><span>Buses · transit riders</span><span id="gTransit">0 · 0</span></div>
+  <div class="row"><span>Trains · riders</span><span id="gMetro">0 · 0</span></div>
+  <div class="row"><span>City mood</span><span id="gMoodCity">-</span></div>
+  <div class="row"><span>Fires · crashes</span><span id="gIncidents">0 · 0 out</span></div>
   <h4 style="margin-top:8px">HOW PEOPLE TRAVEL</h4>
   <div class="modebar"><i id="mCar" style="background:#e74c3c;width:100%"></i><i id="mWalk" style="background:#5fdc7a"></i><i id="mMetro" style="background:#6fb3ff"></i><i id="mBus" style="background:#f5c518"></i></div>
   <div class="legend"><span><i style="background:#e74c3c"></i><span id="lCar">car</span></span><span><i style="background:#5fdc7a"></i><span id="lWalk">walk</span></span><span><i style="background:#6fb3ff"></i><span id="lMetro">metro</span></span><span><i style="background:#f5c518"></i><span id="lBus">bus</span></span></div>
@@ -136,13 +146,13 @@
     <li><b>Roads:</b> drag to draw streets (with sidewalks), country roads (none), highways or one-ways. Lay highways side by side to make them as wide as you like: half the rows run each way. Roads across water become bridges. Add <b>traffic lights</b> and <b>overpasses</b> at busy crossings.</li>
     <li><b>Buildings</b> need a road next to them. Click to place, or drag to paint rows of houses. Docks go on a shore, half over the water.</li>
     <li><b>Parking:</b> offices and shops have fewer spaces than visitors. Full lots send drivers circling to a Parking Lot or Garage, or home unhappy.</li>
-    <li><b>Walking:</b> sidewalks, footpaths, plazas and parks let people walk short trips. <b>Metro stations</b> take longer trips off the road.</li>
+    <li><b>Walking:</b> sidewalks, footpaths, plazas and parks let people walk short trips. <b>Metro stations</b> take longer trips off the road, but a station is only useful once you draw <b>Metro Rails</b> (Metro tab) between it and another station.</li>
     <li><b>Region:</b> nine connected districts, all simulated at once. Zoom out past a whole district to see them all, then click one to build there. Cars, boats and planes travel across all of them.</li>
-    <li>Turn on <b>Congestion</b> to see jams as a green-to-red gradient. <b>Save &amp; share</b> in the menu makes a save file or a share code.</li>
+    <li>Turn on <b>Congestion</b> to see jams as a green-to-red gradient. <b>Underground</b> strips the surface away and shows the metro network: rails, junction blocks where lines meet, reversing blocks where a train can turn back, and the trains themselves. <b>Save &amp; share</b> in the menu makes a save file or a share code.</li>
   </ul>
   <p><kbd>Wheel</kbd> or <kbd>+ −</kbd> zoom · <kbd>Z</kbd> district · <kbd>Shift</kbd>, <kbd>Right</kbd> or <kbd>Middle</kbd> drag, or <kbd>WASD</kbd> to pan · <kbd>Esc</kbd> cancel · <kbd>P</kbd> pause · <kbd>1 2 3</kbd> speed<br>
   <kbd>X</kbd> select, then <kbd>Ctrl+C</kbd> <kbd>Ctrl+X</kbd> <kbd>Ctrl+V</kbd> <kbd>Del</kbd> · <kbd>Ctrl+S</kbd> quick save<br>
-  <kbd>Q</kbd> inspect · <kbd>B</kbd> bulldoze · <kbd>R</kbd> street · <kbd>K</kbd> country road · <kbd>J</kbd> sidewalks · <kbd>O</kbd> one-way · <kbd>H</kbd> highway · <kbd>U</kbd> overpass · <kbd>L</kbd> light · <kbd>F</kbd> footpath · <kbd>V</kbd> congestion · <kbd>M</kbd> moods</p>
+  <kbd>Q</kbd> inspect · <kbd>B</kbd> bulldoze · <kbd>R</kbd> street · <kbd>K</kbd> country road · <kbd>J</kbd> sidewalks · <kbd>O</kbd> one-way · <kbd>H</kbd> highway · <kbd>U</kbd> overpass · <kbd>L</kbd> light · <kbd>F</kbd> footpath · <kbd>T</kbd> metro rails · <kbd>V</kbd> congestion · <kbd>M</kbd> moods · <kbd>N</kbd> underground · <kbd>Y</kbd> sky</p>
   <div class="btns"><button id="helpClose" class="on">Start building</button></div>
 </div>
 
@@ -256,9 +266,13 @@
 </section>
 
 <script src="js/core.js"></script>
+<script src="js/texture.js"></script>
+<script src="js/textures.generated.js"></script>
 <script src="js/art.js"></script>
 <script src="js/map.js"></script>
 <script src="js/simulation.js"></script>
+<script src="js/emergency.js"></script>
+<script src="js/metro.js"></script>
 <script src="js/render.js"></script>
 <script src="js/controls.js"></script>
 <script src="js/ui.js"></script>

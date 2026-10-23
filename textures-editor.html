@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Texture Studio · PixelCity</title>
+<style>
+:root{
+  --bg:#0d1018;--panel:#161b2b;--panel2:#1d2437;--edge:#2f3854;--line:#222a40;
+  --txt:#e6eaf5;--dim:#8d97b5;--hi:#ffd75e;--acc:#6fb3ff;--good:#5fdc7a;--bad:#ff6b6b;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--mono);font-size:13px;line-height:1.45;display:flex;flex-direction:column;overflow:hidden}
+button,input,select,textarea{font-family:inherit;font-size:12px;color:var(--txt);background:var(--panel2);border:1px solid var(--edge);padding:3px 7px;border-radius:2px}
+button{cursor:pointer}
+button:hover{border-color:#4a5779;background:#26304a}
+button.primary{border-color:#7a6a2a;background:#2e2a16;color:var(--hi)}
+button.danger:hover{border-color:#7a3040;background:#33171d;color:var(--bad)}
+input:focus,select:focus,textarea:focus{outline:1px solid var(--acc);outline-offset:0}
+input.invalid{border-color:#7a3040;background:#2a1418}
+h1,h2,h3{margin:0;font-weight:600;letter-spacing:.02em}
+h1{font-size:15px}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim)}
+h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin:14px 0 6px}
+small{color:var(--dim)}
+code{font-size:11px;color:var(--acc);background:#101624;padding:1px 4px;border-radius:2px}
+
+header{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line);background:#101521;flex:0 0 auto;flex-wrap:wrap}
+header .grow{flex:1}
+header .title{display:flex;align-items:baseline;gap:8px}
+header .title b{color:var(--hi);font-size:16px;letter-spacing:.04em}
+header .title span{color:var(--dim)}
+header select{min-width:150px}
+
+#app{flex:1;display:grid;grid-template-columns:230px minmax(280px,1fr) minmax(360px,480px);min-height:0}
+.pane{min-height:0;overflow:auto;padding:10px 12px;border-right:1px solid var(--line)}
+.pane:last-child{border-right:0}
+#library{background:#111624}
+#stage{display:flex;flex-direction:column}
+#inspector{background:#111624}
+
+.list{display:flex;flex-direction:column;gap:2px;margin-bottom:8px}
+.list button{text-align:left;background:transparent;border:1px solid transparent;padding:3px 6px;display:flex;justify-content:space-between;gap:6px}
+.list button:hover{background:#1a2133;border-color:#2a3450}
+.list button.on{background:#25203a;border-color:#6c5a2a;color:var(--hi)}
+.list button .meta{color:var(--dim);font-size:10px}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.row .grow{flex:1}
+.spacer{flex:1}
+
+#stageTitle{font-size:13px;text-transform:none;letter-spacing:0;color:var(--txt)}
+#canvasWrap{
+  flex:0 0 auto;display:flex;align-items:center;justify-content:center;padding:14px;
+  background:
+    linear-gradient(45deg,#151b29 25%,transparent 25%,transparent 75%,#151b29 75%),
+    linear-gradient(45deg,#151b29 25%,transparent 25%,transparent 75%,#151b29 75%);
+  background-size:16px 16px;background-position:0 0,8px 8px;
+  border:1px solid var(--line);margin-top:8px;min-height:160px;overflow:auto
+}
+#preview{image-rendering:pixelated;display:block;background:transparent}
+#errors{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.err{color:#ffb3b3;background:#2a1418;border:1px solid #7a3040;padding:4px 7px;border-radius:2px;white-space:pre-wrap;font-size:11px}
+.ok{color:var(--good);font-size:11px}
+#paramForm,#texSettings,#opEditor{display:flex;flex-direction:column;gap:6px}
+.field{display:grid;grid-template-columns:96px 1fr;gap:8px;align-items:center}
+.field>label{color:var(--dim);font-size:11px;text-align:right;overflow:hidden;text-overflow:ellipsis}
+.field input[type=text],.field input[type=number],.field select{width:100%}
+.field .hint{grid-column:2;color:var(--dim);font-size:10px}
+
+.settings{border:1px solid var(--line);background:var(--panel);padding:8px;display:flex;flex-direction:column;gap:6px}
+.settings h2{margin-bottom:2px}
+
+.ops{display:flex;flex-direction:column;gap:5px}
+.ops .ops{margin:4px 0 0 0;padding-left:10px;border-left:1px solid #2b3450}
+.op{border:1px solid var(--line);background:var(--panel);border-radius:2px}
+.op>header{display:flex;align-items:center;gap:4px;padding:3px 5px;border-bottom:1px solid var(--line);background:#1a2132;border-radius:2px 2px 0 0}
+.op>header .kind{color:var(--hi);font-size:11px;letter-spacing:.05em;flex:1}
+.op>header button{padding:1px 5px;font-size:11px;line-height:1.2}
+.op .body{padding:5px;display:flex;flex-direction:column;gap:4px}
+.op .body .field{grid-template-columns:80px 1fr}
+.sub-label{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin:4px 0 2px}
+.addop{display:flex;gap:4px;align-items:center;margin-top:4px}
+.addop select{flex:1;min-width:0}
+.pairs{display:flex;flex-direction:column;gap:3px}
+.pairs .pair{display:grid;grid-template-columns:110px 1fr auto;gap:4px}
+.pngbox{display:flex;flex-direction:column;gap:3px}
+.pngbox .thumb{width:44px;height:44px;image-rendering:pixelated;border:1px solid var(--edge);background:#0b0f18;object-fit:contain}
+.pngbox .row{gap:4px}
+
+#markList{display:flex;flex-wrap:wrap;gap:8px;color:var(--dim);font-size:11px}
+#markList b{color:var(--txt);font-weight:500}
+
+footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;border-top:1px solid var(--line);background:#101521}
+#status{color:var(--dim);font-size:11px}
+#status.good{color:var(--good)}
+#status.bad{color:var(--bad)}
+
+.help{color:var(--dim);font-size:11px;margin-top:6px}
+.help b{color:var(--txt);font-weight:500}
+
+@media (max-width:1100px){
+  #app{grid-template-columns:200px minmax(240px,1fr) minmax(320px,420px)}
+}
+@media (max-width:900px){
+  body{overflow:auto}
+  #app{display:flex;flex-direction:column;height:auto}
+  .pane{border-right:0;border-bottom:1px solid var(--line);max-height:none}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title"><b>Texture Studio</b><span>· writes <code>.texture</code> files</span></div>
+  <span class="grow"></span>
+  <label class="row">Family <select id="familySelect"></select></label>
+  <button id="newFamily">New family</button>
+  <button id="newSprite">Sprite from PNG…</button>
+  <button id="importBtn">Import .texture…</button>
+  <button id="download" class="primary">Download .texture</button>
+  <button id="copy">Copy</button>
+  <input type="file" id="importFile" accept=".texture,.json,application/json" multiple hidden>
+  <input type="file" id="spriteFile" accept="image/png,image/*" hidden>
+</header>
+
+<div id="app">
+  <aside class="pane" id="library">
+    <h2>Textures</h2>
+    <div id="textureList" class="list"></div>
+    <form id="addTexForm" class="row">
+      <input id="addTexName" class="grow" placeholder="new_texture" spellcheck="false">
+      <button type="submit">Add</button>
+    </form>
+
+    <h3>Family</h3>
+    <div id="familySettings" class="settings"></div>
+
+    <h3>Defs</h3>
+    <div id="defsEditor" class="pairs"></div>
+    <div class="addop"><button id="addDef">Add def</button></div>
+
+    <p class="help">A <b>family</b> is one <code>.texture</code> file. Put it in
+      <code>textures/</code> and run <code>npm run textures</code>.</p>
+  </aside>
+
+  <section class="pane" id="stage">
+    <div class="row">
+      <h2 id="stageTitle">—</h2>
+      <span class="spacer"></span>
+      <label class="row">zoom <input id="zoom" type="range" min="1" max="16" value="5" style="width:90px"></label>
+      <label class="row"><input id="showGrid" type="checkbox" checked> grid</label>
+      <label class="row"><input id="showMarks" type="checkbox" checked> marks</label>
+    </div>
+    <div id="canvasWrap"><canvas id="preview" width="90" height="90"></canvas></div>
+    <div id="errors"></div>
+
+    <h3>Test parameters</h3>
+    <div id="paramForm"></div>
+    <p class="help">Values here are only used by the preview. A texture always
+      renders with <code>w h tw th ox oy</code> supplied by the engine, plus a
+      <code>seed</code> if it declares one.</p>
+
+    <h3>Recorded marks</h3>
+    <div id="markList"><span>Nothing recorded.</span></div>
+  </section>
+
+  <section class="pane" id="inspector">
+    <div id="texSettings"></div>
+    <h3>Ops</h3>
+    <div id="opEditor"></div>
+    <p class="help">Values are JSON: a number, <code>"#rrggbbaa"</code>, a list,
+      or an expression such as <code>["+", ["param","x"], 1]</code>.
+      Fields named <code>as</code>, <code>texture</code>, <code>file</code> and
+      <code>fn</code> are plain strings.</p>
+  </section>
+</div>
+
+<footer>
+  <span id="status">Ready.</span>
+  <span class="spacer"></span>
+  <small>Preview is live; the file is generated on download.</small>
+</footer>
+
+<!--TEXTURE_SOURCES-->
+<script src="js/texture.js"></script>
+<script src="tools/texture-editor.js"></script>
+</body>
+</html>

@@ -1,0 +1,303 @@
+{
+  // ===================================================================
+  // Roads. Every tile is generated from its connection mask, so one
+  // texture covers all 16 junction shapes. `px`/`py` are the tile's
+  // position modulo the dash period, which keeps lane dashes continuous
+  // across tile borders.
+  //
+  // Shared params: m = connection mask (bit0 N, bit1 E, bit2 S, bit3 W),
+  // hw = highway, ow = one-way direction, sw = sidewalks, ml = multi-lane
+  // highway lane id, ed = [north/west side, south/east side] lane edges.
+  // ===================================================================
+  "format": "texture/1",
+  "name": "roads",
+  "tile": 9,
+
+  "defs": {
+    "arrow": [[4, 2], [3, 3], [5, 3], [4, 3], [4, 4], [4, 5], [4, 6]]
+  },
+
+  "textures": {
+    // -----------------------------------------------------------------
+    // Lane markings, shared by plain road tiles and bridge decks.
+    // -----------------------------------------------------------------
+    "markings": {
+      "size": [9, 9],
+      "params": {
+        "m": 0, "hw": 0, "ow": 0, "ml": 0, "px": 0, "py": 0, "ed": null,
+        "horiz": ["or", ["==", ["param", "ml"], 2], ["==", ["param", "ml"], 4]],
+        "edv": ["default", ["param", "ed"],
+                ["if", ["or", ["==", ["param", "ml"], 4], ["==", ["param", "ml"], 3]], [0, 2], [2, 0]]],
+        "dashBase": ["if", ["param", "horiz"], ["param", "px"], ["param", "py"]],
+        "H": ["and", [">", ["mask", ["param", "m"], 10], 0], ["==", ["mask", ["param", "m"], 5], 0]],
+        "V": ["and", [">", ["mask", ["param", "m"], 5], 0], ["==", ["mask", ["param", "m"], 10], 0]],
+        "lineCol": ["if", ["param", "hw"], "#e3b542", "#e8c55a"]
+      },
+      "ops": [
+        { "op": "if", "test": ["param", "ml"], "then": [
+
+          // median dash down the middle of a wide highway
+          { "op": "repeat", "as": "k", "times": 9, "ops": [
+            { "op": "if",
+              "test": ["<", ["mod", ["+", ["param", "dashBase"], ["var", "k"]], 6], 3],
+              "then": [
+                { "op": "if", "test": ["param", "horiz"],
+                  "then": [{ "op": "pixel", "x": ["var", "k"], "y": 4, "color": "#e8e8e8" }],
+                  "else": [{ "op": "pixel", "x": 4, "y": ["var", "k"], "color": "#e8e8e8" }] }
+              ] }
+          ] },
+
+          // each side of the carriageway: the edge, then a divider or the median
+          { "op": "each", "as": "s", "in": [0, 1], "ops": [
+            { "op": "if",
+              "test": ["==", ["at", ["param", "edv"], ["var", "s"]], 1],
+              "then": [
+                { "op": "if", "test": ["param", "horiz"],
+                  "then": [{ "op": "rect", "x": 0, "y": ["if", ["var", "s"], 8, 0], "w": 9, "h": 1, "color": "#2e3038" }],
+                  "else": [{ "op": "rect", "x": ["if", ["var", "s"], 8, 0], "y": 0, "w": 1, "h": 9, "color": "#2e3038" }] },
+                { "op": "if", "test": ["param", "horiz"],
+                  "then": [{ "op": "rect", "x": 0, "y": ["if", ["var", "s"], 7, 1], "w": 9, "h": 1, "color": "#2e3038" }],
+                  "else": [{ "op": "rect", "x": ["if", ["var", "s"], 7, 1], "y": 0, "w": 1, "h": 9, "color": "#2e3038" }] },
+                { "op": "repeat", "as": "k", "times": 9, "ops": [
+                  { "op": "if",
+                    "test": ["<", ["mod", ["+", ["param", "dashBase"], ["var", "k"]], 6], 3],
+                    "then": [
+                      { "op": "if", "test": ["param", "horiz"],
+                        "then": [{ "op": "pixel", "x": ["var", "k"], "y": ["if", ["var", "s"], 8, 0], "color": "#e8e8e8" }],
+                        "else": [{ "op": "pixel", "x": ["if", ["var", "s"], 8, 0], "y": ["var", "k"], "color": "#e8e8e8" }] }
+                    ] }
+                ] }
+              ] },
+            { "op": "if",
+              "test": ["==", ["at", ["param", "edv"], ["var", "s"]], 2],
+              "then": [
+                { "op": "if", "test": ["param", "horiz"],
+                  "then": [{ "op": "rect", "x": 0, "y": ["if", ["var", "s"], 8, 0], "w": 9, "h": 1, "color": "#a9acb3" }],
+                  "else": [{ "op": "rect", "x": ["if", ["var", "s"], 8, 0], "y": 0, "w": 1, "h": 9, "color": "#a9acb3" }] },
+                { "op": "if", "test": ["param", "horiz"],
+                  "then": [{ "op": "rect", "x": 0, "y": ["if", ["var", "s"], 7, 1], "w": 9, "h": 1, "color": "#e3b542" }],
+                  "else": [{ "op": "rect", "x": ["if", ["var", "s"], 7, 1], "y": 0, "w": 1, "h": 9, "color": "#e3b542" }] }
+              ] }
+          ] }
+        ], "else": [
+
+          { "op": "if", "test": ["param", "ow"], "then": [
+            { "op": "each", "as": "p", "in": ["def", "arrow"], "ops": [
+              { "op": "pixel",
+                "x": ["rotx", ["at", ["var", "p"], 0], ["at", ["var", "p"], 1], ["param", "ow"]],
+                "y": ["roty", ["at", ["var", "p"], 0], ["at", ["var", "p"], 1], ["param", "ow"]],
+                "color": "#f4f4f4" }
+            ] }
+          ], "else": [
+
+            // centre line: solid on highways, dashed on streets
+            { "op": "if", "test": ["param", "H"], "then": [
+              { "op": "repeat", "as": "x", "times": 9, "ops": [
+                { "op": "if",
+                  "test": ["or", ["param", "hw"], ["<", ["mod", ["+", ["param", "px"], ["var", "x"]], 6], 3]],
+                  "then": [{ "op": "pixel", "x": ["var", "x"], "y": 4, "color": ["param", "lineCol"] }] }
+              ] }
+            ] },
+            { "op": "if", "test": ["param", "V"], "then": [
+              { "op": "repeat", "as": "y", "times": 9, "ops": [
+                { "op": "if",
+                  "test": ["or", ["param", "hw"], ["<", ["mod", ["+", ["param", "py"], ["var", "y"]], 6], 3]],
+                  "then": [{ "op": "pixel", "x": 4, "y": ["var", "y"], "color": ["param", "lineCol"] }] }
+              ] }
+            ] },
+
+            // crosswalk stripes at junctions
+            { "op": "if",
+              "test": ["and", [">=", ["bits", ["param", "m"]], 3], ["not", ["param", "hw"]]],
+              "then": [
+                { "op": "if", "test": ["bit", ["param", "m"], 0], "then": [
+                  { "op": "each", "as": "x", "in": [2, 4, 6], "ops": [
+                    { "op": "pixel", "x": ["var", "x"], "y": 1, "color": "#d6d6d6" }] }] },
+                { "op": "if", "test": ["bit", ["param", "m"], 2], "then": [
+                  { "op": "each", "as": "x", "in": [2, 4, 6], "ops": [
+                    { "op": "pixel", "x": ["var", "x"], "y": 7, "color": "#d6d6d6" }] }] },
+                { "op": "if", "test": ["bit", ["param", "m"], 3], "then": [
+                  { "op": "each", "as": "y", "in": [2, 4, 6], "ops": [
+                    { "op": "pixel", "x": 1, "y": ["var", "y"], "color": "#d6d6d6" }] }] },
+                { "op": "if", "test": ["bit", ["param", "m"], 1], "then": [
+                  { "op": "each", "as": "y", "in": [2, 4, 6], "ops": [
+                    { "op": "pixel", "x": 7, "y": ["var", "y"], "color": "#d6d6d6" }] }] }
+              ] }
+          ] }
+        ] }
+      ]
+    },
+
+    // -----------------------------------------------------------------
+    // A road tile on land: barrier, sidewalk or gravel shoulder, asphalt,
+    // then the markings.
+    // -----------------------------------------------------------------
+    "road": {
+      "size": [9, 9],
+      "params": {
+        "m": 0, "hw": 0, "ow": 0, "sw": 0, "ml": 0, "px": 0, "py": 0, "ed": null,
+        "asph": ["if", ["param", "hw"], "#2e3038", "#3d4049"],
+        "corner": ["if", ["param", "sw"], "#a3a7ae", "#6f8a4a"]
+      },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 9, "h": 9,
+          "color": ["if", ["param", "hw"], "#7c8088", ["if", ["param", "sw"], "#c4c7cd", "#8d8262"]] },
+
+        { "op": "if", "test": ["not", ["param", "hw"]], "then": [
+          { "op": "each", "as": "k", "in": [2, 6], "ops": [
+            { "op": "if", "test": ["not", ["bit", ["param", "m"], 0]], "then": [
+              { "op": "pixel", "x": ["var", "k"], "y": 0, "color": ["param", "corner"] }] },
+            { "op": "if", "test": ["not", ["bit", ["param", "m"], 2]], "then": [
+              { "op": "pixel", "x": ["var", "k"], "y": 8, "color": ["param", "corner"] }] },
+            { "op": "if", "test": ["not", ["bit", ["param", "m"], 3]], "then": [
+              { "op": "pixel", "x": 0, "y": ["var", "k"], "color": ["param", "corner"] }] },
+            { "op": "if", "test": ["not", ["bit", ["param", "m"], 1]], "then": [
+              { "op": "pixel", "x": 8, "y": ["var", "k"], "color": ["param", "corner"] }] }
+          ] }
+        ] },
+
+        { "op": "rect", "x": 1, "y": 1, "w": 7, "h": 7, "color": ["param", "asph"] },
+        { "op": "if", "test": ["bit", ["param", "m"], 0], "then": [{ "op": "rect", "x": 1, "y": 0, "w": 7, "h": 1, "color": ["param", "asph"] }] },
+        { "op": "if", "test": ["bit", ["param", "m"], 1], "then": [{ "op": "rect", "x": 8, "y": 1, "w": 1, "h": 7, "color": ["param", "asph"] }] },
+        { "op": "if", "test": ["bit", ["param", "m"], 2], "then": [{ "op": "rect", "x": 1, "y": 8, "w": 7, "h": 1, "color": ["param", "asph"] }] },
+        { "op": "if", "test": ["bit", ["param", "m"], 3], "then": [{ "op": "rect", "x": 0, "y": 1, "w": 1, "h": 7, "color": ["param", "asph"] }] },
+
+        { "op": "if", "test": ["param", "hw"], "then": [
+          { "op": "if", "test": ["not", ["bit", ["param", "m"], 0]], "then": [{ "op": "rect", "x": 1, "y": 1, "w": 7, "h": 1, "color": "#d9d9d9" }] },
+          { "op": "if", "test": ["not", ["bit", ["param", "m"], 2]], "then": [{ "op": "rect", "x": 1, "y": 7, "w": 7, "h": 1, "color": "#d9d9d9" }] },
+          { "op": "if", "test": ["not", ["bit", ["param", "m"], 3]], "then": [{ "op": "rect", "x": 1, "y": 1, "w": 1, "h": 7, "color": "#d9d9d9" }] },
+          { "op": "if", "test": ["not", ["bit", ["param", "m"], 1]], "then": [{ "op": "rect", "x": 7, "y": 1, "w": 1, "h": 7, "color": "#d9d9d9" }] }
+        ] },
+
+        { "op": "use", "texture": "markings", "at": [0, 0], "params": {
+          "m": ["param", "m"], "hw": ["param", "hw"], "ow": ["param", "ow"],
+          "ml": ["param", "ml"], "px": ["param", "px"], "py": ["param", "py"], "ed": ["param", "ed"] } }
+      ]
+    },
+
+    // -----------------------------------------------------------------
+    // Road over water: deck, railings, water at the open edges, then the
+    // deck's shadow and stone piers.
+    // -----------------------------------------------------------------
+    "bridge": {
+      "size": [9, 9],
+      "params": {
+        "m": 0, "hw": 0, "ow": 0, "sw": 0, "ml": 0, "px": 0, "py": 0, "ed": null,
+        "L": ["if", ["bit", ["param", "m"], 3], 0, 1],
+        "R": ["if", ["bit", ["param", "m"], 1], 8, 7],
+        "Tp": ["if", ["bit", ["param", "m"], 0], 0, 1],
+        "Bt": ["if", ["bit", ["param", "m"], 2], 8, 7],
+        "rw": ["+", ["-", ["param", "R"], ["param", "L"]], 1],
+        "rh": ["+", ["-", ["param", "Bt"], ["param", "Tp"]], 1],
+        "asph": ["if", ["param", "hw"], "#2e3038", "#3d4049"]
+      },
+      "ops": [
+        { "op": "if", "test": ["not", ["bit", ["param", "m"], 2]], "then": [
+          { "op": "rect", "x": ["param", "L"], "y": 8, "w": ["param", "rw"], "h": 1, "color": "#00000057" }] },
+        { "op": "if", "test": ["not", ["bit", ["param", "m"], 1]], "then": [
+          { "op": "rect", "x": 8, "y": ["param", "Tp"], "w": 1, "h": ["param", "rh"], "color": "#00000057" }] },
+
+        { "op": "if",
+          "test": ["and", ["not", ["bit", ["param", "m"], 2]], [">", ["mask", ["param", "m"], 10], 0]],
+          "then": [
+            { "op": "pixel", "x": 2, "y": 8, "color": "#76695a" },
+            { "op": "pixel", "x": 6, "y": 8, "color": "#76695a" }] },
+        { "op": "if",
+          "test": ["and", ["not", ["bit", ["param", "m"], 1]], [">", ["mask", ["param", "m"], 5], 0]],
+          "then": [
+            { "op": "pixel", "x": 8, "y": 2, "color": "#76695a" },
+            { "op": "pixel", "x": 8, "y": 6, "color": "#76695a" }] },
+
+        { "op": "rect", "x": ["param", "L"], "y": ["param", "Tp"], "w": ["param", "rw"], "h": ["param", "rh"],
+          "color": ["param", "asph"] },
+
+        { "op": "if", "test": ["not", ["bit", ["param", "m"], 0]], "then": [
+          { "op": "rect", "x": ["param", "L"], "y": 1, "w": ["param", "rw"], "h": 1, "color": ["if", ["param", "sw"], "#d8dade", "#b3b6bd"] }] },
+        { "op": "if", "test": ["not", ["bit", ["param", "m"], 2]], "then": [
+          { "op": "rect", "x": ["param", "L"], "y": 7, "w": ["param", "rw"], "h": 1, "color": ["if", ["param", "sw"], "#d8dade", "#b3b6bd"] }] },
+        { "op": "if", "test": ["not", ["bit", ["param", "m"], 3]], "then": [
+          { "op": "rect", "x": 1, "y": ["param", "Tp"], "w": 1, "h": ["param", "rh"], "color": ["if", ["param", "sw"], "#d8dade", "#b3b6bd"] }] },
+        { "op": "if", "test": ["not", ["bit", ["param", "m"], 1]], "then": [
+          { "op": "rect", "x": 7, "y": ["param", "Tp"], "w": 1, "h": ["param", "rh"], "color": ["if", ["param", "sw"], "#d8dade", "#b3b6bd"] }] },
+
+        { "op": "each", "as": "k", "in": [1, 4, 7], "ops": [
+          { "op": "if", "test": ["not", ["bit", ["param", "m"], 0]], "then": [
+            { "op": "pixel", "x": ["var", "k"], "y": 1, "color": "#5c5f66" }] },
+          { "op": "if", "test": ["not", ["bit", ["param", "m"], 2]], "then": [
+            { "op": "pixel", "x": ["var", "k"], "y": 7, "color": "#5c5f66" }] },
+          { "op": "if", "test": ["not", ["bit", ["param", "m"], 3]], "then": [
+            { "op": "pixel", "x": 1, "y": ["var", "k"], "color": "#5c5f66" }] },
+          { "op": "if", "test": ["not", ["bit", ["param", "m"], 1]], "then": [
+            { "op": "pixel", "x": 7, "y": ["var", "k"], "color": "#5c5f66" }] }
+        ] },
+
+        { "op": "use", "texture": "markings", "at": [0, 0], "params": {
+          "m": ["param", "m"], "hw": ["param", "hw"], "ow": ["param", "ow"],
+          "ml": ["param", "ml"], "px": ["param", "px"], "py": ["param", "py"], "ed": ["param", "ed"] } }
+      ]
+    },
+
+    // -----------------------------------------------------------------
+    // An east-west deck drawn over a north-south road (overpass).
+    // -----------------------------------------------------------------
+    "deck": {
+      "size": [9, 9],
+      "params": { "hw": 0, "px": 0 },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 8, "w": 9, "h": 1, "color": "#00000066" },
+        { "op": "rect", "x": 0, "y": 1, "w": 9, "h": 7, "color": "#c3c6cd" },
+        { "op": "rect", "x": 0, "y": 7, "w": 9, "h": 1, "color": "#8d9098" },
+        { "op": "rect", "x": 0, "y": 2, "w": 9, "h": 5, "color": ["if", ["param", "hw"], "#2e3038", "#3d4049"] },
+        { "op": "repeat", "as": "x", "times": 9, "ops": [
+          { "op": "if",
+            "test": ["or", ["param", "hw"], ["<", ["mod", ["+", ["param", "px"], ["var", "x"]], 6], 3]],
+            "then": [
+              { "op": "pixel", "x": ["var", "x"], "y": 4,
+                "color": ["if", ["param", "hw"], "#e3b542", "#e8c55a"] }] }
+        ] }
+      ]
+    },
+
+    // -----------------------------------------------------------------
+    // Footpaths and plazas.
+    // -----------------------------------------------------------------
+    "path": {
+      "size": [9, 9],
+      "params": {
+        "m": 0, "br": 0,
+        "fill": ["if", ["param", "br"], "#a9875a", "#dbc99f"],
+        "speck": ["if", ["param", "br"], "#7a5d3b", "#c9b384"]
+      },
+      "ops": [
+        { "op": "if", "test": ["param", "br"], "then": [
+          { "op": "rect", "x": 2, "y": 2, "w": 5, "h": 5, "color": "#7a5d3b" }] },
+        { "op": "rect", "x": 3, "y": 3, "w": 3, "h": 3, "color": ["param", "fill"] },
+        { "op": "if", "test": ["bit", ["param", "m"], 0], "then": [{ "op": "rect", "x": 3, "y": 0, "w": 3, "h": 3, "color": ["param", "fill"] }] },
+        { "op": "if", "test": ["bit", ["param", "m"], 1], "then": [{ "op": "rect", "x": 6, "y": 3, "w": 3, "h": 3, "color": ["param", "fill"] }] },
+        { "op": "if", "test": ["bit", ["param", "m"], 2], "then": [{ "op": "rect", "x": 3, "y": 6, "w": 3, "h": 3, "color": ["param", "fill"] }] },
+        { "op": "if", "test": ["bit", ["param", "m"], 3], "then": [{ "op": "rect", "x": 0, "y": 3, "w": 3, "h": 3, "color": ["param", "fill"] }] },
+        { "op": "rect", "x": 4, "y": 4, "w": 1, "h": 1, "color": ["param", "speck"] }
+      ]
+    },
+
+    "plaza": {
+      "size": [9, 9],
+      "params": { "par": 0, "deco": 0 },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 9, "h": 9, "color": "#d3c9b4" },
+        { "op": "repeat", "as": "y", "times": 9, "ops": [
+          { "op": "repeat", "as": "x", "times": 9, "ops": [
+            { "op": "if",
+              "test": ["==", ["mod", ["+", ["param", "par"], ["var", "x"], ["var", "y"]], 4], 0],
+              "then": [{ "op": "pixel", "x": ["var", "x"], "y": ["var", "y"], "color": "#c3b8a0" }] }
+          ] }
+        ] },
+        { "op": "if", "test": ["param", "deco"], "then": [
+          { "op": "rect", "x": 3, "y": 4, "w": 3, "h": 2, "color": "#7a5b3a" },
+          { "op": "rect", "x": 3, "y": 2, "w": 3, "h": 3, "color": "#3f9a42" },
+          { "op": "rect", "x": 3, "y": 2, "w": 2, "h": 1, "color": "#5fbf5a" }
+        ] }
+      ]
+    }
+  }
+}

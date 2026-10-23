@@ -9,6 +9,7 @@ function resize() {
   dpr = Math.max(1, window.devicePixelRatio || 1);
   cv.width = Math.floor(innerWidth * dpr); cv.height = Math.floor(innerHeight * dpr);
   clampCam();
+  if (typeof layoutBottom === 'function') layoutBottom();
 }
 function clampCam() {
   const vw = innerWidth / cam.z, vh = innerHeight / cam.z;
@@ -22,21 +23,7 @@ function darkness(h) {
   return 0.58;
 }
 const LCOL = ['#3ef06b', '#ffd23f', '#ff4848'];
-const FACES = {
-  happy: ['.FFF.', 'FkFkF', 'FFFFF', 'kFFFk', '.kkk.'],
-  ok:    ['.FFF.', 'FkFkF', 'FFFFF', 'FkkkF', '.FFF.'],
-  sad:   ['.FFF.', 'FkFkF', 'FFFFF', 'FkkkF', 'kFFFk'],
-  angry: ['kFFFk', 'FkFkF', 'FFFFF', 'FkkkF', 'kFFFk'],
-};
-const FACECOL = {happy: '#5fdc7a', ok: '#ffd75e', sad: '#ff9a4d', angry: '#ff4848'};
 const moodFace = m => m >= 0.7 ? 'happy' : m >= 0.5 ? 'ok' : m >= 0.3 ? 'sad' : 'angry';
-function drawFace(f, x, y, kind) {
-  const rows = FACES[kind];
-  for (let r = 0; r < 5; r++) for (let k = 0; k < 5; k++) {
-    const ch = rows[r][k]; if (ch === '.') continue;
-    f.fillStyle = ch === 'F' ? FACECOL[kind] : '#1a1d26'; f.fillRect(x + k, y + r, 1, 1);
-  }
-}
 function render() {
   if (regionView) { renderRegion(); return; }
   const z = cam.z;
@@ -47,7 +34,10 @@ function render() {
   f.fillStyle = '#0d1018'; f.fillRect(0, 0, fw, fh);
   f.setTransform(1, 0, 0, 1, -fx0, -fy0);
   const sx0 = Math.max(0, fx0), sy0 = Math.max(0, fy0), sx1 = Math.min(FW, fx0 + fw), sy1 = Math.min(FH, fy0 + fh);
-  if (sx1 > sx0 && sy1 > sy0) drawWorld(f, sx0, sy0, sx1, sy1);
+  if (sx1 > sx0 && sy1 > sy0) {
+    if (overlays.underground) drawUnderground(f, sx0, sy0, sx1, sy1);
+    else drawWorld(f, sx0, sy0, sx1, sy1);
+  }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#0d1018'; ctx.fillRect(0, 0, cv.width, cv.height);
   ctx.imageSmoothingEnabled = z < 1;
@@ -71,6 +61,44 @@ function render() {
     ctx.stroke();
   }
 }
+// District paint: one fill per run of tiles, and only inside the camera frame.
+function drawDistricts(f, vx0, vy0, vx1, vy1) {
+  const seen = new Set();
+  for (let y = vy0; y <= vy1; y++) {
+    let x = vx0;
+    while (x <= vx1) {
+      const id = districtLayer[y * MW + x];
+      if (!id) { x++; continue; }
+      let x2 = x;
+      while (x2 + 1 <= vx1 && districtLayer[y * MW + x2 + 1] === id) x2++;
+      const d = districts.get(id);
+      if (d) {
+        f.globalAlpha = 0.22;
+        f.fillStyle = d.color;
+        f.fillRect(x * T, y * T, (x2 - x + 1) * T, T);
+        f.globalAlpha = 1;
+        seen.add(d.id);
+      }
+      x = x2 + 1;
+    }
+  }
+  // borders: a thin line wherever the district changes
+  f.globalAlpha = 0.7;
+  for (let y = vy0; y <= vy1; y++) {
+    for (let x = vx0; x <= vx1; x++) {
+      const id = districtLayer[y * MW + x];
+      if (!id) continue;
+      const d = districts.get(id);
+      if (!d) continue;
+      const up = y > 0 ? districtLayer[(y - 1) * MW + x] : 0;
+      const left = x > 0 ? districtLayer[y * MW + x - 1] : 0;
+      f.fillStyle = d.color;
+      if (up !== id) f.fillRect(x * T, y * T, T, 1);
+      if (left !== id) f.fillRect(x * T, y * T, 1, T);
+    }
+  }
+  f.globalAlpha = 1;
+}
 function drawWorld(f, sx0, sy0, sx1, sy1) {
   const sw = sx1 - sx0, sh = sy1 - sy0;
   const vx0 = Math.floor(sx0 / T), vy0 = Math.floor(sy0 / T), vx1 = Math.min(MW - 1, Math.floor((sx1 - 1) / T)), vy1 = Math.min(MH - 1, Math.floor((sy1 - 1) / T));
@@ -82,6 +110,7 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
     if (ch) f.drawImage(ch, cx * CW * T, cy * CHH * T);
     else f.drawImage(miniCv, cx * CW, cy * CHH, CW, CHH, cx * CW * T, cy * CHH * T, CW * T, CHH * T);
   }
+  if (overlays.districts && districts.size) drawDistricts(f, vx0, vy0, vx1, vy1);
   const h = (gameMin / 60) % 24, dark = darkness(h);
   const vis = [];
   for (const b of buildings.values()) if (inV(b)) vis.push(b);
@@ -98,34 +127,55 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
       for (let k = 0; k < n; k++) { const w = a.win[a.order[k]]; f.fillStyle = SHIRT[(k * 3 + b.id) % SHIRT.length]; f.fillRect(w[0], w[1], 1, 1); }
     }
   }
+  if (overlays.weather) {
+    const w = weatherNow();
+    if (w.wet) {
+      f.fillStyle = w.wet === 2 ? 'rgba(18,28,48,.24)' : 'rgba(70,110,160,.14)';
+      f.fillRect(sx0, sy0, sw, sh);
+    }
+  }
+  // emergency units and the incidents they are working
+  for (const u of units) {
+    if (!inP(u.x * T, u.y * T)) continue;
+    const px = Math.round(u.x * T), py = Math.round(u.y * T);
+    f.fillStyle = u.kind === 'firetruck' ? '#d92b2b' : '#f4f7fb';
+    f.fillRect(px - 3, py - 2, 6, 4);
+    f.fillStyle = u.kind === 'firetruck' ? '#ffd75e' : '#d92b2b';
+    f.fillRect(px - 1, py - 1, 2, 2);
+    if (u.state === 'onscene') {
+      f.fillStyle = (performance.now() / 300 | 0) % 2 ? '#ff5050' : '#6fb3ff';
+      f.fillRect(px - 1, py - 8, 2, 2);
+    }
+  }
+  for (const inc of incidents) {
+    if (!inP(inc.x * T, inc.y * T)) continue;
+    const px = Math.round(inc.x * T), py = Math.round(inc.y * T);
+    if (inc.kind === 'fire') {
+      const k = (performance.now() / 120 | 0) % 3;
+      f.fillStyle = '#ff6a00'; f.fillRect(px - 3, py - 6 + k, 6, 6 - k);
+      f.fillStyle = '#ffd24a'; f.fillRect(px - 1, py - 4 + k, 2, 4 - k);
+    } else {
+      f.fillStyle = '#3a3a44'; f.fillRect(px - 3, py - 2, 2, 2); f.fillRect(px + 1, py - 1, 2, 2);
+      f.fillStyle = '#ff9b3d'; f.fillRect(px, py - 2, 1, 1);
+    }
+  }
   for (const b of boats) if (inP(b.x, b.y)) drawBoat(f, b);
   for (const p of peds) {
     if (p.dead || p.hidden || !inP(p.x, p.y)) continue;
-    const x = Math.round(p.x - 0.5), y = Math.round(p.y - 0.5);
-    f.fillStyle = p.color; f.fillRect(x, y, 1, 1);
-    f.fillStyle = '#f1c9a0'; f.fillRect(x, y - 1, 1, 1);
+    drawPed(f, Math.round(p.x - 0.5), Math.round(p.y - 0.5), p.color);
   }
-  // people waiting at bus stops and crowding into metro stations
-  const metroRides = [], boarding = new Map();
-  for (const p of peds) {
-    if (p.dead || !p.hidden || p.mode !== 'metro') continue;
-    const L = p.legs[p.leg]; if (!L || !L.from) continue;
-    metroRides.push([L.from, L.to, 1 - p.ride / (p.rideLen || 1)]);
-    boarding.set(L.from, (boarding.get(L.from) || 0) + 1);
-  }
+  // people queueing at bus stops (metro riders wait underground, out of sight)
   for (const b of vis) {
-    const sp = b.art && b.art.spots; if (!sp) continue;
-    const n = Math.min(sp.length, b.type === 'busstop' ? (b.waiting || 0) : (boarding.get(b.id) || 0));
-    for (let k = 0; k < n; k++) { f.fillStyle = SHIRT[(k * 3 + b.id) % SHIRT.length]; f.fillRect(sp[k][0], sp[k][1], 1, 1); f.fillStyle = '#f1c9a0'; f.fillRect(sp[k][0], sp[k][1] - 1, 1, 1); }
+    const sp = b.art && b.art.spots; if (!sp || b.type !== 'busstop' || !b.waiting) continue;
+    const n = Math.min(sp.length, b.waiting);
+    for (let k = 0; k < n; k++) drawPed(f, sp[k][0], sp[k][1], SHIRT[(k * 3 + b.id) % SHIRT.length]);
   }
   // cars (east-west cars on an overpass are drawn after its deck, so the others pass underneath)
   const drawCar = c => {
     const hz = c.d === 2 || c.d === 4;
     if (c.bus) {
       // a long yellow bus with a row of windows
-      const x = Math.round(c.x - (hz ? 2.5 : 1)), y = Math.round(c.y - (hz ? 1 : 2.5));
-      f.fillStyle = '#f5c518'; f.fillRect(x, y, hz ? 5 : 2, hz ? 2 : 5);
-      f.fillStyle = '#2f4f6f'; if (hz) f.fillRect(x + 1, y, 3, 1); else f.fillRect(x, y + 1, 1, 3);
+      drawBus(f, Math.round(c.x - (hz ? 2.5 : 1)), Math.round(c.y - (hz ? 1 : 2.5)), hz);
       return;
     }
     drawCarSprite(f, Math.round(c.x - (hz ? 1.5 : 1)), Math.round(c.y - (hz ? 1 : 1.5)), hz, c.color);
@@ -211,16 +261,8 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
     f.fillStyle = LCOL[lightState(L, 0)]; f.fillRect(x0, y0, 1, 1); f.fillRect(x0 + 8, y0 + 8, 1, 1);
     f.fillStyle = LCOL[lightState(L, 1)]; f.fillRect(x0 + 8, y0, 1, 1); f.fillRect(x0, y0 + 8, 1, 1);
   }
-  // metro lines in use show as faint dashed tunnels under the city; the trains themselves stay out of sight
-  const lines = new Map();
-  for (const [a, b, prog] of metroRides) { const k = a < b ? a + '-' + b : b + '-' + a; const L = lines.get(k); if (L) L.push([a, prog]); else lines.set(k, [[a, prog]]); }
-  for (const [k, rides] of lines) {
-    const [ia, ib] = k.split('-').map(Number), A = B(ia), Bs = B(ib); if (!A || !Bs) continue;
-    const ax = A.x * T + 4.5, ay = A.y * T + 4.5, bx = Bs.x * T + 4.5, by = Bs.y * T + 4.5;
-    f.strokeStyle = `rgba(111,179,255,${Math.min(0.45, 0.15 + rides.length * 0.05)})`; f.lineWidth = 1; f.setLineDash([2, 4]);
-    f.beginPath(); f.moveTo(ax, ay); f.lineTo(bx, by); f.stroke(); f.setLineDash([]);
-  }
-  for (const p of planes) if (inP(p.x, p.y)) drawPlane(f, p, dark > 0.2);
+  // the sky layer owns aircraft in flight; anything on a runway or parked stays visible
+  for (const p of planes) if (inP(p.x, p.y) && (overlays.sky || p.alt < 1)) drawPlane(f, p, dark > 0.2);
   // congestion map: dim the city, paint a smooth green-to-red field, then color each road tile
   if (overlays.heat) {
     f.fillStyle = 'rgba(10,12,24,.55)'; f.fillRect(sx0, sy0, sw, sh);
@@ -241,6 +283,48 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
     const x = (flash.i % MW) * T + 4, y = (flash.i / MW | 0) * T + 4, r = 10 + ((performance.now() / 60) % 12);
     f.strokeStyle = '#ffffff'; f.lineWidth = 2; f.beginPath(); f.arc(x, y, r, 0, Math.PI * 2); f.stroke();
   }
+  drawPreview(f);
+}
+
+// Underground view: the city above is gone, so all that is left of the surface
+// is the water. What you look at instead is the network: traces, junction pads,
+// reversing blocks, platforms and the trains between them.
+function drawUnderground(f, sx0, sy0, sx1, sy1) {
+  f.fillStyle = '#04080b';
+  f.fillRect(sx0, sy0, sx1 - sx0, sy1 - sy0);
+  const vx0 = Math.floor(sx0 / T), vy0 = Math.floor(sy0 / T);
+  const vx1 = Math.min(MW - 1, Math.floor((sx1 - 1) / T)), vy1 = Math.min(MH - 1, Math.floor((sy1 - 1) / T));
+
+  for (let ty = vy0; ty <= vy1; ty++) for (let tx = vx0; tx <= vx1; tx++) {
+    if (!water[ty * MW + tx]) continue;
+    f.fillStyle = '#0b2434'; f.fillRect(tx * T, ty * T, T, T);
+    if ((tx * 3 + ty) % 5 === 0) { f.fillStyle = '#123b52'; f.fillRect(tx * T, ty * T + 4, T, 1); }
+  }
+
+  for (let ty = vy0; ty <= vy1; ty++) for (let tx = vx0; tx <= vx1; tx++) {
+    const i = ty * MW + tx, m = rail[i];
+    if (!m) continue;
+    const n = bits(m);
+    drawRailTile(f, tx * T, ty * T, m, n === 1 ? 'reverse' : n >= 3 ? 'junction' : 'rail');
+  }
+
+  for (const s of stations) {
+    if (s.x < vx0 || s.x > vx1 || s.y < vy0 || s.y > vy1) continue;
+    drawStationPad(f, s.x * T, s.y * T);
+    // a pip per waiting rider, up to five, so demand is visible at a glance
+    const n = Math.min(5, s.waiting || 0);
+    f.fillStyle = '#9ff0c8';
+    for (let k = 0; k < n; k++) f.fillRect(s.x * T + 1 + k, s.y * T + 8, 1, 1);
+  }
+
+  for (const m of metros) {
+    const tx = m.x / T, ty = m.y / T;
+    if (tx < vx0 - 1 || tx > vx1 + 1 || ty < vy0 - 1 || ty > vy1 + 1) continue;
+    const hz = m.d === 2 || m.d === 4;
+    drawMetro(f, Math.round(m.x - (hz ? 3.5 : 1.5)), Math.round(m.y - (hz ? 1.5 : 3.5)), hz);
+  }
+
+  // the placement ghost still works down here, so you can see where a station lands
   drawPreview(f);
 }
 

@@ -140,7 +140,7 @@ function tryMode(a, from, to, mode) {
     const p1 = findPath(from.walk, sa.walk, 'walk', 16); if (!p1) return false;
     const p2 = findPath(sb.walk, to.walk, 'walk', 16); if (!p2) return false;
     depart(a, from, 'walk');
-    spawnPed(a, [{path: p1}, {ride: 3 + distB(sa, sb) * 0.22, from: sa.id, to: sb.id}, {path: p2}], to.id, 'metro');
+    spawnPed(a, [{path: p1}, {metro: [sa.id, sb.id]}, {path: p2}], to.id, 'metro');
     return true;
   }
   if (mode === 'bus') {
@@ -183,14 +183,19 @@ function nextLeg(p) {
       return;
     }
     const L = p.legs[p.leg];
-    if (L.ride) { p.ride = L.ride; p.rideLen = L.ride; p.hidden = true; return; }
+    if (L.metro) { p.ride = 1e9; p.hidden = true; p.riding = false; queueMetroRider(p, L.metro[0], L.metro[1]); return; }
     if (L.bus) { p.ride = 1e9; p.hidden = true; boardBus(p, L.bus[0], L.bus[1]); return; }
     p.hidden = false;
     if (L.path.length >= 2) { p.path = L.path; p.i = 0; p.t = 0; pedGeom(p); return; }
   }
 }
 function stepPed(p, dt) {
-  if (p.hidden) { p.ride -= dt; if (p.ride <= 0) nextLeg(p); return; }
+  if (p.hidden) {
+    if (p.riding) return;          // on a train: the train does the moving
+    p.ride -= dt;
+    if (p.ride <= 0) nextLeg(p);
+    return;
+  }
   p.t += 6.5 * dt / T;
   while (p.t >= 1) { p.t -= 1; p.i++; if (p.i >= p.path.length - 1) { nextLeg(p); return; } }
   pedGeom(p);
@@ -271,7 +276,7 @@ function tryLaneChange(c) {
 function stepCar(c, dt) {
   if (c.ghost > 0) c.ghost -= dt;
   const p = c.path, a0 = p[c.i], b = p[c.i + 1];
-  const maxSp = (tile[b] === 2 && tile[a0] === 2) ? 38 : 22;
+  const maxSp = ((tile[b] === 2 && tile[a0] === 2) ? 38 : 22) * weatherSpeed();
   c.max = maxSp;
   let target = maxSp;
   if (c.ghost <= 0) {
@@ -490,12 +495,91 @@ function spawnThrough() {
   if (!p || p.length < 2) return;
   spawnCarAt(newCar({through: true, destTile: Bt, path: p, speed: 16, color: THRU[Math.floor(Math.random() * THRU.length)], mode: 'through'}));
 }
+// ---------------------------------------------------------------------
+// Resources: oil and gas fields, timber, quarrying
+// ---------------------------------------------------------------------
+let lastHourTick = -1;
+const nearType = (b, type, r) => {
+  for (const o of buildings.values()) {
+    if (o.type !== type) continue;
+    if (Math.abs(o.cx - b.cx) <= r && Math.abs(o.cy - b.cy) <= r) return true;
+  }
+  return false;
+};
+// ---------------------------------------------------------------------
+// Moods: jobs, transport, overall and the reproductive mood that drives births
+// ---------------------------------------------------------------------
+const cityMood = {job: 0.7, transport: 0.7, overall: 0.7, repro: 0.55};
+function jobsWanted() { let n = 0; for (const b of buildings.values()) n += BT[b.type].jobs; return n; }
+function hospitalCount() { let n = 0; for (const b of buildings.values()) if (b.type === 'hospital') n++; return n; }
+function updateMoods() {
+  let pop = 0, employed = 0;
+  for (const a of agents) { pop++; if (a.job) employed++; }
+  const want = jobsWanted();
+  const filled = want ? Math.min(1, employed / want) : 1;
+  const job = clamp(0.35 + 0.65 * filled, 0.05, 1);
+  const transport = clamp(1 - stats.ti * 0.55 - (stats.wait || 0) * 0.08, 0.05, 1);
+  const cover = Math.min(1, hospitalCount() / Math.max(1, pop / 260));
+  const overall = clamp(0.42 * job + 0.3 * transport + 0.28 * cover, 0.05, 1);
+  const repro = clamp(0.25 + 0.6 * overall + 0.15 * cover, 0.05, 1);
+  // eased, never snapped: moods should drift, and a later layer can nudge them
+  const ease = 0.22;
+  cityMood.job += (job - cityMood.job) * ease;
+  cityMood.transport += (transport - cityMood.transport) * ease;
+  cityMood.overall += (overall - cityMood.overall) * ease;
+  cityMood.repro += (repro - cityMood.repro) * ease;
+  for (const b of buildings.values()) {
+    if (!BT[b.type].homes) continue;
+    b.moodJob += (cityMood.job - b.moodJob) * ease;
+    b.moodTransport += (cityMood.transport - b.moodTransport) * ease;
+    b.moodOverall += (cityMood.overall - b.moodOverall) * ease;
+    b.moodRepro += (cityMood.repro - b.moodRepro) * ease;
+    b.mood = b.moodOverall;
+  }
+}
+// Births are capped by hospital capacity, so a growing city needs more beds.
+function birthFactor() {
+  const pop = Math.max(1, agents.length);
+  const cover = Math.min(1, hospitalCount() * 260 / pop);
+  return clamp(0.15 + 0.85 * cityMood.repro * (0.4 + 0.6 * cover), 0, 1.4);
+}
+function hourTick() {
+  let changed = null;
+  for (const b of buildings.values()) {
+    const d = BT[b.type];
+    if (!d.res) continue;
+    const i = b.y * MW + b.x;
+    if (d.res === 'oil') resources.oil += 2 + Math.round(Math.min(3, oilField[i] || 0) * 14);
+    else if (d.res === 'gas') resources.gas += 2 + Math.round(Math.min(3, gasField[i] || 0) * 12);
+    else if (d.res === 'timber') {
+      resources.timber += 3;
+      // a camp thins the jungle around it, unless greenhouses keep replanting
+      if (nearType(b, 'greenhouse', 9)) continue;
+      for (let k = 0; k < 14; k++) {
+        const x = Math.round(b.cx + (Math.random() - 0.5) * 22), y = Math.round(b.cy + (Math.random() - 0.5) * 22);
+        if (!inb(x, y)) continue;
+        const t = y * MW + x;
+        if (tree[t] && !bldAt[t]) { tree[t] = 0; changed = changed || [x, y, x, y]; }
+      }
+    }
+  }
+  for (const b of buildings.values()) {
+    if (b.type === 'quarry') resources.stone += 4;
+    if (b.type === 'mine') resources.stone += 6;
+  }
+  updateMoods();
+  if (changed) markDirty(changed[0], changed[1], changed[2] + 22, changed[3] + 22);
+}
 function minuteTick() {
   const h = (gameMin / 60) % 24, day = Math.floor(gameMin / 1440);
+  const hourNow = Math.floor(gameMin / 60);
+  weatherTick();
+  if (hourNow !== lastHourTick) { lastHourTick = hourNow; hourTick(); maybeFire(4); }
+  maybeCrash();
   for (const b of buildings.values()) {
     const d = BT[b.type];
     b.asleep = 0;
-    if (d.homes && b.residents < d.homes && (b.road >= 0 || b.walk >= 0) && Math.random() < 0.25) addAgent(b);
+    if (d.homes && b.residents < d.homes && (b.road >= 0 || b.walk >= 0) && Math.random() < 0.25 * birthFactor()) addAgent(b);
   }
   if (connections.length >= 2) {
     const f = (h >= 7 && h < 9.5) || (h >= 16 && h < 19) ? 1.6 : (h >= 6 && h < 22) ? 1 : 0.25;
@@ -547,13 +631,6 @@ function minuteTick() {
 // =====================================================================
 // Planes and boats
 // =====================================================================
-const PL_E = [[-4, 0, 0], [-3, 0, 0], [-2, 0, 0], [-1, 0, 0], [0, 0, 0], [1, 0, 0], [2, 0, 0], [3, 0, 0], [4, 0, 1],
-  [0, -1, 0], [0, -2, 0], [0, -3, 2], [0, 1, 0], [0, 2, 0], [0, 3, 2], [-1, -3, 0], [-1, 3, 0], [-4, -1, 3], [-4, 1, 3], [-3, -1, 3], [-3, 1, 3]];
-const PL_SE = [[-3, -3, 0], [-2, -2, 0], [-1, -1, 0], [0, 0, 0], [1, 1, 0], [2, 2, 0], [3, 3, 1],
-  [1, -1, 0], [2, -2, 0], [3, -3, 2], [-1, 1, 0], [-2, 2, 0], [-3, 3, 2], [-4, -3, 3], [-3, -4, 3], [-4, -4, 3]];
-const rot90 = spr => spr.map(([x, y, c]) => [-y, x, c]);
-const PLANE_SPR = [];
-for (let h = 0; h < 8; h++) { let s = h % 2 ? PL_SE : PL_E; for (let k = 0; k < (h >> 1); k++) s = rot90(s); PLANE_SPR.push(s); }
 function wrapAng(a) { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; }
 function turnToward(p, target, dt, rate = 0.9) { p.ang += clamp(wrapAng(target - p.ang), -rate * dt, rate * dt); }
 function runway(ap) { return {x0: ap.x * T + 6, x1: ap.x * T + 84, y: ap.y * T + 8.5}; }
@@ -611,17 +688,6 @@ function stepPlanes(dt) {
   }
   if (planes.some(p => p.dead)) planes = planes.filter(p => !p.dead);
 }
-function drawPlane(f, p, night) {
-  const h = ((Math.round(p.ang / (Math.PI / 4)) % 8) + 8) % 8, spr = PLANE_SPR[h];
-  const gx = Math.round(p.x), gy = Math.round(p.y);
-  if (p.alt > 0.5) { f.fillStyle = 'rgba(0,0,0,.25)'; for (const [x, y] of spr) f.fillRect(gx + x, gy + y, 1, 1); }
-  const px = Math.round(p.x - p.alt * 0.5), py = Math.round(p.y - p.alt);
-  const blink = (performance.now() / 500 | 0) % 2;
-  for (const [x, y, c] of spr) {
-    f.fillStyle = c === 3 ? '#d63a3a' : c === 1 ? '#9aa3b5' : c === 2 ? (night && blink ? (x + y > 0 ? '#3ef06b' : '#ff4848') : '#c8ccd4') : '#f4f5f7';
-    f.fillRect(px + x, py + y, 1, 1);
-  }
-}
 // Boats leave docks for a far point on the same body of water, and others sail in.
 const wStamp = new Uint32Array(N), wPrev = new Int32Array(N); let wId = 0;
 function waterTrip(start) {
@@ -653,16 +719,6 @@ function stepBoats(dt) {
     b.x = ((a % MW) + ((c % MW) - (a % MW)) * b.t) * T + 4.5; b.y = ((a / MW | 0) + ((c / MW | 0) - (a / MW | 0)) * b.t) * T + 4.5; b.d = dirOf(a, c);
   }
   if (boats.some(b => b.dead)) boats = boats.filter(b => !b.dead);
-}
-function drawBoat(f, b) {
-  if (isRoad(tileAt(b.x, b.y))) return; // passing under a bridge
-  const x = Math.round(b.x), y = Math.round(b.y), hz = b.d === 2 || b.d === 4, s = (b.d === 2 || b.d === 3) ? 1 : -1;
-  f.fillStyle = '#9fd0ff';
-  if (hz) { f.fillRect(x - 4 * s, y - 1, 1, 1); f.fillRect(x - 4 * s, y + 1, 1, 1); f.fillRect(x - 5 * s, y, 1, 1); }
-  else { f.fillRect(x - 1, y - 4 * s, 1, 1); f.fillRect(x + 1, y - 4 * s, 1, 1); f.fillRect(x, y - 5 * s, 1, 1); }
-  f.fillStyle = b.color;
-  if (hz) { f.fillRect(x - 2, y - 1, 5, 3); f.fillStyle = '#5a3a22'; f.fillRect(x + 2 * s, y, 1, 1); f.fillStyle = '#2f4f6f'; f.fillRect(x - 1, y, 2, 1); }
-  else { f.fillRect(x - 1, y - 2, 3, 5); f.fillStyle = '#5a3a22'; f.fillRect(x, y + 2 * s, 1, 1); f.fillStyle = '#2f4f6f'; f.fillRect(x, y - 1, 1, 2); }
 }
 
 // =====================================================================
@@ -713,7 +769,7 @@ function simStep(dt) {
   for (const b of buildings.values()) if (b.queue.length) { b.spawnCd -= dt; if (b.spawnCd <= 0) trySpawn(b); }
   for (const c of cars) if (!c.dead) stepCar(c, dt);
   for (const p of peds) if (!p.dead) stepPed(p, dt);
-  stepPlanes(dt); stepBoats(dt); stepBusStops(dt);
+  stepPlanes(dt); stepBoats(dt); stepBusStops(dt); stepMetros(dt); stepMetroWait(); stepIncidents(dt);
   if (cars.some(c => c.dead)) cars = cars.filter(c => !c.dead);
   if (agentsDirty) { agentsDirty = false; agents = agents.filter(a => !a.dead); recount(); }
   if (peds.some(p => p.dead)) peds = peds.filter(p => !p.dead);
