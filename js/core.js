@@ -50,6 +50,8 @@ const cmask = new Uint8Array(N);    // which neighbors a road tile connects to
 const autoOw = new Uint8Array(N);   // direction of a carriageway in a two-lane highway
 const railOn = new Uint8Array(N);   // underground metro rails the player has drawn
 const rail = new Uint8Array(N);     // their connection mask, derived from railOn on every edit
+const trackOn = new Uint8Array(N);  // surface freight tracks the player has drawn
+const track = new Uint8Array(N);    // their connection mask, derived from trackOn on every edit
 const overpass = new Uint8Array(N); // grade-separated 4-way crossing
 const freeflow = new Uint8Array(N); // junction joining only highways (merges, splits, ramps): cars zipper through
 const bldAt = new Int32Array(N);
@@ -92,8 +94,8 @@ const BT = {
   fishery:  {name:'Fishery',        cat:'work', w:2,h:2,  homes:0,  cap:3,  jobs:8,  shore:true, label:'Coastal', desc:'Boats land their catch here. Must sit on a shoreline.'},
   seafoodMarket:{name:'Seafood Market', cat:'com', w:2,h:2, homes:0, cap:9, jobs:5, shore:true, label:'Coastal', desc:'Sells the local catch. Must sit on a shoreline.'},
   seafoodPlant:{name:'Seafood Plant', cat:'work', w:3,h:2, homes:0, cap:4, jobs:14, shore:true, label:'Coastal', desc:'Processes and packs fish. Must sit on a shoreline.'},
-  oilRig:   {name:'Oil Rig',        cat:'work', w:2,h:2,  homes:0,  cap:3,  jobs:10, res:'oil', label:'Resource', desc:'Drills an oil field. Goes anywhere, but rocky ground holds 5-10x more oil.'},
-  gasWell:  {name:'Gas Well',       cat:'work', w:2,h:2,  homes:0,  cap:3,  jobs:8,  res:'gas', label:'Resource', desc:'Taps a gas field. Goes anywhere, but rocky ground holds 5-10x more gas.'},
+  oilRig:   {name:'Oil Rig',        cat:'work', w:2,h:2,  homes:0,  cap:3,  jobs:10, res:'oil', rig:true, label:'Resource', desc:'Drills an oil field. Must be within 5 blocks of a train yard; rocky ground holds 5-10x more oil.'},
+  gasWell:  {name:'Gas Well',       cat:'work', w:2,h:2,  homes:0,  cap:3,  jobs:8,  res:'gas', rig:true, label:'Resource', desc:'Taps a gas field. Must be within 5 blocks of a train yard; rocky ground holds 5-10x more gas.'},
   loggingCamp:{name:'Logging Camp', cat:'work', w:3,h:2,  homes:0,  cap:3,  jobs:9,  jungle:true, res:'timber', label:'Resource', desc:'Fells trees in the jungle. Its cut slowly thins the forest unless a greenhouse is near.'},
   greenhouse:{name:'Greenhouse',     cat:'rural',w:2,h:2,  homes:0,  cap:2,  jobs:5,  label:'Farm', desc:'Grows saplings. Slows the forest loss caused by logging camps nearby.'},
   quarry:   {name:'Quarry',         cat:'work', w:3,h:2,  homes:0,  cap:3,  jobs:12, rock:true, label:'Industry', desc:'Cuts stone and ore out of rocky ground. Feeds the higher power plants.'},
@@ -107,20 +109,24 @@ const BT = {
   hydroPlant:{name:'Hydro Dam',     cat:'work', w:3,h:3,  homes:0,  cap:4,  jobs:12, power:'hydro', shore:true, label:'Power', desc:'Turbines on a shoreline. Needs no fuel.'},
   solarPlant:{name:'Solar Farm',    cat:'work', w:3,h:2,  homes:0,  cap:4,  jobs:8,  power:'solar', label:'Power', desc:'Panels on open plains. Weak but clean.'},
   nuclearPlant:{name:'Nuclear Plant',cat:'civic',w:3,h:3, homes:0,  cap:6,  jobs:40, power:'nuclear', label:'Power', desc:'Enormous output. Needs a mine and several research labs.'},
+  port:     {name:'Cargo Port',     cat:'work', w:4,h:3,  homes:0,  cap:6,  jobs:26, shore:true, label:'Logistics', desc:'A deep-water quay. Cargo ships carry goods to other ports and islands, while trucks bring cargo in from your industries.'},
+  distribution:{name:'Distribution Terminal', cat:'work', w:3,h:3, homes:0, cap:8, jobs:18, hub:true, label:'Logistics', desc:'Sorts cargo from trucks onto trains and ships. Must be next to a port or freight track, with a street for the trucks.'},
+  railyard: {name:'Train Yard',     cat:'work', w:4,h:3,  homes:0,  cap:8,  jobs:22, rail:true, label:'Logistics', desc:'Freight trains load and unload here. It needs a freight track alongside and a street for the trucks. Oil rigs and gas wells have to be within 5 blocks of a yard.'},
 };
 const CATLABEL = {res: 'Residential', com: 'Commercial', work: 'Workplace', civic: 'Civic', lot: 'Parking', ped: 'Walk & transit'};
 const hasType = t => typeof t === 'string' && Object.prototype.hasOwnProperty.call(BT, t);
 
 const buildings = new Map();
 let nextBid = 1, nextAid = 1, nextCid = 1;
-let agents = [], cars = [], peds = [], planes = [], boats = [], metros = [], agentsDirty = false;
+let agents = [], cars = [], peds = [], planes = [], boats = [], metros = [], ships = [], freight = [], agentsDirty = false;
+let ports = [], yards = [], hubs = [];
 const metroWait = new Map();        // station id -> pedestrians waiting on the platform
 const carById = new Map();
 let simTime = 0, gameMin = 6.5 * 60, speed = 1;
 let destCom = [], destPark = [], destWork = [], stations = [], docks = [], airports = [], busStops = [];
 let stats = {trips: [], modes: [], frustrated: 0, stranded: 0, ti: 0, tiAcc: 0, tiN: 0, waitN: 0, hist: [], lastFrustToast: -1e9};
 const overlays = {heat: false, mood: true, occ: false, grid: false, sky: true, underground: false,
-  districts: true, weather: true, power: false};   // weather and power are reserved: their layers are not built yet
+  districts: true, weather: true, power: false};
 
 const B = id => buildings.get(id);
 const inb = (x, y) => x >= 0 && y >= 0 && x < MW && y < MH;
@@ -168,7 +174,7 @@ const NULLC = {fillStyle: '', fillRect() {}};  // lets building art be measured 
 // latitude (snow grows toward the north), moisture and a rock field.
 function genTerrainInto(seed, wArr, tArr) {
   wArr.fill(0); tArr.fill(0); biome.fill(0);
-  const islandCount = 2 + (seed % 3);
+  const islandCount = 3 + (seed % 2);              // 3 or 4 islands: a little more land than before
   const cxM = MW * 0.5, cyM = MH * 0.5, rxM = MW * 0.33, ryM = MH * 0.36;
   // the mainland alone first, so islands can be placed in open water
   const mainOnly = new Uint8Array(N);
@@ -176,23 +182,37 @@ function genTerrainInto(seed, wArr, tArr) {
     const coast = (vnoise(x / 18, y / 18, seed + 8) - 0.5) * 0.7;
     mainOnly[y * MW + x] = Math.hypot((x - cxM) / rxM, (y - cyM) / ryM) + coast < 1 ? 0 : 1;
   }
+  const isles = [];
   const allWater = (cx, cy, r) => {
     if (cx - r < 0 || cy - r < 0 || cx + r > MW - 1 || cy + r > MH - 1) return false;
+    for (const s of isles) if (Math.hypot(cx - s.x, cy - s.y) < r + s.r + 4) return false;
     for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++)
       for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++)
         if (!mainOnly[y * MW + x]) return false;
     return true;
   };
-  const isles = [];
-  for (let k = 0; k < islandCount; k++) {
-    const r = 28 + 12 * hash(k, 3, seed), base = (k / islandCount) * Math.PI * 2 + 0.6 * hash(k, 1, seed);
-    let spot = null;
-    for (let d = 0; d <= 0.8 && !spot; d += 0.05) {
-      for (const a of [0, 0.35, -0.35, 0.7, -0.7]) {
-        const ang = base + a, reach = (1 + d) * (rxM + r + 14);
-        const cx = Math.round(cxM + Math.cos(ang) * reach), cy = Math.round(cyM + Math.sin(ang) * reach);
-        if (allWater(cx, cy, r + 4)) { spot = {x: cx, y: cy, r}; break; }
+  // Search a band of water for a free disc. Deterministic from the seed.
+  const placeIsland = (yLo, yHi, k) => {
+    for (let r = 32; r >= 20; r -= 2) {
+      for (let cy = yLo + r + 4; cy <= yHi - r - 4; cy += 4) {
+        for (let cx = r + 4 + ((k * 29) % 11); cx <= MW - r - 4; cx += 6) {
+          if (allWater(cx, cy, r + 3)) { isles.push({x: cx, y: cy, r}); return true; }
+        }
       }
+    }
+    return false;
+  };
+  // Every region gets one island in the north half and one in the south half.
+  placeIsland(0, Math.floor(MH * 0.5), 0);
+  placeIsland(Math.ceil(MH * 0.5), MH, 1);
+  // The rest go wherever open water allows, so the count is always 3 or 4.
+  for (let k = 2; k < islandCount; k++) {
+    const r = 20 + Math.round(14 * hash(k, 7, seed));
+    let spot = null;
+    for (let tries = 0; tries < 600 && !spot; tries++) {
+      const cx = r + 4 + Math.round(hash(tries, k, seed + 11) * (MW - 2 * r - 8));
+      const cy = r + 4 + Math.round(hash(tries, k + 5, seed + 12) * (MH - 2 * r - 8));
+      if (allWater(cx, cy, r + 3)) spot = {x: cx, y: cy, r};
     }
     if (spot) isles.push(spot);
   }
@@ -207,16 +227,38 @@ function genTerrainInto(seed, wArr, tArr) {
       if (d < 0.62 || d + coast * 0.45 < 1) land = true;   // solid core: an island never splits
     }
     if (!land) { wArr[i] = 1; continue; }
-    const t = y / MH, moist = vnoise(x / 25, y / 25, seed + 5), rock = vnoise(x / 12, y / 12, seed + 6);
-    const cold = (1 - t) * 0.95 + (vnoise(x / 30, y / 30, seed + 9) - 0.5) * 0.18;
+    // Wide, slow fields: biomes come in large regions and switch far less often.
+    const t = y / MH, moist = vnoise(x / 64, y / 64, seed + 5), rock = vnoise(x / 38, y / 38, seed + 6);
+    const cold = (1 - t) * 0.95 + (vnoise(x / 74, y / 74, seed + 9) - 0.5) * 0.18;
     let b = 1;
-    if (cold > 0.66) b = 4;
-    else if (rock > 0.64) b = 5;
-    else if (moist > 0.58) b = 2;
-    else if (moist < 0.3) b = 3;
+    if (cold > 0.68) b = 4;
+    else if (rock > 0.63) b = 5;
+    else if (moist > 0.6) b = 2;
+    else if (moist < 0.33) b = 3;
     biome[i] = b;
     const dens = b === 2 ? 0.55 : b === 1 ? 0.16 : b === 5 ? 0.06 : 0;
     if (dens && hash(x, y, seed + 3) < dens) tArr[i] = 1 + Math.floor(hash(x, y, seed + 4) * 4);
+  }
+  // Two majority passes remove single-tile specks, so each biome is one broad
+  // patch instead of a checkerboard.
+  for (let pass = 0; pass < 2; pass++) {
+    const src = biome.slice();
+    for (let y = 1; y < MH - 1; y++) for (let x = 1; x < MW - 1; x++) {
+      const i = y * MW + x;
+      if (wArr[i]) continue;
+      const cnt = [0, 0, 0, 0, 0, 0];
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) cnt[src[i + dy * MW + dx]]++;
+      let best = 1;
+      for (let b = 2; b <= 5; b++) if (cnt[b] > cnt[best]) best = b;
+      if (cnt[best] >= 6) biome[i] = best;
+    }
+  }
+  // Trees follow the smoothed map, so jungle trees only grow in the jungle.
+  tArr.fill(0);
+  for (let i = 0; i < N; i++) {
+    if (wArr[i]) continue;
+    const b = biome[i], dens = b === 2 ? 0.55 : b === 1 ? 0.16 : b === 5 ? 0.06 : 0;
+    if (dens && hash(i % MW, i / MW | 0, seed + 3) < dens) tArr[i] = 1 + Math.floor(hash(i % MW, i / MW | 0, seed + 4) * 4);
   }
   // Resource fields: perlin-ish noise, far richer under rock.
   for (let i = 0; i < N; i++) {

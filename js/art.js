@@ -63,15 +63,9 @@ function wetMask(type, wet) {
   return k;
 }
 
-// New building kinds borrow the nearest existing texture of the same footprint
-// until they get their own art. Seeds still give each one its own palette.
-const BUILDING_TEX = {
-  fishery: 'office', seafoodMarket: 'market', seafoodPlant: 'warehouse',
-  oilRig: 'office', gasWell: 'garage', loggingCamp: 'factory', greenhouse: 'orchard',
-  fireStation: 'school', policeStation: 'market', researchLab: 'office',
-  powerPlant: 'factory', woodPlant: 'factory', coalPlant: 'factory', gasPlant: 'factory',
-  hydroPlant: 'warehouse', solarPlant: 'garage', nuclearPlant: 'hq', quarry: 'warehouse', mine: 'factory',
-};
+// Every building type has its own texture in buildings.texture; this table is
+// only for any future kind that has to borrow art until its sprite is drawn.
+const BUILDING_TEX = {};
 const buildingTex = type => BUILDING_TEX[type] || type;
 
 function drawBuilding(c, type, ox, oy, seed, wet) {
@@ -111,6 +105,21 @@ function drawBoat(c, b) {
   TEX.draw(c, 'vehicles', tex, Math.round(b.x) - ax, Math.round(b.y) - ay, { color: b.color });
 }
 
+const SHIP_AT = {1: ['ship_n', 2, 6], 2: ['ship_e', 6, 2], 3: ['ship_s', 2, 6], 4: ['ship_w', 6, 2]};
+function drawShip(c, s) {
+  const [tex, ax, ay] = SHIP_AT[s.d] || SHIP_AT[2];
+  TEX.draw(c, 'vehicles', tex, Math.round(s.x) - ax, Math.round(s.y) - ay, {color: s.color});
+}
+
+function drawTruck(c, x, y, horiz, col) {
+  TEX.draw(c, 'vehicles', horiz ? 'truck_h' : 'truck_v', x, y, {color: col});
+}
+
+function drawFreightCar(c, x, y, horiz, kind) {
+  const col = kind === 'passenger' ? '#4d96ff' : kind === 'liquid' ? '#b8c4cc' : kind === 'gas' ? '#e8a23a' : '#9a6b45';
+  TEX.draw(c, 'vehicles', horiz ? 'wagon_h' : 'wagon_v', x, y, {kind, color: col});
+}
+
 function drawPlane(c, p, night) {
   const h = ((Math.round(p.ang / (Math.PI / 4)) % 8) + 8) % 8;
   const gx = Math.round(p.x), gy = Math.round(p.y);
@@ -130,6 +139,16 @@ function drawPlane(c, p, night) {
 // ---------------------------------------------------------------------
 function drawRailTile(c, x0, y0, m, kind) {
   TEX.draw(c, 'underground', kind, x0, y0, { m });
+}
+
+// Surface freight track. Over water it gets a timber bridge deck first; over
+// a street the ballast sits on the asphalt as a level crossing.
+function drawTrackTile(c, x0, y0, m, wet) {
+  if (wet) {
+    c.fillStyle = '#8b6a43'; c.fillRect(x0, y0, T, T);
+    c.fillStyle = '#6e5233'; c.fillRect(x0, y0, T, 1); c.fillRect(x0, y0 + T - 1, T, 1);
+  }
+  TEX.draw(c, 'rails', 'track', x0, y0, { m });
 }
 
 function drawStationPad(c, x0, y0) {

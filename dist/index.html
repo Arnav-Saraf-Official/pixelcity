@@ -72,7 +72,10 @@ body.region #side,body.region #bottom,body.region #inspector,body.region #cong,b
    needed to clear the zoom panel, which --zoomw / --bshift are measured for in
    js/ui.js. The max-width keeps it out from under those controls at any width. */
 #bottom{position:fixed;left:50%;bottom:calc(10px + var(--sb));transform:translateX(calc(-50% + var(--bshift,0px)));display:flex;flex-direction:column;align-items:center;gap:8px;max-width:calc(100vw - 28px - var(--zoomw,0px));z-index:5}
-#flyout{display:flex;gap:6px;padding:6px;overflow-x:auto;max-width:100%}
+#flyout{display:flex;gap:8px;padding:6px;overflow-x:auto;max-width:100%;align-items:flex-start}
+#flyout .fgroup{display:flex;flex-direction:column;gap:2px;flex:none}
+#flyout .fgroup>small{color:var(--dim);font-size:13px;letter-spacing:1px;padding:0 4px;text-transform:uppercase;white-space:nowrap}
+#flyout .frow{display:flex;gap:6px}
 .card{width:86px;flex:none;padding:4px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:17px;line-height:1}
 .card canvas{width:54px;height:54px;image-rendering:pixelated}
 .card small{color:var(--dim);font-size:14px}
@@ -268,6 +271,9 @@ body.menu-screen #top,body.menu-screen #menu,body.menu-screen #side,body.menu-sc
   <div class="row"><span>Planes · boats</span><span id="gAir">0 · 0</span></div>
   <div class="row"><span>Buses · transit riders</span><span id="gTransit">0 · 0</span></div>
   <div class="row"><span>Trains · riders</span><span id="gMetro">0 · 0</span></div>
+  <div class="row"><span>Trucks · deliveries</span><span id="gCargo">0 · 0</span></div>
+  <div class="row"><span>Freight trains · cars</span><span id="gFreight">0 · 0 cars</span></div>
+  <div class="row"><span>Ships · ports</span><span id="gShips">0 · 0</span></div>
   <div class="row"><span>City mood</span><span id="gMoodCity">-</span></div>
   <div class="row"><span>Fires · crashes</span><span id="gIncidents">0 · 0 out</span></div>
   <h4 style="margin-top:8px">HOW PEOPLE TRAVEL</h4>
@@ -356,12 +362,13 @@ body.menu-screen #top,body.menu-screen #menu,body.menu-screen #side,body.menu-sc
     <li><b>Buildings</b> need a road next to them. Click to place, or drag to paint rows of houses. Docks go on a shore, half over the water.</li>
     <li><b>Parking:</b> offices and shops have fewer spaces than visitors. Full lots send drivers circling to a Parking Lot or Garage, or home unhappy.</li>
     <li><b>Walking:</b> sidewalks, footpaths, plazas and parks let people walk short trips. <b>Metro stations</b> take longer trips off the road, but a station is only useful once you draw <b>Metro Rails</b> (Metro tab) between it and another station.</li>
+    <li><b>Freight:</b> farms, quarries, fisheries and rigs load their goods onto <b>trucks</b> at the kerb. Draw surface <b>Freight Track</b> (Transit tab, <kbd>I</kbd>) between <b>Train Yards</b>; each train carries 12-18 cars in runs of three, mixing passengers, materials, liquids and gas. <b>Cargo Ports</b> send ships to other ports and islands, and <b>Distribution Terminals</b> sort truck cargo onto trains and quays. Oil and gas buildings must sit within 5 blocks of a train yard.</li>
     <li><b>Region:</b> nine connected districts, all simulated at once. Zoom out past a whole district to see them all, then click one to build there. Cars, boats and planes travel across all of them.</li>
     <li>Turn on <b>Congestion</b> to see jams as a green-to-red gradient. <b>Underground</b> strips the surface away and shows the metro network: rails, junction blocks where lines meet, reversing blocks where a train can turn back, and the trains themselves. <b>Save &amp; share</b> in the menu makes a save file or a share code.</li>
   </ul>
   <p><kbd>Wheel</kbd> or <kbd>+ −</kbd> zoom · <kbd>Z</kbd> district · <kbd>Shift</kbd>, <kbd>Right</kbd> or <kbd>Middle</kbd> drag, or <kbd>WASD</kbd> to pan · <kbd>Esc</kbd> cancel · <kbd>P</kbd> pause · <kbd>1 2 3</kbd> speed<br>
   <kbd>X</kbd> select, then <kbd>Ctrl+C</kbd> <kbd>Ctrl+X</kbd> <kbd>Ctrl+V</kbd> <kbd>Del</kbd> · <kbd>Ctrl+S</kbd> quick save<br>
-  <kbd>Q</kbd> inspect · <kbd>B</kbd> bulldoze · <kbd>R</kbd> street · <kbd>K</kbd> country road · <kbd>J</kbd> sidewalks · <kbd>O</kbd> one-way · <kbd>H</kbd> highway · <kbd>U</kbd> overpass · <kbd>L</kbd> light · <kbd>F</kbd> footpath · <kbd>T</kbd> metro rails · <kbd>V</kbd> congestion · <kbd>M</kbd> moods · <kbd>N</kbd> underground · <kbd>Y</kbd> sky</p>
+  <kbd>Q</kbd> inspect · <kbd>B</kbd> bulldoze · <kbd>R</kbd> street · <kbd>K</kbd> country road · <kbd>J</kbd> sidewalks · <kbd>O</kbd> one-way · <kbd>H</kbd> highway · <kbd>U</kbd> overpass · <kbd>L</kbd> light · <kbd>F</kbd> footpath · <kbd>T</kbd> metro rails · <kbd>I</kbd> freight track · <kbd>V</kbd> congestion · <kbd>M</kbd> moods · <kbd>N</kbd> underground · <kbd>Y</kbd> sky</p>
   <div class="btns"><button id="helpClose" class="on">Start building</button></div>
 </div>
 
@@ -529,6 +536,8 @@ const cmask = new Uint8Array(N);    // which neighbors a road tile connects to
 const autoOw = new Uint8Array(N);   // direction of a carriageway in a two-lane highway
 const railOn = new Uint8Array(N);   // underground metro rails the player has drawn
 const rail = new Uint8Array(N);     // their connection mask, derived from railOn on every edit
+const trackOn = new Uint8Array(N);  // surface freight tracks the player has drawn
+const track = new Uint8Array(N);    // their connection mask, derived from trackOn on every edit
 const overpass = new Uint8Array(N); // grade-separated 4-way crossing
 const freeflow = new Uint8Array(N); // junction joining only highways (merges, splits, ramps): cars zipper through
 const bldAt = new Int32Array(N);
@@ -571,8 +580,8 @@ const BT = {
   fishery:  {name:'Fishery',        cat:'work', w:2,h:2,  homes:0,  cap:3,  jobs:8,  shore:true, label:'Coastal', desc:'Boats land their catch here. Must sit on a shoreline.'},
   seafoodMarket:{name:'Seafood Market', cat:'com', w:2,h:2, homes:0, cap:9, jobs:5, shore:true, label:'Coastal', desc:'Sells the local catch. Must sit on a shoreline.'},
   seafoodPlant:{name:'Seafood Plant', cat:'work', w:3,h:2, homes:0, cap:4, jobs:14, shore:true, label:'Coastal', desc:'Processes and packs fish. Must sit on a shoreline.'},
-  oilRig:   {name:'Oil Rig',        cat:'work', w:2,h:2,  homes:0,  cap:3,  jobs:10, res:'oil', label:'Resource', desc:'Drills an oil field. Goes anywhere, but rocky ground holds 5-10x more oil.'},
-  gasWell:  {name:'Gas Well',       cat:'work', w:2,h:2,  homes:0,  cap:3,  jobs:8,  res:'gas', label:'Resource', desc:'Taps a gas field. Goes anywhere, but rocky ground holds 5-10x more gas.'},
+  oilRig:   {name:'Oil Rig',        cat:'work', w:2,h:2,  homes:0,  cap:3,  jobs:10, res:'oil', rig:true, label:'Resource', desc:'Drills an oil field. Must be within 5 blocks of a train yard; rocky ground holds 5-10x more oil.'},
+  gasWell:  {name:'Gas Well',       cat:'work', w:2,h:2,  homes:0,  cap:3,  jobs:8,  res:'gas', rig:true, label:'Resource', desc:'Taps a gas field. Must be within 5 blocks of a train yard; rocky ground holds 5-10x more gas.'},
   loggingCamp:{name:'Logging Camp', cat:'work', w:3,h:2,  homes:0,  cap:3,  jobs:9,  jungle:true, res:'timber', label:'Resource', desc:'Fells trees in the jungle. Its cut slowly thins the forest unless a greenhouse is near.'},
   greenhouse:{name:'Greenhouse',     cat:'rural',w:2,h:2,  homes:0,  cap:2,  jobs:5,  label:'Farm', desc:'Grows saplings. Slows the forest loss caused by logging camps nearby.'},
   quarry:   {name:'Quarry',         cat:'work', w:3,h:2,  homes:0,  cap:3,  jobs:12, rock:true, label:'Industry', desc:'Cuts stone and ore out of rocky ground. Feeds the higher power plants.'},
@@ -586,20 +595,24 @@ const BT = {
   hydroPlant:{name:'Hydro Dam',     cat:'work', w:3,h:3,  homes:0,  cap:4,  jobs:12, power:'hydro', shore:true, label:'Power', desc:'Turbines on a shoreline. Needs no fuel.'},
   solarPlant:{name:'Solar Farm',    cat:'work', w:3,h:2,  homes:0,  cap:4,  jobs:8,  power:'solar', label:'Power', desc:'Panels on open plains. Weak but clean.'},
   nuclearPlant:{name:'Nuclear Plant',cat:'civic',w:3,h:3, homes:0,  cap:6,  jobs:40, power:'nuclear', label:'Power', desc:'Enormous output. Needs a mine and several research labs.'},
+  port:     {name:'Cargo Port',     cat:'work', w:4,h:3,  homes:0,  cap:6,  jobs:26, shore:true, label:'Logistics', desc:'A deep-water quay. Cargo ships carry goods to other ports and islands, while trucks bring cargo in from your industries.'},
+  distribution:{name:'Distribution Terminal', cat:'work', w:3,h:3, homes:0, cap:8, jobs:18, hub:true, label:'Logistics', desc:'Sorts cargo from trucks onto trains and ships. Must be next to a port or freight track, with a street for the trucks.'},
+  railyard: {name:'Train Yard',     cat:'work', w:4,h:3,  homes:0,  cap:8,  jobs:22, rail:true, label:'Logistics', desc:'Freight trains load and unload here. It needs a freight track alongside and a street for the trucks. Oil rigs and gas wells have to be within 5 blocks of a yard.'},
 };
 const CATLABEL = {res: 'Residential', com: 'Commercial', work: 'Workplace', civic: 'Civic', lot: 'Parking', ped: 'Walk & transit'};
 const hasType = t => typeof t === 'string' && Object.prototype.hasOwnProperty.call(BT, t);
 
 const buildings = new Map();
 let nextBid = 1, nextAid = 1, nextCid = 1;
-let agents = [], cars = [], peds = [], planes = [], boats = [], metros = [], agentsDirty = false;
+let agents = [], cars = [], peds = [], planes = [], boats = [], metros = [], ships = [], freight = [], agentsDirty = false;
+let ports = [], yards = [], hubs = [];
 const metroWait = new Map();        // station id -> pedestrians waiting on the platform
 const carById = new Map();
 let simTime = 0, gameMin = 6.5 * 60, speed = 1;
 let destCom = [], destPark = [], destWork = [], stations = [], docks = [], airports = [], busStops = [];
 let stats = {trips: [], modes: [], frustrated: 0, stranded: 0, ti: 0, tiAcc: 0, tiN: 0, waitN: 0, hist: [], lastFrustToast: -1e9};
 const overlays = {heat: false, mood: true, occ: false, grid: false, sky: true, underground: false,
-  districts: true, weather: true, power: false};   // weather and power are reserved: their layers are not built yet
+  districts: true, weather: true, power: false};
 
 const B = id => buildings.get(id);
 const inb = (x, y) => x >= 0 && y >= 0 && x < MW && y < MH;
@@ -647,7 +660,7 @@ const NULLC = {fillStyle: '', fillRect() {}};  // lets building art be measured 
 // latitude (snow grows toward the north), moisture and a rock field.
 function genTerrainInto(seed, wArr, tArr) {
   wArr.fill(0); tArr.fill(0); biome.fill(0);
-  const islandCount = 2 + (seed % 3);
+  const islandCount = 3 + (seed % 2);              // 3 or 4 islands: a little more land than before
   const cxM = MW * 0.5, cyM = MH * 0.5, rxM = MW * 0.33, ryM = MH * 0.36;
   // the mainland alone first, so islands can be placed in open water
   const mainOnly = new Uint8Array(N);
@@ -655,23 +668,37 @@ function genTerrainInto(seed, wArr, tArr) {
     const coast = (vnoise(x / 18, y / 18, seed + 8) - 0.5) * 0.7;
     mainOnly[y * MW + x] = Math.hypot((x - cxM) / rxM, (y - cyM) / ryM) + coast < 1 ? 0 : 1;
   }
+  const isles = [];
   const allWater = (cx, cy, r) => {
     if (cx - r < 0 || cy - r < 0 || cx + r > MW - 1 || cy + r > MH - 1) return false;
+    for (const s of isles) if (Math.hypot(cx - s.x, cy - s.y) < r + s.r + 4) return false;
     for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++)
       for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++)
         if (!mainOnly[y * MW + x]) return false;
     return true;
   };
-  const isles = [];
-  for (let k = 0; k < islandCount; k++) {
-    const r = 28 + 12 * hash(k, 3, seed), base = (k / islandCount) * Math.PI * 2 + 0.6 * hash(k, 1, seed);
-    let spot = null;
-    for (let d = 0; d <= 0.8 && !spot; d += 0.05) {
-      for (const a of [0, 0.35, -0.35, 0.7, -0.7]) {
-        const ang = base + a, reach = (1 + d) * (rxM + r + 14);
-        const cx = Math.round(cxM + Math.cos(ang) * reach), cy = Math.round(cyM + Math.sin(ang) * reach);
-        if (allWater(cx, cy, r + 4)) { spot = {x: cx, y: cy, r}; break; }
+  // Search a band of water for a free disc. Deterministic from the seed.
+  const placeIsland = (yLo, yHi, k) => {
+    for (let r = 32; r >= 20; r -= 2) {
+      for (let cy = yLo + r + 4; cy <= yHi - r - 4; cy += 4) {
+        for (let cx = r + 4 + ((k * 29) % 11); cx <= MW - r - 4; cx += 6) {
+          if (allWater(cx, cy, r + 3)) { isles.push({x: cx, y: cy, r}); return true; }
+        }
       }
+    }
+    return false;
+  };
+  // Every region gets one island in the north half and one in the south half.
+  placeIsland(0, Math.floor(MH * 0.5), 0);
+  placeIsland(Math.ceil(MH * 0.5), MH, 1);
+  // The rest go wherever open water allows, so the count is always 3 or 4.
+  for (let k = 2; k < islandCount; k++) {
+    const r = 20 + Math.round(14 * hash(k, 7, seed));
+    let spot = null;
+    for (let tries = 0; tries < 600 && !spot; tries++) {
+      const cx = r + 4 + Math.round(hash(tries, k, seed + 11) * (MW - 2 * r - 8));
+      const cy = r + 4 + Math.round(hash(tries, k + 5, seed + 12) * (MH - 2 * r - 8));
+      if (allWater(cx, cy, r + 3)) spot = {x: cx, y: cy, r};
     }
     if (spot) isles.push(spot);
   }
@@ -686,16 +713,38 @@ function genTerrainInto(seed, wArr, tArr) {
       if (d < 0.62 || d + coast * 0.45 < 1) land = true;   // solid core: an island never splits
     }
     if (!land) { wArr[i] = 1; continue; }
-    const t = y / MH, moist = vnoise(x / 25, y / 25, seed + 5), rock = vnoise(x / 12, y / 12, seed + 6);
-    const cold = (1 - t) * 0.95 + (vnoise(x / 30, y / 30, seed + 9) - 0.5) * 0.18;
+    // Wide, slow fields: biomes come in large regions and switch far less often.
+    const t = y / MH, moist = vnoise(x / 64, y / 64, seed + 5), rock = vnoise(x / 38, y / 38, seed + 6);
+    const cold = (1 - t) * 0.95 + (vnoise(x / 74, y / 74, seed + 9) - 0.5) * 0.18;
     let b = 1;
-    if (cold > 0.66) b = 4;
-    else if (rock > 0.64) b = 5;
-    else if (moist > 0.58) b = 2;
-    else if (moist < 0.3) b = 3;
+    if (cold > 0.68) b = 4;
+    else if (rock > 0.63) b = 5;
+    else if (moist > 0.6) b = 2;
+    else if (moist < 0.33) b = 3;
     biome[i] = b;
     const dens = b === 2 ? 0.55 : b === 1 ? 0.16 : b === 5 ? 0.06 : 0;
     if (dens && hash(x, y, seed + 3) < dens) tArr[i] = 1 + Math.floor(hash(x, y, seed + 4) * 4);
+  }
+  // Two majority passes remove single-tile specks, so each biome is one broad
+  // patch instead of a checkerboard.
+  for (let pass = 0; pass < 2; pass++) {
+    const src = biome.slice();
+    for (let y = 1; y < MH - 1; y++) for (let x = 1; x < MW - 1; x++) {
+      const i = y * MW + x;
+      if (wArr[i]) continue;
+      const cnt = [0, 0, 0, 0, 0, 0];
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) cnt[src[i + dy * MW + dx]]++;
+      let best = 1;
+      for (let b = 2; b <= 5; b++) if (cnt[b] > cnt[best]) best = b;
+      if (cnt[best] >= 6) biome[i] = best;
+    }
+  }
+  // Trees follow the smoothed map, so jungle trees only grow in the jungle.
+  tArr.fill(0);
+  for (let i = 0; i < N; i++) {
+    if (wArr[i]) continue;
+    const b = biome[i], dens = b === 2 ? 0.55 : b === 1 ? 0.16 : b === 5 ? 0.06 : 0;
+    if (dens && hash(i % MW, i / MW | 0, seed + 3) < dens) tArr[i] = 1 + Math.floor(hash(i % MW, i / MW | 0, seed + 4) * 4);
   }
   // Resource fields: perlin-ish noise, far richer under rock.
   for (let i = 0; i < N; i++) {
@@ -1341,7 +1390,7 @@ function genTerrainInto(seed, wArr, tArr) {
 // GENERATED by scripts/textures.mjs — do not edit.
 // Source: textures/*.texture. Run `npm run textures` after changing them.
 TEX.defineImages({});
-TEX.define({"buildings":{"format":"texture/1","name":"buildings","tile":9,"defs":{"roofs":["#c0504d","#d2763a","#8e5ea2","#4f7cac","#5f8f3a","#b5651d","#a83f5f","#3f7f7f"],"walls":["#efe3c8","#e6d3b3","#dcd6d0","#f3efe6","#d9c3a5"],"grey":"#6f727a"},"textures":{"house":{"size":[9,9],"params":{"seed":0,"wet":null,"roof":["pick",["def","roofs"],["rnd"]],"wall":["pick",["def","walls"],["rnd"]]},"ops":[{"op":"rect","x":0,"y":0,"w":9,"h":9,"color":"#68ad52"},{"op":"rect","x":1,"y":1,"w":7,"h":3,"color":["param","roof"]},{"op":"rect","x":2,"y":1,"w":5,"h":1,"color":["shade",["param","roof"],28]},{"op":"rect","x":1,"y":3,"w":7,"h":1,"color":["shade",["param","roof"],-35]},{"op":"rect","x":1,"y":4,"w":7,"h":3,"color":["param","wall"]},{"op":"rect","x":4,"y":5,"w":1,"h":2,"color":"#6b4423"},{"op":"win","x":2,"y":5},{"op":"win","x":6,"y":5},{"op":"if","test":["<",["rnd"],0.6],"then":[{"op":"rect","x":6,"y":0,"w":1,"h":2,"color":"#7a4a3a"}]},{"op":"rect","x":0,"y":7,"w":9,"h":2,"color":"#8c8f96"},{"op":"park","x":1,"y":7,"v":0},{"op":"park","x":5,"y":7,"v":0},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"farmhouse":{"size":[9,9],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":9,"h":9,"color":"#7fb35a"},{"op":"each","as":"x","in":[0,2,4,6,8],"ops":[{"op":"pixel","x":["var","x"],"y":0,"color":"#c9a66b"},{"op":"pixel","x":0,"y":["var","x"],"color":"#c9a66b"}]},{"op":"rect","x":2,"y":1,"w":6,"h":2,"color":"#8b3a2e"},{"op":"rect","x":3,"y":1,"w":4,"h":1,"color":"#a8483a"},{"op":"rect","x":2,"y":3,"w":6,"h":3,"color":"#f0e2c0"},{"op":"rect","x":4,"y":4,"w":1,"h":2,"color":"#5a3a22"},{"op":"win","x":3,"y":4},{"op":"win","x":6,"y":4},{"op":"win","x":3,"y":3},{"op":"rect","x":1,"y":7,"w":3,"h":1,"color":"#5a8f3a"},{"op":"pixel","x":1,"y":7,"color":"#e05a3a"},{"op":"pixel","x":3,"y":7,"color":"#e0c03a"},{"op":"rect","x":5,"y":6,"w":3,"h":3,"color":"#a8946e"},{"op":"park","x":5,"y":6,"v":1},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"apartment":{"size":[18,18],"params":{"seed":0,"wet":null,"wall":["pick",["#c9b79c","#b8c4d0","#d8c8b8","#c7a98f","#a9b7a0"],["rnd"]]},"ops":[{"op":"rect","x":0,"y":0,"w":18,"h":18,"color":"#68ad52"},{"op":"rect","x":1,"y":1,"w":16,"h":12,"color":["param","wall"]},{"op":"rect","x":1,"y":1,"w":16,"h":2,"color":["shade",["param","wall"],-45]},{"op":"rect","x":3,"y":1,"w":2,"h":1,"color":"#8f9aa3"},{"op":"rect","x":12,"y":1,"w":3,"h":1,"color":"#8f9aa3"},{"op":"rect","x":1,"y":12,"w":16,"h":1,"color":["shade",["param","wall"],-25]},{"op":"each","as":"y","in":[4,6,8,10],"ops":[{"op":"each","as":"x","in":[3,5,7,10,12,14],"ops":[{"op":"win","x":["var","x"],"y":["var","y"]}]}]},{"op":"rect","x":8,"y":10,"w":2,"h":3,"color":"#5a3a22"},{"op":"rect","x":0,"y":13,"w":18,"h":5,"color":"#6f727a"},{"op":"each","as":"y","in":[14,16],"ops":[{"op":"each","as":"x","in":[1,5,10,14],"ops":[{"op":"park","x":["var","x"],"y":["var","y"],"v":0}]}]},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"tower":{"size":[27,27],"params":{"seed":0,"wet":null,"wall":["pick",["#9db0c4","#b6a6c9","#a7b9a2","#c4b29a"],["rnd"]]},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":27,"color":"#68ad52"},{"op":"rect","x":2,"y":1,"w":23,"h":19,"color":["param","wall"]},{"op":"rect","x":2,"y":1,"w":23,"h":2,"color":["shade",["param","wall"],-50]},{"op":"rect","x":2,"y":19,"w":23,"h":1,"color":["shade",["param","wall"],-30]},{"op":"pixel","x":13,"y":1,"color":"#e0e0e0"},{"op":"each","as":"y","in":[4,6,8,10,12,14,16],"ops":[{"op":"each","as":"x","in":[4,6,8,10,12,14,16,18,20,22],"ops":[{"op":"win","x":["var","x"],"y":["var","y"]}]}]},{"op":"rect","x":12,"y":17,"w":3,"h":3,"color":"#3a2a1a"},{"op":"rect","x":0,"y":21,"w":27,"h":6,"color":"#6f727a"},{"op":"each","as":"y","in":[22,24],"ops":[{"op":"each","as":"x","in":[1,5,9,13,17,21],"ops":[{"op":"park","x":["var","x"],"y":["var","y"],"v":0}]}]},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"shop":{"size":[9,9],"params":{"seed":0,"wet":null,"wall":["pick",["#f0e6d2","#e2d6c2","#f4ecec"],["rnd"]],"awn":["pick",["#d9534f","#3e8ed0","#3bb273","#e69a2e","#9b59b6"],["rnd"]]},"ops":[{"op":"rect","x":0,"y":0,"w":9,"h":9,"color":"#c9c2b0"},{"op":"rect","x":1,"y":1,"w":7,"h":5,"color":["param","wall"]},{"op":"rect","x":1,"y":1,"w":7,"h":1,"color":["shade",["param","awn"],-30]},{"op":"repeat","as":"k","times":7,"ops":[{"op":"pixel","x":["+",["var","k"],1],"y":3,"color":["if",["mod",["+",["var","k"],1],2],["param","awn"],"#ffffff"]}]},{"op":"win","x":2,"y":4},{"op":"win","x":6,"y":4},{"op":"rect","x":4,"y":4,"w":1,"h":2,"color":"#6b4423"},{"op":"rect","x":0,"y":6,"w":9,"h":3,"color":"#7a7d84"},{"op":"park","x":0,"y":7,"v":0},{"op":"park","x":3,"y":7,"v":0},{"op":"park","x":6,"y":7,"v":0},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"market":{"size":[18,18],"params":{"seed":0,"wet":null,"sign":["pick",["#d9534f","#2f8f4f","#e69a2e","#3e6fd0"],["rnd"]]},"ops":[{"op":"rect","x":0,"y":0,"w":18,"h":18,"color":"#6f727a"},{"op":"rect","x":1,"y":1,"w":16,"h":9,"color":"#e8e2d2"},{"op":"rect","x":1,"y":1,"w":16,"h":1,"color":"#bdb5a2"},{"op":"rect","x":4,"y":2,"w":10,"h":3,"color":["param","sign"]},{"op":"rect","x":5,"y":3,"w":8,"h":1,"color":"#ffffff"},{"op":"each","as":"x","in":[2,4,6,11,13,15],"ops":[{"op":"win","x":["var","x"],"y":7}]},{"op":"rect","x":8,"y":7,"w":2,"h":3,"color":"#4c5566"},{"op":"each","as":"y","in":[11,14],"ops":[{"op":"each","as":"x","in":[1,5,10,14],"ops":[{"op":"park","x":["var","x"],"y":["var","y"],"v":0}]}]},{"op":"rect","x":0,"y":17,"w":18,"h":1,"color":"#5f6168"},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"mall":{"size":[27,27],"params":{"seed":0,"wet":null,"sign":["pick",["#c0392b","#8e44ad","#16a085","#d35400"],["rnd"]]},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":27,"color":"#6f727a"},{"op":"rect","x":1,"y":1,"w":25,"h":14,"color":"#d9d4e6"},{"op":"rect","x":1,"y":1,"w":25,"h":1,"color":"#a9a3bb"},{"op":"rect","x":1,"y":14,"w":25,"h":1,"color":"#b3adc4"},{"op":"each","as":"k","in":[0,1,2,3,4],"ops":[{"op":"rect","x":["+",["*",["var","k"],4],4],"y":3,"w":2,"h":5,"color":"#8fd3ff"}]},{"op":"rect","x":9,"y":9,"w":9,"h":2,"color":["param","sign"]},{"op":"rect","x":10,"y":9,"w":7,"h":1,"color":["shade",["param","sign"],50]},{"op":"each","as":"x","in":[3,5,7,19,21,23],"ops":[{"op":"win","x":["var","x"],"y":12}]},{"op":"rect","x":12,"y":12,"w":3,"h":3,"color":"#3c4250"},{"op":"each","as":"y","in":[17,20,23],"ops":[{"op":"each","as":"x","in":[1,5,9,14,18,22],"ops":[{"op":"park","x":["var","x"],"y":["var","y"],"v":0}]}]},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"office":{"size":[18,18],"params":{"seed":0,"wet":null,"glass":["pick",["#4f7fa8","#4f8f96","#5a6fa8","#6a7f96"],["rnd"]]},"ops":[{"op":"rect","x":0,"y":0,"w":18,"h":18,"color":"#68ad52"},{"op":"rect","x":1,"y":1,"w":11,"h":16,"color":["param","glass"]},{"op":"rect","x":1,"y":1,"w":11,"h":1,"color":["shade",["param","glass"],40]},{"op":"rect","x":1,"y":16,"w":11,"h":1,"color":["shade",["param","glass"],-35]},{"op":"rect","x":11,"y":1,"w":1,"h":16,"color":["shade",["param","glass"],-20]},{"op":"each","as":"y","in":[3,5,7,9,11],"ops":[{"op":"each","as":"x","in":[3,5,7,9],"ops":[{"op":"win","x":["var","x"],"y":["var","y"]}]}]},{"op":"rect","x":5,"y":14,"w":2,"h":3,"color":"#1c2533"},{"op":"rect","x":13,"y":0,"w":5,"h":18,"color":"#6f727a"},{"op":"each","as":"y","in":[1,5,9,13],"ops":[{"op":"each","as":"x","in":[13,15],"ops":[{"op":"park","x":["var","x"],"y":["var","y"],"v":1}]}]},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"hq":{"size":[27,27],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":27,"color":"#68ad52"},{"op":"rect","x":0,"y":22,"w":21,"h":5,"color":"#c9c2b0"},{"op":"rect","x":3,"y":1,"w":17,"h":21,"color":"#22384f"},{"op":"rect","x":4,"y":2,"w":15,"h":19,"color":"#3d6488"},{"op":"rect","x":4,"y":2,"w":15,"h":1,"color":"#6f95b8"},{"op":"each","as":"y","in":[4,6,8,10,12,14,16,18],"ops":[{"op":"each","as":"x","in":[6,8,10,12,14,16],"ops":[{"op":"win","x":["var","x"],"y":["var","y"]}]}]},{"op":"rect","x":11,"y":0,"w":1,"h":2,"color":"#dddddd"},{"op":"rect","x":10,"y":20,"w":3,"h":2,"color":"#101820"},{"op":"rect","x":21,"y":0,"w":6,"h":27,"color":"#6f727a"},{"op":"each","as":"y","in":[1,5,9,13,17,22],"ops":[{"op":"each","as":"x","in":[21,24],"ops":[{"op":"park","x":["var","x"],"y":["var","y"],"v":1}]}]},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"factory":{"size":[27,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":18,"color":"#8a8577"},{"op":"rect","x":1,"y":1,"w":18,"h":11,"color":"#a8a090"},{"op":"each","as":"k","in":[0,1,2,3,4,5],"ops":[{"op":"rect","x":["+",["*",["var","k"],3],1],"y":1,"w":3,"h":3,"color":"#bdb4a0"},{"op":"rect","x":["+",["*",["var","k"],3],1],"y":3,"w":3,"h":1,"color":"#6f695d"},{"op":"rect","x":["+",["*",["var","k"],3],1],"y":1,"w":1,"h":2,"color":"#d8cfba"}]},{"op":"each","as":"y","in":[6,8],"ops":[{"op":"each","as":"k","in":[0,1,2,3,4,5,6,7],"ops":[{"op":"win","x":["+",["*",["var","k"],2],3],"y":["var","y"]}]}]},{"op":"rect","x":8,"y":10,"w":3,"h":2,"color":"#4a4438"},{"op":"rect","x":21,"y":1,"w":2,"h":8,"color":"#7a5a4a"},{"op":"rect","x":21,"y":1,"w":2,"h":1,"color":"#2e2e2e"},{"op":"rect","x":23,"y":4,"w":3,"h":3,"color":"#b0b8c0"},{"op":"rect","x":23,"y":4,"w":3,"h":1,"color":"#d6dde3"},{"op":"rect","x":23,"y":8,"w":3,"h":3,"color":"#b0b8c0"},{"op":"rect","x":23,"y":8,"w":3,"h":1,"color":"#d6dde3"},{"op":"rect","x":0,"y":13,"w":27,"h":5,"color":"#6f727a"},{"op":"each","as":"x","in":[1,5,9,13,17,21],"ops":[{"op":"park","x":["var","x"],"y":14,"v":0}]},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"warehouse":{"size":[27,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":18,"color":"#7a7d84"},{"op":"rect","x":1,"y":1,"w":25,"h":10,"color":"#b9bcc2"},{"op":"each","as":"k","in":[0,1,2,3,4,5,6,7,8],"ops":[{"op":"rect","x":["+",["*",["var","k"],3],1],"y":1,"w":1,"h":10,"color":"#a3a6ad"}]},{"op":"rect","x":1,"y":10,"w":25,"h":1,"color":"#8a8d93"},{"op":"each","as":"k","in":[0,1,2],"ops":[{"op":"rect","x":["+",["*",["var","k"],5],3],"y":11,"w":3,"h":1,"color":"#3a3d44"}]},{"op":"each","as":"k","in":[0,1],"ops":[{"op":"rect","x":["+",["*",["var","k"],5],3],"y":12,"w":3,"h":4,"color":"#e6e6e6"},{"op":"rect","x":["+",["*",["var","k"],5],3],"y":16,"w":3,"h":1,"color":["pick",["#2f6fd0","#c0392b","#27ae60"],["rnd"]]}]},{"op":"rect","x":19,"y":12,"w":7,"h":5,"color":"#d8d2c4"},{"op":"rect","x":19,"y":12,"w":7,"h":1,"color":"#a8a294"},{"op":"win","x":21,"y":14},{"op":"win","x":23,"y":14},{"op":"park","x":14,"y":12,"v":1},{"op":"park","x":16,"y":12,"v":1},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"dock":{"size":[27,18],"params":{"seed":0,"wet":null,"crane":false},"ops":[{"op":"each","as":"ty","in":["range",["param","th"]],"ops":[{"op":"each","as":"tx","in":["range",["param","tw"]],"ops":[{"op":"if","test":["fn","wet",["var","tx"],["var","ty"]],"then":[{"op":"rect","x":["*",["var","tx"],9],"y":["+",["*",["var","ty"],9],1],"w":9,"h":7,"color":"#8b6a43"},{"op":"each","as":"k","in":[2,4,6],"ops":[{"op":"rect","x":["*",["var","tx"],9],"y":["+",["*",["var","ty"],9],["var","k"]],"w":9,"h":1,"color":"#6e5233"}]},{"op":"pixel","x":["*",["var","tx"],9],"y":["+",["*",["var","ty"],9],1],"color":"#3e2c1c"},{"op":"pixel","x":["+",["*",["var","tx"],9],8],"y":["+",["*",["var","ty"],9],1],"color":"#3e2c1c"},{"op":"pixel","x":["*",["var","tx"],9],"y":["+",["*",["var","ty"],9],7],"color":"#3e2c1c"},{"op":"pixel","x":["+",["*",["var","tx"],9],8],"y":["+",["*",["var","ty"],9],7],"color":"#3e2c1c"},{"op":"berth","x":["var","tx"],"y":["var","ty"]}],"else":[{"op":"rect","x":["*",["var","tx"],9],"y":["*",["var","ty"],9],"w":9,"h":9,"color":"#9a9ca2"},{"op":"if","test":["not",["param","crane"]],"then":[{"op":"set","as":"crane","value":true},{"op":"rect","x":["+",["*",["var","tx"],9],1],"y":["+",["*",["var","ty"],9],1],"w":6,"h":4,"color":"#d8d2c4"},{"op":"rect","x":["+",["*",["var","tx"],9],1],"y":["+",["*",["var","ty"],9],1],"w":6,"h":1,"color":"#a8a294"},{"op":"win","x":["+",["*",["var","tx"],9],2],"y":["+",["*",["var","ty"],9],3]},{"op":"win","x":["+",["*",["var","tx"],9],5],"y":["+",["*",["var","ty"],9],3]},{"op":"rect","x":["+",["*",["var","tx"],9],7],"y":["*",["var","ty"],9],"w":1,"h":6,"color":"#e0b030"},{"op":"rect","x":["+",["*",["var","tx"],9],3],"y":["*",["var","ty"],9],"w":6,"h":1,"color":"#e0b030"}],"else":[{"op":"rect","x":["+",["*",["var","tx"],9],1],"y":["+",["*",["var","ty"],9],1],"w":3,"h":3,"color":"#b07a3a"},{"op":"rect","x":["+",["*",["var","tx"],9],1],"y":["+",["*",["var","ty"],9],1],"w":3,"h":1,"color":"#8a5a2a"},{"op":"rect","x":["+",["*",["var","tx"],9],5],"y":["+",["*",["var","ty"],9],1],"w":3,"h":4,"color":["pick",["#c0392b","#2f6fd0","#27ae60","#e67e22"],["rnd"]]}]},{"op":"park","x":["+",["*",["var","tx"],9],5],"y":["+",["*",["var","ty"],9],6],"v":0}]}]}]},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"farm":{"size":[36,27],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":36,"h":27,"color":"#7fb35a"},{"op":"repeat","as":"y","times":17,"ops":[{"op":"rect","x":0,"y":["var","y"],"w":22,"h":1,"color":["if",["==",["mod",["var","y"],3],0],"#c9b24a",["if",["==",["mod",["var","y"],3],1],"#a8c04a","#86a83c"]]}]},{"op":"rect","x":0,"y":18,"w":22,"h":9,"color":"#6d5a3a"},{"op":"each","as":"y","in":[19,21,23,25],"ops":[{"op":"rect","x":0,"y":["var","y"],"w":22,"h":1,"color":"#5a4a30"}]},{"op":"rect","x":24,"y":2,"w":10,"h":8,"color":"#b33a2e"},{"op":"rect","x":24,"y":2,"w":10,"h":2,"color":"#7a2a22"},{"op":"rect","x":27,"y":7,"w":4,"h":3,"color":"#5a2420"},{"op":"pixel","x":28,"y":8,"color":"#e8e2d2"},{"op":"pixel","x":29,"y":7,"color":"#e8e2d2"},{"op":"win","x":25,"y":5},{"op":"win","x":32,"y":5},{"op":"rect","x":25,"y":12,"w":4,"h":8,"color":"#c8ccd2"},{"op":"rect","x":25,"y":11,"w":4,"h":1,"color":"#9aa0a8"},{"op":"rect","x":25,"y":15,"w":4,"h":1,"color":"#9aa0a8"},{"op":"rect","x":30,"y":14,"w":3,"h":2,"color":"#3a8a3a"},{"op":"pixel","x":30,"y":16,"color":"#222222"},{"op":"pixel","x":32,"y":16,"color":"#222222"},{"op":"rect","x":23,"y":21,"w":13,"h":6,"color":"#a8946e"},{"op":"park","x":24,"y":22,"v":0},{"op":"park","x":28,"y":22,"v":0},{"op":"park","x":32,"y":22,"v":0},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"orchard":{"size":[27,27],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":27,"color":"#6fa84a"},{"op":"each","as":"ty","in":[1,8,15],"ops":[{"op":"each","as":"tx","in":[1,9,17],"ops":[{"op":"rect","x":["+",["var","tx"],3],"y":["+",["var","ty"],4],"w":1,"h":2,"color":"#6b4a2b"},{"op":"rect","x":["+",["var","tx"],1],"y":["var","ty"],"w":5,"h":4,"color":"#2f7d34"},{"op":"rect","x":["+",["var","tx"],2],"y":["var","ty"],"w":3,"h":5,"color":"#2f7d34"},{"op":"rect","x":["+",["var","tx"],2],"y":["var","ty"],"w":2,"h":1,"color":"#4fa84f"},{"op":"pixel","x":["+",["var","tx"],2],"y":["+",["var","ty"],1],"color":"#e04a3a"},{"op":"pixel","x":["+",["var","tx"],4],"y":["+",["var","ty"],2],"color":"#e04a3a"},{"op":"pixel","x":["+",["var","tx"],1],"y":["+",["var","ty"],3],"color":"#f0a030"}]}]},{"op":"rect","x":1,"y":22,"w":6,"h":4,"color":"#8a6a4a"},{"op":"rect","x":1,"y":22,"w":6,"h":1,"color":"#5a4030"},{"op":"win","x":3,"y":24},{"op":"rect","x":8,"y":22,"w":19,"h":5,"color":"#a8946e"},{"op":"park","x":10,"y":23,"v":0},{"op":"park","x":15,"y":23,"v":0},{"op":"park","x":20,"y":23,"v":0},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"school":{"size":[27,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":18,"color":"#68ad52"},{"op":"rect","x":1,"y":1,"w":17,"h":10,"color":"#b5543c"},{"op":"rect","x":1,"y":1,"w":17,"h":1,"color":"#7a3424"},{"op":"each","as":"y","in":[4,7],"ops":[{"op":"each","as":"x","in":[3,5,7,11,13,15],"ops":[{"op":"win","x":["var","x"],"y":["var","y"]}]}]},{"op":"rect","x":9,"y":8,"w":2,"h":3,"color":"#3a2a1a"},{"op":"rect","x":20,"y":1,"w":1,"h":6,"color":"#dddddd"},{"op":"rect","x":21,"y":1,"w":3,"h":2,"color":"#3a6fd0"},{"op":"rect","x":19,"y":8,"w":7,"h":3,"color":"#c9a66b"},{"op":"rect","x":20,"y":8,"w":4,"h":1,"color":"#c0392b"},{"op":"rect","x":24,"y":9,"w":1,"h":2,"color":"#f1c40f"},{"op":"rect","x":0,"y":12,"w":27,"h":6,"color":"#6f727a"},{"op":"each","as":"x","in":[9,13,17,21],"ops":[{"op":"park","x":["var","x"],"y":13,"v":0}]},{"op":"rect","x":1,"y":13,"w":6,"h":3,"color":"#f5c518"},{"op":"rect","x":2,"y":13,"w":4,"h":1,"color":"#9fc4e0"},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"hospital":{"size":[27,27],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":27,"color":"#68ad52"},{"op":"rect","x":2,"y":1,"w":20,"h":16,"color":"#eef0f2"},{"op":"rect","x":2,"y":16,"w":20,"h":1,"color":"#c4c8ce"},{"op":"rect","x":10,"y":4,"w":4,"h":10,"color":"#d63a3a"},{"op":"rect","x":7,"y":7,"w":10,"h":4,"color":"#d63a3a"},{"op":"each","as":"y","in":[3,5,7,9,11,13],"ops":[{"op":"each","as":"x","in":[3,5,18,20],"ops":[{"op":"win","x":["var","x"],"y":["var","y"]}]}]},{"op":"rect","x":22,"y":2,"w":5,"h":5,"color":"#5a5d64"},{"op":"each","as":"p","in":[[23,3],[23,4],[23,5],[25,3],[25,4],[25,5],[24,4]],"ops":[{"op":"rect","x":["at",["var","p"],0],"y":["at",["var","p"],1],"w":1,"h":1,"color":"#ffffff"}]},{"op":"rect","x":10,"y":17,"w":5,"h":2,"color":"#d63a3a"},{"op":"rect","x":17,"y":18,"w":3,"h":2,"color":"#ffffff"},{"op":"rect","x":18,"y":18,"w":1,"h":2,"color":"#d63a3a"},{"op":"rect","x":0,"y":20,"w":27,"h":7,"color":"#6f727a"},{"op":"each","as":"y","in":[21,24],"ops":[{"op":"each","as":"x","in":[1,5,9,13,17,21],"ops":[{"op":"park","x":["var","x"],"y":["var","y"],"v":0}]}]},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"airport":{"size":[90,45],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":90,"h":45,"color":"#7fa85a"},{"op":"rect","x":0,"y":4,"w":90,"h":9,"color":"#3a3d44"},{"op":"rect","x":0,"y":4,"w":90,"h":1,"color":"#cfd2d6"},{"op":"rect","x":0,"y":12,"w":90,"h":1,"color":"#cfd2d6"},{"op":"each","as":"k","in":["range",13],"ops":[{"op":"rect","x":["+",["*",["var","k"],6],8],"y":8,"w":3,"h":1,"color":"#ffffff"}]},{"op":"each","as":"k","in":[0,1,2,3],"ops":[{"op":"rect","x":1,"y":["+",["*",["var","k"],2],5],"w":3,"h":1,"color":"#ffffff"},{"op":"rect","x":86,"y":["+",["*",["var","k"],2],5],"w":3,"h":1,"color":"#ffffff"}]},{"op":"rect","x":10,"y":13,"w":70,"h":3,"color":"#4a4d55"},{"op":"rect","x":8,"y":16,"w":74,"h":10,"color":"#5a5d64"},{"op":"each","as":"x","in":[20,34,48],"ops":[{"op":"rect","x":["var","x"],"y":20,"w":7,"h":1,"color":"#f4f5f7"},{"op":"rect","x":["+",["var","x"],3],"y":18,"w":1,"h":5,"color":"#f4f5f7"},{"op":"rect","x":["var","x"],"y":19,"w":1,"h":3,"color":"#d63a3a"}]},{"op":"rect","x":14,"y":27,"w":52,"h":10,"color":"#d9dde4"},{"op":"rect","x":14,"y":27,"w":52,"h":1,"color":"#a8adb6"},{"op":"each","as":"k","in":["range",25],"ops":[{"op":"win","x":["+",["*",["var","k"],2],16],"y":31}]},{"op":"each","as":"x","in":[22,36,50],"ops":[{"op":"rect","x":["var","x"],"y":24,"w":2,"h":3,"color":"#9aa0a8"}]},{"op":"rect","x":70,"y":26,"w":4,"h":11,"color":"#c8ccd2"},{"op":"rect","x":69,"y":25,"w":6,"h":3,"color":"#5a8fc0"},{"op":"rect","x":14,"y":38,"w":60,"h":7,"color":"#6f727a"},{"op":"each","as":"y","in":[39,42],"ops":[{"op":"each","as":"k","in":["range",14],"ops":[{"op":"park","x":["+",["*",["var","k"],4],15],"y":["var","y"],"v":0}]}]},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"park":{"size":[18,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":18,"h":18,"color":"#5bb04a"},{"op":"repeat","as":"k","times":18,"ops":[{"op":"rect","x":["floor",["*",["rnd"],18]],"y":["floor",["*",["rnd"],18]],"w":1,"h":1,"color":["if",["<",["rnd"],0.5],"#f5e663","#ff9ec4"]}]},{"op":"rect","x":8,"y":0,"w":2,"h":18,"color":"#dbc99f"},{"op":"rect","x":0,"y":8,"w":18,"h":2,"color":"#dbc99f"},{"op":"rect","x":11,"y":12,"w":5,"h":4,"color":"#3f82c8"},{"op":"rect","x":12,"y":11,"w":3,"h":1,"color":"#3f82c8"},{"op":"pixel","x":12,"y":13,"color":"#9fd0ff"},{"op":"use","file":"trees","texture":"tree","at":[0,0],"params":{"v":1}},{"op":"use","file":"trees","texture":"tree","at":[10,0],"params":{"v":2}},{"op":"use","file":"trees","texture":"tree","at":[0,9],"params":{"v":3}},{"op":"rect","x":4,"y":10,"w":3,"h":1,"color":"#8b5a2b"},{"op":"mark","as":"win","of":[[3,7],[6,6],[12,6],[14,3],[5,12],[2,15],[6,15],[11,10],[15,10],[4,3],[13,16],[16,7]]}]},"metro":{"size":[9,9],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":9,"h":9,"color":"#cfc6b4"},{"op":"rect","x":1,"y":1,"w":7,"h":7,"color":"#bdb39e"},{"op":"rect","x":2,"y":1,"w":5,"h":4,"color":"#1f4fb0"},{"op":"each","as":"p","in":[[3,2],[3,3],[4,2],[5,2],[5,3]],"ops":[{"op":"pixel","x":["at",["var","p"],0],"y":["at",["var","p"],1],"color":"#ffffff"}]},{"op":"rect","x":2,"y":6,"w":5,"h":2,"color":"#8a8170"},{"op":"rect","x":2,"y":7,"w":5,"h":1,"color":"#5f584b"},{"op":"spots","of":[[1,5],[7,5],[1,7],[7,7],[1,3],[7,3]]}]},"busstop":{"size":[9,9],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":9,"h":9,"color":"#c4c7cd"},{"op":"rect","x":1,"y":1,"w":7,"h":3,"color":"#3a6f9a"},{"op":"rect","x":1,"y":1,"w":7,"h":1,"color":"#6f9fc8"},{"op":"rect","x":2,"y":4,"w":5,"h":1,"color":"#8b5a2b"},{"op":"rect","x":7,"y":4,"w":1,"h":4,"color":"#5c5f66"},{"op":"rect","x":6,"y":4,"w":3,"h":2,"color":"#f5c518"},{"op":"pixel","x":7,"y":4,"color":"#2f4f6f"},{"op":"spots","of":[[2,6],[4,6],[3,7],[5,7],[1,7],[2,5]]}]},"parking":{"size":[18,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":18,"h":18,"color":"#4a4d55"},{"op":"rect","x":0,"y":0,"w":18,"h":1,"color":"#8c8f96"},{"op":"rect","x":0,"y":17,"w":18,"h":1,"color":"#8c8f96"},{"op":"each","as":"x","in":[0,3,6,9,12,15],"ops":[{"op":"rect","x":["var","x"],"y":1,"w":1,"h":4,"color":"#d8d8d8"},{"op":"rect","x":["var","x"],"y":13,"w":1,"h":4,"color":"#d8d8d8"}]},{"op":"each","as":"y","in":[1,14],"ops":[{"op":"each","as":"x","in":[1,4,7,10,13,16],"ops":[{"op":"park","x":["var","x"],"y":["var","y"],"v":1}]}]},{"op":"rect","x":7,"y":8,"w":4,"h":1,"color":"#d8d8d8"},{"op":"rect","x":10,"y":7,"w":1,"h":3,"color":"#d8d8d8"},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"garage":{"size":[18,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":18,"h":18,"color":"#9a9ca2"},{"op":"rect","x":1,"y":1,"w":16,"h":16,"color":"#7d8087"},{"op":"rect","x":13,"y":2,"w":3,"h":14,"color":"#6a6d73"},{"op":"repeat","as":"k","times":7,"ops":[{"op":"rect","x":13,"y":["+",["*",["var","k"],2],3],"w":3,"h":1,"color":"#8a8d93"}]},{"op":"rect","x":2,"y":2,"w":4,"h":5,"color":"#2f6fd0"},{"op":"each","as":"p","in":[[3,3],[3,4],[3,5],[4,3],[4,4]],"ops":[{"op":"pixel","x":["at",["var","p"],0],"y":["at",["var","p"],1],"color":"#ffffff"}]},{"op":"each","as":"y","in":[2,6,10],"ops":[{"op":"each","as":"x","in":[7,10],"ops":[{"op":"park","x":["var","x"],"y":["var","y"],"v":1}]}]},{"op":"each","as":"x","in":[2,4],"ops":[{"op":"park","x":["var","x"],"y":10,"v":1}]},{"op":"each","as":"x","in":[2,7,10],"ops":[{"op":"park","x":["var","x"],"y":14,"v":0}]},{"op":"stat","x":["-",["param","w"],2],"y":0}]}}},"people":{"format":"texture/1","name":"people","tile":9,"defs":{"skin":"#f1c9a0","ink":"#1a1d26","faces":{"happy":[".FFF.","FkFkF","FFFFF","kFFFk",".kkk."],"ok":[".FFF.","FkFkF","FFFFF","FkkkF",".FFF."],"sad":[".FFF.","FkFkF","FFFFF","FkkkF","kFFFk"],"angry":["kFFFk","FkFkF","FFFFF","FkkkF","kFFFk"]},"faceCol":{"happy":"#5fdc7a","ok":"#ffd75e","sad":"#ff9a4d","angry":"#ff4848"}},"textures":{"ped":{"size":[1,2],"params":{"color":"#ff6b6b"},"ops":[{"op":"pixel","x":0,"y":0,"color":["def","skin"]},{"op":"pixel","x":0,"y":1,"color":["param","color"]}]},"face":{"size":[5,5],"params":{"kind":"happy","rows":["at",["def","faces"],["param","kind"]],"fill":["at",["def","faceCol"],["param","kind"]]},"ops":[{"op":"repeat","as":"r","times":5,"ops":[{"op":"repeat","as":"k","times":5,"ops":[{"op":"if","test":["!=",["at",["at",["param","rows"],["var","r"]],["var","k"]],"."],"then":[{"op":"pixel","x":["var","k"],"y":["var","r"],"color":["if",["==",["at",["at",["param","rows"],["var","r"]],["var","k"]],"F"],["param","fill"],["def","ink"]]}]}]}]}]}}},"roads":{"format":"texture/1","name":"roads","tile":9,"defs":{"arrow":[[4,2],[3,3],[5,3],[4,3],[4,4],[4,5],[4,6]]},"textures":{"markings":{"size":[9,9],"params":{"m":0,"hw":0,"ow":0,"ml":0,"px":0,"py":0,"ed":null,"horiz":["or",["==",["param","ml"],2],["==",["param","ml"],4]],"edv":["default",["param","ed"],["if",["or",["==",["param","ml"],4],["==",["param","ml"],3]],[0,2],[2,0]]],"dashBase":["if",["param","horiz"],["param","px"],["param","py"]],"H":["and",[">",["mask",["param","m"],10],0],["==",["mask",["param","m"],5],0]],"V":["and",[">",["mask",["param","m"],5],0],["==",["mask",["param","m"],10],0]],"lineCol":["if",["param","hw"],"#e3b542","#e8c55a"]},"ops":[{"op":"if","test":["param","ml"],"then":[{"op":"repeat","as":"k","times":9,"ops":[{"op":"if","test":["<",["mod",["+",["param","dashBase"],["var","k"]],6],3],"then":[{"op":"if","test":["param","horiz"],"then":[{"op":"pixel","x":["var","k"],"y":4,"color":"#e8e8e8"}],"else":[{"op":"pixel","x":4,"y":["var","k"],"color":"#e8e8e8"}]}]}]},{"op":"each","as":"s","in":[0,1],"ops":[{"op":"if","test":["==",["at",["param","edv"],["var","s"]],1],"then":[{"op":"if","test":["param","horiz"],"then":[{"op":"rect","x":0,"y":["if",["var","s"],8,0],"w":9,"h":1,"color":"#2e3038"}],"else":[{"op":"rect","x":["if",["var","s"],8,0],"y":0,"w":1,"h":9,"color":"#2e3038"}]},{"op":"if","test":["param","horiz"],"then":[{"op":"rect","x":0,"y":["if",["var","s"],7,1],"w":9,"h":1,"color":"#2e3038"}],"else":[{"op":"rect","x":["if",["var","s"],7,1],"y":0,"w":1,"h":9,"color":"#2e3038"}]},{"op":"repeat","as":"k","times":9,"ops":[{"op":"if","test":["<",["mod",["+",["param","dashBase"],["var","k"]],6],3],"then":[{"op":"if","test":["param","horiz"],"then":[{"op":"pixel","x":["var","k"],"y":["if",["var","s"],8,0],"color":"#e8e8e8"}],"else":[{"op":"pixel","x":["if",["var","s"],8,0],"y":["var","k"],"color":"#e8e8e8"}]}]}]}]},{"op":"if","test":["==",["at",["param","edv"],["var","s"]],2],"then":[{"op":"if","test":["param","horiz"],"then":[{"op":"rect","x":0,"y":["if",["var","s"],8,0],"w":9,"h":1,"color":"#a9acb3"}],"else":[{"op":"rect","x":["if",["var","s"],8,0],"y":0,"w":1,"h":9,"color":"#a9acb3"}]},{"op":"if","test":["param","horiz"],"then":[{"op":"rect","x":0,"y":["if",["var","s"],7,1],"w":9,"h":1,"color":"#e3b542"}],"else":[{"op":"rect","x":["if",["var","s"],7,1],"y":0,"w":1,"h":9,"color":"#e3b542"}]}]}]}],"else":[{"op":"if","test":["param","ow"],"then":[{"op":"each","as":"p","in":["def","arrow"],"ops":[{"op":"pixel","x":["rotx",["at",["var","p"],0],["at",["var","p"],1],["param","ow"]],"y":["roty",["at",["var","p"],0],["at",["var","p"],1],["param","ow"]],"color":"#f4f4f4"}]}],"else":[{"op":"if","test":["param","H"],"then":[{"op":"repeat","as":"x","times":9,"ops":[{"op":"if","test":["or",["param","hw"],["<",["mod",["+",["param","px"],["var","x"]],6],3]],"then":[{"op":"pixel","x":["var","x"],"y":4,"color":["param","lineCol"]}]}]}]},{"op":"if","test":["param","V"],"then":[{"op":"repeat","as":"y","times":9,"ops":[{"op":"if","test":["or",["param","hw"],["<",["mod",["+",["param","py"],["var","y"]],6],3]],"then":[{"op":"pixel","x":4,"y":["var","y"],"color":["param","lineCol"]}]}]}]},{"op":"if","test":["and",[">=",["bits",["param","m"]],3],["not",["param","hw"]]],"then":[{"op":"if","test":["bit",["param","m"],0],"then":[{"op":"each","as":"x","in":[2,4,6],"ops":[{"op":"pixel","x":["var","x"],"y":1,"color":"#d6d6d6"}]}]},{"op":"if","test":["bit",["param","m"],2],"then":[{"op":"each","as":"x","in":[2,4,6],"ops":[{"op":"pixel","x":["var","x"],"y":7,"color":"#d6d6d6"}]}]},{"op":"if","test":["bit",["param","m"],3],"then":[{"op":"each","as":"y","in":[2,4,6],"ops":[{"op":"pixel","x":1,"y":["var","y"],"color":"#d6d6d6"}]}]},{"op":"if","test":["bit",["param","m"],1],"then":[{"op":"each","as":"y","in":[2,4,6],"ops":[{"op":"pixel","x":7,"y":["var","y"],"color":"#d6d6d6"}]}]}]}]}]}]},"road":{"size":[9,9],"params":{"m":0,"hw":0,"ow":0,"sw":0,"ml":0,"px":0,"py":0,"ed":null,"asph":["if",["param","hw"],"#2e3038","#3d4049"],"corner":["if",["param","sw"],"#a3a7ae","#6f8a4a"]},"ops":[{"op":"rect","x":0,"y":0,"w":9,"h":9,"color":["if",["param","hw"],"#7c8088",["if",["param","sw"],"#c4c7cd","#8d8262"]]},{"op":"if","test":["not",["param","hw"]],"then":[{"op":"each","as":"k","in":[2,6],"ops":[{"op":"if","test":["not",["bit",["param","m"],0]],"then":[{"op":"pixel","x":["var","k"],"y":0,"color":["param","corner"]}]},{"op":"if","test":["not",["bit",["param","m"],2]],"then":[{"op":"pixel","x":["var","k"],"y":8,"color":["param","corner"]}]},{"op":"if","test":["not",["bit",["param","m"],3]],"then":[{"op":"pixel","x":0,"y":["var","k"],"color":["param","corner"]}]},{"op":"if","test":["not",["bit",["param","m"],1]],"then":[{"op":"pixel","x":8,"y":["var","k"],"color":["param","corner"]}]}]}]},{"op":"rect","x":1,"y":1,"w":7,"h":7,"color":["param","asph"]},{"op":"if","test":["bit",["param","m"],0],"then":[{"op":"rect","x":1,"y":0,"w":7,"h":1,"color":["param","asph"]}]},{"op":"if","test":["bit",["param","m"],1],"then":[{"op":"rect","x":8,"y":1,"w":1,"h":7,"color":["param","asph"]}]},{"op":"if","test":["bit",["param","m"],2],"then":[{"op":"rect","x":1,"y":8,"w":7,"h":1,"color":["param","asph"]}]},{"op":"if","test":["bit",["param","m"],3],"then":[{"op":"rect","x":0,"y":1,"w":1,"h":7,"color":["param","asph"]}]},{"op":"if","test":["param","hw"],"then":[{"op":"if","test":["not",["bit",["param","m"],0]],"then":[{"op":"rect","x":1,"y":1,"w":7,"h":1,"color":"#d9d9d9"}]},{"op":"if","test":["not",["bit",["param","m"],2]],"then":[{"op":"rect","x":1,"y":7,"w":7,"h":1,"color":"#d9d9d9"}]},{"op":"if","test":["not",["bit",["param","m"],3]],"then":[{"op":"rect","x":1,"y":1,"w":1,"h":7,"color":"#d9d9d9"}]},{"op":"if","test":["not",["bit",["param","m"],1]],"then":[{"op":"rect","x":7,"y":1,"w":1,"h":7,"color":"#d9d9d9"}]}]},{"op":"use","texture":"markings","at":[0,0],"params":{"m":["param","m"],"hw":["param","hw"],"ow":["param","ow"],"ml":["param","ml"],"px":["param","px"],"py":["param","py"],"ed":["param","ed"]}}]},"bridge":{"size":[9,9],"params":{"m":0,"hw":0,"ow":0,"sw":0,"ml":0,"px":0,"py":0,"ed":null,"L":["if",["bit",["param","m"],3],0,1],"R":["if",["bit",["param","m"],1],8,7],"Tp":["if",["bit",["param","m"],0],0,1],"Bt":["if",["bit",["param","m"],2],8,7],"rw":["+",["-",["param","R"],["param","L"]],1],"rh":["+",["-",["param","Bt"],["param","Tp"]],1],"asph":["if",["param","hw"],"#2e3038","#3d4049"]},"ops":[{"op":"if","test":["not",["bit",["param","m"],2]],"then":[{"op":"rect","x":["param","L"],"y":8,"w":["param","rw"],"h":1,"color":"#00000057"}]},{"op":"if","test":["not",["bit",["param","m"],1]],"then":[{"op":"rect","x":8,"y":["param","Tp"],"w":1,"h":["param","rh"],"color":"#00000057"}]},{"op":"if","test":["and",["not",["bit",["param","m"],2]],[">",["mask",["param","m"],10],0]],"then":[{"op":"pixel","x":2,"y":8,"color":"#76695a"},{"op":"pixel","x":6,"y":8,"color":"#76695a"}]},{"op":"if","test":["and",["not",["bit",["param","m"],1]],[">",["mask",["param","m"],5],0]],"then":[{"op":"pixel","x":8,"y":2,"color":"#76695a"},{"op":"pixel","x":8,"y":6,"color":"#76695a"}]},{"op":"rect","x":["param","L"],"y":["param","Tp"],"w":["param","rw"],"h":["param","rh"],"color":["param","asph"]},{"op":"if","test":["not",["bit",["param","m"],0]],"then":[{"op":"rect","x":["param","L"],"y":1,"w":["param","rw"],"h":1,"color":["if",["param","sw"],"#d8dade","#b3b6bd"]}]},{"op":"if","test":["not",["bit",["param","m"],2]],"then":[{"op":"rect","x":["param","L"],"y":7,"w":["param","rw"],"h":1,"color":["if",["param","sw"],"#d8dade","#b3b6bd"]}]},{"op":"if","test":["not",["bit",["param","m"],3]],"then":[{"op":"rect","x":1,"y":["param","Tp"],"w":1,"h":["param","rh"],"color":["if",["param","sw"],"#d8dade","#b3b6bd"]}]},{"op":"if","test":["not",["bit",["param","m"],1]],"then":[{"op":"rect","x":7,"y":["param","Tp"],"w":1,"h":["param","rh"],"color":["if",["param","sw"],"#d8dade","#b3b6bd"]}]},{"op":"each","as":"k","in":[1,4,7],"ops":[{"op":"if","test":["not",["bit",["param","m"],0]],"then":[{"op":"pixel","x":["var","k"],"y":1,"color":"#5c5f66"}]},{"op":"if","test":["not",["bit",["param","m"],2]],"then":[{"op":"pixel","x":["var","k"],"y":7,"color":"#5c5f66"}]},{"op":"if","test":["not",["bit",["param","m"],3]],"then":[{"op":"pixel","x":1,"y":["var","k"],"color":"#5c5f66"}]},{"op":"if","test":["not",["bit",["param","m"],1]],"then":[{"op":"pixel","x":7,"y":["var","k"],"color":"#5c5f66"}]}]},{"op":"use","texture":"markings","at":[0,0],"params":{"m":["param","m"],"hw":["param","hw"],"ow":["param","ow"],"ml":["param","ml"],"px":["param","px"],"py":["param","py"],"ed":["param","ed"]}}]},"deck":{"size":[9,9],"params":{"hw":0,"px":0},"ops":[{"op":"rect","x":0,"y":8,"w":9,"h":1,"color":"#00000066"},{"op":"rect","x":0,"y":1,"w":9,"h":7,"color":"#c3c6cd"},{"op":"rect","x":0,"y":7,"w":9,"h":1,"color":"#8d9098"},{"op":"rect","x":0,"y":2,"w":9,"h":5,"color":["if",["param","hw"],"#2e3038","#3d4049"]},{"op":"repeat","as":"x","times":9,"ops":[{"op":"if","test":["or",["param","hw"],["<",["mod",["+",["param","px"],["var","x"]],6],3]],"then":[{"op":"pixel","x":["var","x"],"y":4,"color":["if",["param","hw"],"#e3b542","#e8c55a"]}]}]}]},"path":{"size":[9,9],"params":{"m":0,"br":0,"fill":["if",["param","br"],"#a9875a","#dbc99f"],"speck":["if",["param","br"],"#7a5d3b","#c9b384"]},"ops":[{"op":"if","test":["param","br"],"then":[{"op":"rect","x":2,"y":2,"w":5,"h":5,"color":"#7a5d3b"}]},{"op":"rect","x":3,"y":3,"w":3,"h":3,"color":["param","fill"]},{"op":"if","test":["bit",["param","m"],0],"then":[{"op":"rect","x":3,"y":0,"w":3,"h":3,"color":["param","fill"]}]},{"op":"if","test":["bit",["param","m"],1],"then":[{"op":"rect","x":6,"y":3,"w":3,"h":3,"color":["param","fill"]}]},{"op":"if","test":["bit",["param","m"],2],"then":[{"op":"rect","x":3,"y":6,"w":3,"h":3,"color":["param","fill"]}]},{"op":"if","test":["bit",["param","m"],3],"then":[{"op":"rect","x":0,"y":3,"w":3,"h":3,"color":["param","fill"]}]},{"op":"rect","x":4,"y":4,"w":1,"h":1,"color":["param","speck"]}]},"plaza":{"size":[9,9],"params":{"par":0,"deco":0},"ops":[{"op":"rect","x":0,"y":0,"w":9,"h":9,"color":"#d3c9b4"},{"op":"repeat","as":"y","times":9,"ops":[{"op":"repeat","as":"x","times":9,"ops":[{"op":"if","test":["==",["mod",["+",["param","par"],["var","x"],["var","y"]],4],0],"then":[{"op":"pixel","x":["var","x"],"y":["var","y"],"color":"#c3b8a0"}]}]}]},{"op":"if","test":["param","deco"],"then":[{"op":"rect","x":3,"y":4,"w":3,"h":2,"color":"#7a5b3a"},{"op":"rect","x":3,"y":2,"w":3,"h":3,"color":"#3f9a42"},{"op":"rect","x":3,"y":2,"w":2,"h":1,"color":"#5fbf5a"}]}]}}},"trees":{"format":"texture/1","name":"trees","tile":9,"defs":{"leafLight":"#2f7d34","leafDark":"#2b6e3a","leafLightHi":"#4fa84f","leafDarkHi":"#3f8d4a","trunk":"#6b4a2b","shadow":"#14321459"},"textures":{"tree":{"size":[9,9],"params":{"v":1,"dx":["if",["bit",["param","v"],0],1,-1],"dy":["if",["bit",["param","v"],1],1,0],"leaf":["if",[">",["param","v"],2],["def","leafDark"],["def","leafLight"]],"hi":["if",[">",["param","v"],2],["def","leafDarkHi"],["def","leafLightHi"]]},"ops":[{"op":"rect","x":["+",3,["param","dx"]],"y":["+",6,["param","dy"]],"w":4,"h":2,"color":["def","shadow"]},{"op":"rect","x":["+",4,["param","dx"]],"y":["+",5,["param","dy"]],"w":1,"h":2,"color":["def","trunk"]},{"op":"rect","x":["+",2,["param","dx"]],"y":["+",2,["param","dy"]],"w":5,"h":3,"color":["param","leaf"]},{"op":"rect","x":["+",3,["param","dx"]],"y":["+",1,["param","dy"]],"w":3,"h":5,"color":["param","leaf"]},{"op":"rect","x":["+",3,["param","dx"]],"y":["+",2,["param","dy"]],"w":2,"h":1,"color":["param","hi"]}]}}},"underground":{"format":"texture/1","name":"underground","tile":9,"defs":{"board":"#06120e","trace":"#1e6b4f","core":"#45c98d","pad":"#e0b654","padLit":"#ffe6a1"},"textures":{"rail":{"size":[9,9],"params":{"m":0},"ops":[{"op":"rect","x":0,"y":0,"w":9,"h":9,"color":["def","board"]},{"op":"each","as":"y","in":[0,3,6],"ops":[{"op":"rect","x":0,"y":["var","y"],"w":9,"h":1,"color":"#081a14"}]},{"op":"if","test":["bit",["param","m"],0],"then":[{"op":"rect","x":3,"y":0,"w":3,"h":5,"color":["def","trace"]},{"op":"rect","x":4,"y":0,"w":1,"h":5,"color":["def","core"]}]},{"op":"if","test":["bit",["param","m"],2],"then":[{"op":"rect","x":3,"y":4,"w":3,"h":5,"color":["def","trace"]},{"op":"rect","x":4,"y":4,"w":1,"h":5,"color":["def","core"]}]},{"op":"if","test":["bit",["param","m"],1],"then":[{"op":"rect","x":4,"y":3,"w":5,"h":3,"color":["def","trace"]},{"op":"rect","x":4,"y":4,"w":5,"h":1,"color":["def","core"]}]},{"op":"if","test":["bit",["param","m"],3],"then":[{"op":"rect","x":0,"y":3,"w":5,"h":3,"color":["def","trace"]},{"op":"rect","x":0,"y":4,"w":5,"h":1,"color":["def","core"]}]},{"op":"rect","x":3,"y":3,"w":3,"h":3,"color":["def","trace"]},{"op":"pixel","x":4,"y":4,"color":["def","core"]}]},"junction":{"extends":"rail","size":[9,9],"params":{"m":0},"ops":[{"op":"use","texture":"rail","at":[0,0],"params":{"m":["param","m"]}},{"op":"rect","x":2,"y":2,"w":5,"h":1,"color":["def","pad"]},{"op":"rect","x":2,"y":6,"w":5,"h":1,"color":["def","pad"]},{"op":"rect","x":2,"y":2,"w":1,"h":5,"color":["def","pad"]},{"op":"rect","x":6,"y":2,"w":1,"h":5,"color":["def","pad"]},{"op":"rect","x":4,"y":4,"w":1,"h":1,"color":["def","padLit"]}]},"reverse":{"extends":"rail","size":[9,9],"params":{"m":0},"ops":[{"op":"use","texture":"rail","at":[0,0],"params":{"m":["param","m"]}},{"op":"rect","x":3,"y":2,"w":3,"h":1,"color":["def","pad"]},{"op":"rect","x":3,"y":6,"w":3,"h":1,"color":["def","pad"]},{"op":"rect","x":2,"y":3,"w":1,"h":3,"color":["def","pad"]},{"op":"rect","x":6,"y":3,"w":1,"h":3,"color":["def","pad"]},{"op":"pixel","x":4,"y":4,"color":["def","padLit"]}]},"station":{"size":[9,9],"params":{},"ops":[{"op":"rect","x":0,"y":0,"w":9,"h":9,"color":["def","board"]},{"op":"rect","x":1,"y":1,"w":7,"h":7,"color":"#0f3126"},{"op":"rect","x":1,"y":1,"w":7,"h":1,"color":["def","pad"]},{"op":"rect","x":1,"y":7,"w":7,"h":1,"color":["def","pad"]},{"op":"rect","x":1,"y":1,"w":1,"h":7,"color":["def","pad"]},{"op":"rect","x":7,"y":1,"w":1,"h":7,"color":["def","pad"]},{"op":"rect","x":3,"y":3,"w":3,"h":3,"color":["def","trace"]},{"op":"rect","x":4,"y":4,"w":1,"h":1,"color":["def","padLit"]}]},"train_h":{"size":[7,3],"params":{},"ops":[{"op":"rect","x":0,"y":1,"w":7,"h":2,"color":"#2a9b72"},{"op":"rect","x":1,"y":2,"w":5,"h":1,"color":"#0b2119"},{"op":"rect","x":0,"y":1,"w":1,"h":2,"color":["def","pad"]},{"op":"rect","x":6,"y":1,"w":1,"h":2,"color":["def","pad"]},{"op":"pixel","x":0,"y":1,"color":["def","padLit"]}]},"train_v":{"size":[3,7],"params":{},"ops":[{"op":"rect","x":1,"y":0,"w":2,"h":7,"color":"#2a9b72"},{"op":"rect","x":2,"y":1,"w":1,"h":5,"color":"#0b2119"},{"op":"rect","x":1,"y":0,"w":2,"h":1,"color":["def","pad"]},{"op":"rect","x":1,"y":6,"w":2,"h":1,"color":["def","pad"]},{"op":"pixel","x":1,"y":0,"color":["def","padLit"]}]}}},"vehicles":{"format":"texture/1","name":"vehicles","tile":9,"defs":{"glass":"#a9d2ee","busGlass":"#2f4f6f","wake":"#9fd0ff","wood":"#5a3a22","planeE":[[-4,0,0],[-3,0,0],[-2,0,0],[-1,0,0],[0,0,0],[1,0,0],[2,0,0],[3,0,0],[4,0,1],[0,-1,0],[0,-2,0],[0,-3,2],[0,1,0],[0,2,0],[0,3,2],[-1,-3,0],[-1,3,0],[-4,-1,3],[-4,1,3],[-3,-1,3],[-3,1,3]],"planeSE":[[-3,-3,0],[-2,-2,0],[-1,-1,0],[0,0,0],[1,1,0],[2,2,0],[3,3,1],[1,-1,0],[2,-2,0],[3,-3,2],[-1,1,0],[-2,2,0],[-3,3,2],[-4,-3,3],[-3,-4,3],[-4,-4,3]]},"textures":{"car_h":{"size":[3,2],"params":{"color":"#e74c3c"},"ops":[{"op":"rect","x":0,"y":0,"w":3,"h":2,"color":["param","color"]},{"op":"rect","x":1,"y":0,"w":1,"h":2,"color":["def","glass"]}]},"car_v":{"size":[2,3],"params":{"color":"#e74c3c"},"ops":[{"op":"rect","x":0,"y":0,"w":2,"h":3,"color":["param","color"]},{"op":"rect","x":0,"y":1,"w":2,"h":1,"color":["def","glass"]}]},"bus_h":{"size":[5,2],"params":{},"ops":[{"op":"rect","x":0,"y":0,"w":5,"h":2,"color":"#f5c518"},{"op":"rect","x":1,"y":0,"w":3,"h":1,"color":["def","busGlass"]}]},"bus_v":{"size":[2,5],"params":{},"ops":[{"op":"rect","x":0,"y":0,"w":2,"h":5,"color":"#f5c518"},{"op":"rect","x":0,"y":1,"w":1,"h":3,"color":["def","busGlass"]}]},"boat_e":{"size":[8,3],"params":{"color":"#f4f5f7"},"ops":[{"op":"pixel","x":1,"y":0,"color":["def","wake"]},{"op":"pixel","x":1,"y":2,"color":["def","wake"]},{"op":"pixel","x":0,"y":1,"color":["def","wake"]},{"op":"rect","x":3,"y":0,"w":5,"h":3,"color":["param","color"]},{"op":"pixel","x":7,"y":1,"color":["def","wood"]},{"op":"rect","x":4,"y":1,"w":2,"h":1,"color":["def","busGlass"]}]},"boat_w":{"size":[8,3],"params":{"color":"#f4f5f7"},"ops":[{"op":"pixel","x":6,"y":0,"color":["def","wake"]},{"op":"pixel","x":6,"y":2,"color":["def","wake"]},{"op":"pixel","x":7,"y":1,"color":["def","wake"]},{"op":"rect","x":0,"y":0,"w":5,"h":3,"color":["param","color"]},{"op":"pixel","x":0,"y":1,"color":["def","wood"]},{"op":"rect","x":1,"y":1,"w":2,"h":1,"color":["def","busGlass"]}]},"boat_s":{"size":[3,8],"params":{"color":"#f4f5f7"},"ops":[{"op":"pixel","x":0,"y":1,"color":["def","wake"]},{"op":"pixel","x":2,"y":1,"color":["def","wake"]},{"op":"pixel","x":1,"y":0,"color":["def","wake"]},{"op":"rect","x":0,"y":3,"w":3,"h":5,"color":["param","color"]},{"op":"pixel","x":1,"y":7,"color":["def","wood"]},{"op":"rect","x":1,"y":4,"w":1,"h":2,"color":["def","busGlass"]}]},"boat_n":{"size":[3,8],"params":{"color":"#f4f5f7"},"ops":[{"op":"pixel","x":0,"y":6,"color":["def","wake"]},{"op":"pixel","x":2,"y":6,"color":["def","wake"]},{"op":"pixel","x":1,"y":7,"color":["def","wake"]},{"op":"rect","x":0,"y":0,"w":3,"h":5,"color":["param","color"]},{"op":"pixel","x":1,"y":0,"color":["def","wood"]},{"op":"rect","x":1,"y":1,"w":1,"h":2,"color":["def","busGlass"]}]},"plane":{"size":[9,9],"params":{"h":0,"night":0,"blink":0,"hull":["rot",["if",["==",["mod",["param","h"],2],0],["def","planeE"],["def","planeSE"]],["floor",["/",["param","h"],2]]]},"ops":[{"op":"each","as":"p","in":["param","hull"],"ops":[{"op":"pixel","x":["+",["at",["var","p"],0],4],"y":["+",["at",["var","p"],1],4],"color":["if",["==",["at",["var","p"],2],3],"#d63a3a",["if",["==",["at",["var","p"],2],1],"#9aa3b5",["if",["==",["at",["var","p"],2],2],["if",["and",["param","night"],["param","blink"]],["if",[">",["+",["at",["var","p"],0],["at",["var","p"],1]],0],"#3ef06b","#ff4848"],"#c8ccd4"],"#f4f5f7"]]]}]}]},"plane_shadow":{"size":[9,9],"params":{"h":0,"hull":["rot",["if",["==",["mod",["param","h"],2],0],["def","planeE"],["def","planeSE"]],["floor",["/",["param","h"],2]]]},"ops":[{"op":"each","as":"p","in":["param","hull"],"ops":[{"op":"pixel","x":["+",["at",["var","p"],0],4],"y":["+",["at",["var","p"],1],4],"color":"#00000040"}]}]}}}});
+TEX.define({"buildings":{"format":"texture/1","name":"buildings","tile":9,"defs":{"roofs":["#c0504d","#d2763a","#8e5ea2","#4f7cac","#5f8f3a","#b5651d","#a83f5f","#3f7f7f"],"walls":["#efe3c8","#e6d3b3","#dcd6d0","#f3efe6","#d9c3a5"],"grey":"#6f727a"},"textures":{"house":{"size":[9,9],"params":{"seed":0,"wet":null,"roof":["pick",["def","roofs"],["rnd"]],"wall":["pick",["def","walls"],["rnd"]]},"ops":[{"op":"rect","x":0,"y":0,"w":9,"h":9,"color":"#68ad52"},{"op":"rect","x":1,"y":1,"w":7,"h":3,"color":["param","roof"]},{"op":"rect","x":2,"y":1,"w":5,"h":1,"color":["shade",["param","roof"],28]},{"op":"rect","x":1,"y":3,"w":7,"h":1,"color":["shade",["param","roof"],-35]},{"op":"rect","x":1,"y":4,"w":7,"h":3,"color":["param","wall"]},{"op":"rect","x":4,"y":5,"w":1,"h":2,"color":"#6b4423"},{"op":"win","x":2,"y":5},{"op":"win","x":6,"y":5},{"op":"if","test":["<",["rnd"],0.6],"then":[{"op":"rect","x":6,"y":0,"w":1,"h":2,"color":"#7a4a3a"}]},{"op":"rect","x":0,"y":7,"w":9,"h":2,"color":"#8c8f96"},{"op":"park","x":1,"y":7,"v":0},{"op":"park","x":5,"y":7,"v":0},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"farmhouse":{"size":[9,9],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":9,"h":9,"color":"#7fb35a"},{"op":"each","as":"x","in":[0,2,4,6,8],"ops":[{"op":"pixel","x":["var","x"],"y":0,"color":"#c9a66b"},{"op":"pixel","x":0,"y":["var","x"],"color":"#c9a66b"}]},{"op":"rect","x":2,"y":1,"w":6,"h":2,"color":"#8b3a2e"},{"op":"rect","x":3,"y":1,"w":4,"h":1,"color":"#a8483a"},{"op":"rect","x":2,"y":3,"w":6,"h":3,"color":"#f0e2c0"},{"op":"rect","x":4,"y":4,"w":1,"h":2,"color":"#5a3a22"},{"op":"win","x":3,"y":4},{"op":"win","x":6,"y":4},{"op":"win","x":3,"y":3},{"op":"rect","x":1,"y":7,"w":3,"h":1,"color":"#5a8f3a"},{"op":"pixel","x":1,"y":7,"color":"#e05a3a"},{"op":"pixel","x":3,"y":7,"color":"#e0c03a"},{"op":"rect","x":5,"y":6,"w":3,"h":3,"color":"#a8946e"},{"op":"park","x":5,"y":6,"v":1},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"apartment":{"size":[18,18],"params":{"seed":0,"wet":null,"wall":["pick",["#c9b79c","#b8c4d0","#d8c8b8","#c7a98f","#a9b7a0"],["rnd"]]},"ops":[{"op":"rect","x":0,"y":0,"w":18,"h":18,"color":"#68ad52"},{"op":"rect","x":1,"y":1,"w":16,"h":12,"color":["param","wall"]},{"op":"rect","x":1,"y":1,"w":16,"h":2,"color":["shade",["param","wall"],-45]},{"op":"rect","x":3,"y":1,"w":2,"h":1,"color":"#8f9aa3"},{"op":"rect","x":12,"y":1,"w":3,"h":1,"color":"#8f9aa3"},{"op":"rect","x":1,"y":12,"w":16,"h":1,"color":["shade",["param","wall"],-25]},{"op":"each","as":"y","in":[4,6,8,10],"ops":[{"op":"each","as":"x","in":[3,5,7,10,12,14],"ops":[{"op":"win","x":["var","x"],"y":["var","y"]}]}]},{"op":"rect","x":8,"y":10,"w":2,"h":3,"color":"#5a3a22"},{"op":"rect","x":0,"y":13,"w":18,"h":5,"color":"#6f727a"},{"op":"each","as":"y","in":[14,16],"ops":[{"op":"each","as":"x","in":[1,5,10,14],"ops":[{"op":"park","x":["var","x"],"y":["var","y"],"v":0}]}]},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"tower":{"size":[27,27],"params":{"seed":0,"wet":null,"wall":["pick",["#9db0c4","#b6a6c9","#a7b9a2","#c4b29a"],["rnd"]]},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":27,"color":"#68ad52"},{"op":"rect","x":2,"y":1,"w":23,"h":19,"color":["param","wall"]},{"op":"rect","x":2,"y":1,"w":23,"h":2,"color":["shade",["param","wall"],-50]},{"op":"rect","x":2,"y":19,"w":23,"h":1,"color":["shade",["param","wall"],-30]},{"op":"pixel","x":13,"y":1,"color":"#e0e0e0"},{"op":"each","as":"y","in":[4,6,8,10,12,14,16],"ops":[{"op":"each","as":"x","in":[4,6,8,10,12,14,16,18,20,22],"ops":[{"op":"win","x":["var","x"],"y":["var","y"]}]}]},{"op":"rect","x":12,"y":17,"w":3,"h":3,"color":"#3a2a1a"},{"op":"rect","x":0,"y":21,"w":27,"h":6,"color":"#6f727a"},{"op":"each","as":"y","in":[22,24],"ops":[{"op":"each","as":"x","in":[1,5,9,13,17,21],"ops":[{"op":"park","x":["var","x"],"y":["var","y"],"v":0}]}]},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"shop":{"size":[9,9],"params":{"seed":0,"wet":null,"wall":["pick",["#f0e6d2","#e2d6c2","#f4ecec"],["rnd"]],"awn":["pick",["#d9534f","#3e8ed0","#3bb273","#e69a2e","#9b59b6"],["rnd"]]},"ops":[{"op":"rect","x":0,"y":0,"w":9,"h":9,"color":"#c9c2b0"},{"op":"rect","x":1,"y":1,"w":7,"h":5,"color":["param","wall"]},{"op":"rect","x":1,"y":1,"w":7,"h":1,"color":["shade",["param","awn"],-30]},{"op":"repeat","as":"k","times":7,"ops":[{"op":"pixel","x":["+",["var","k"],1],"y":3,"color":["if",["mod",["+",["var","k"],1],2],["param","awn"],"#ffffff"]}]},{"op":"win","x":2,"y":4},{"op":"win","x":6,"y":4},{"op":"rect","x":4,"y":4,"w":1,"h":2,"color":"#6b4423"},{"op":"rect","x":0,"y":6,"w":9,"h":3,"color":"#7a7d84"},{"op":"park","x":0,"y":7,"v":0},{"op":"park","x":3,"y":7,"v":0},{"op":"park","x":6,"y":7,"v":0},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"market":{"size":[18,18],"params":{"seed":0,"wet":null,"sign":["pick",["#d9534f","#2f8f4f","#e69a2e","#3e6fd0"],["rnd"]]},"ops":[{"op":"rect","x":0,"y":0,"w":18,"h":18,"color":"#6f727a"},{"op":"rect","x":1,"y":1,"w":16,"h":9,"color":"#e8e2d2"},{"op":"rect","x":1,"y":1,"w":16,"h":1,"color":"#bdb5a2"},{"op":"rect","x":4,"y":2,"w":10,"h":3,"color":["param","sign"]},{"op":"rect","x":5,"y":3,"w":8,"h":1,"color":"#ffffff"},{"op":"each","as":"x","in":[2,4,6,11,13,15],"ops":[{"op":"win","x":["var","x"],"y":7}]},{"op":"rect","x":8,"y":7,"w":2,"h":3,"color":"#4c5566"},{"op":"each","as":"y","in":[11,14],"ops":[{"op":"each","as":"x","in":[1,5,10,14],"ops":[{"op":"park","x":["var","x"],"y":["var","y"],"v":0}]}]},{"op":"rect","x":0,"y":17,"w":18,"h":1,"color":"#5f6168"},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"mall":{"size":[27,27],"params":{"seed":0,"wet":null,"sign":["pick",["#c0392b","#8e44ad","#16a085","#d35400"],["rnd"]]},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":27,"color":"#6f727a"},{"op":"rect","x":1,"y":1,"w":25,"h":14,"color":"#d9d4e6"},{"op":"rect","x":1,"y":1,"w":25,"h":1,"color":"#a9a3bb"},{"op":"rect","x":1,"y":14,"w":25,"h":1,"color":"#b3adc4"},{"op":"each","as":"k","in":[0,1,2,3,4],"ops":[{"op":"rect","x":["+",["*",["var","k"],4],4],"y":3,"w":2,"h":5,"color":"#8fd3ff"}]},{"op":"rect","x":9,"y":9,"w":9,"h":2,"color":["param","sign"]},{"op":"rect","x":10,"y":9,"w":7,"h":1,"color":["shade",["param","sign"],50]},{"op":"each","as":"x","in":[3,5,7,19,21,23],"ops":[{"op":"win","x":["var","x"],"y":12}]},{"op":"rect","x":12,"y":12,"w":3,"h":3,"color":"#3c4250"},{"op":"each","as":"y","in":[17,20,23],"ops":[{"op":"each","as":"x","in":[1,5,9,14,18,22],"ops":[{"op":"park","x":["var","x"],"y":["var","y"],"v":0}]}]},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"office":{"size":[18,18],"params":{"seed":0,"wet":null,"glass":["pick",["#4f7fa8","#4f8f96","#5a6fa8","#6a7f96"],["rnd"]]},"ops":[{"op":"rect","x":0,"y":0,"w":18,"h":18,"color":"#68ad52"},{"op":"rect","x":1,"y":1,"w":11,"h":16,"color":["param","glass"]},{"op":"rect","x":1,"y":1,"w":11,"h":1,"color":["shade",["param","glass"],40]},{"op":"rect","x":1,"y":16,"w":11,"h":1,"color":["shade",["param","glass"],-35]},{"op":"rect","x":11,"y":1,"w":1,"h":16,"color":["shade",["param","glass"],-20]},{"op":"each","as":"y","in":[3,5,7,9,11],"ops":[{"op":"each","as":"x","in":[3,5,7,9],"ops":[{"op":"win","x":["var","x"],"y":["var","y"]}]}]},{"op":"rect","x":5,"y":14,"w":2,"h":3,"color":"#1c2533"},{"op":"rect","x":13,"y":0,"w":5,"h":18,"color":"#6f727a"},{"op":"each","as":"y","in":[1,5,9,13],"ops":[{"op":"each","as":"x","in":[13,15],"ops":[{"op":"park","x":["var","x"],"y":["var","y"],"v":1}]}]},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"hq":{"size":[27,27],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":27,"color":"#68ad52"},{"op":"rect","x":0,"y":22,"w":21,"h":5,"color":"#c9c2b0"},{"op":"rect","x":3,"y":1,"w":17,"h":21,"color":"#22384f"},{"op":"rect","x":4,"y":2,"w":15,"h":19,"color":"#3d6488"},{"op":"rect","x":4,"y":2,"w":15,"h":1,"color":"#6f95b8"},{"op":"each","as":"y","in":[4,6,8,10,12,14,16,18],"ops":[{"op":"each","as":"x","in":[6,8,10,12,14,16],"ops":[{"op":"win","x":["var","x"],"y":["var","y"]}]}]},{"op":"rect","x":11,"y":0,"w":1,"h":2,"color":"#dddddd"},{"op":"rect","x":10,"y":20,"w":3,"h":2,"color":"#101820"},{"op":"rect","x":21,"y":0,"w":6,"h":27,"color":"#6f727a"},{"op":"each","as":"y","in":[1,5,9,13,17,22],"ops":[{"op":"each","as":"x","in":[21,24],"ops":[{"op":"park","x":["var","x"],"y":["var","y"],"v":1}]}]},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"factory":{"size":[27,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":18,"color":"#8a8577"},{"op":"rect","x":1,"y":1,"w":18,"h":11,"color":"#a8a090"},{"op":"each","as":"k","in":[0,1,2,3,4,5],"ops":[{"op":"rect","x":["+",["*",["var","k"],3],1],"y":1,"w":3,"h":3,"color":"#bdb4a0"},{"op":"rect","x":["+",["*",["var","k"],3],1],"y":3,"w":3,"h":1,"color":"#6f695d"},{"op":"rect","x":["+",["*",["var","k"],3],1],"y":1,"w":1,"h":2,"color":"#d8cfba"}]},{"op":"each","as":"y","in":[6,8],"ops":[{"op":"each","as":"k","in":[0,1,2,3,4,5,6,7],"ops":[{"op":"win","x":["+",["*",["var","k"],2],3],"y":["var","y"]}]}]},{"op":"rect","x":8,"y":10,"w":3,"h":2,"color":"#4a4438"},{"op":"rect","x":21,"y":1,"w":2,"h":8,"color":"#7a5a4a"},{"op":"rect","x":21,"y":1,"w":2,"h":1,"color":"#2e2e2e"},{"op":"rect","x":23,"y":4,"w":3,"h":3,"color":"#b0b8c0"},{"op":"rect","x":23,"y":4,"w":3,"h":1,"color":"#d6dde3"},{"op":"rect","x":23,"y":8,"w":3,"h":3,"color":"#b0b8c0"},{"op":"rect","x":23,"y":8,"w":3,"h":1,"color":"#d6dde3"},{"op":"rect","x":0,"y":13,"w":27,"h":5,"color":"#6f727a"},{"op":"each","as":"x","in":[1,5,9,13,17,21],"ops":[{"op":"park","x":["var","x"],"y":14,"v":0}]},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"warehouse":{"size":[27,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":18,"color":"#7a7d84"},{"op":"rect","x":1,"y":1,"w":25,"h":10,"color":"#b9bcc2"},{"op":"each","as":"k","in":[0,1,2,3,4,5,6,7,8],"ops":[{"op":"rect","x":["+",["*",["var","k"],3],1],"y":1,"w":1,"h":10,"color":"#a3a6ad"}]},{"op":"rect","x":1,"y":10,"w":25,"h":1,"color":"#8a8d93"},{"op":"each","as":"k","in":[0,1,2],"ops":[{"op":"rect","x":["+",["*",["var","k"],5],3],"y":11,"w":3,"h":1,"color":"#3a3d44"}]},{"op":"each","as":"k","in":[0,1],"ops":[{"op":"rect","x":["+",["*",["var","k"],5],3],"y":12,"w":3,"h":4,"color":"#e6e6e6"},{"op":"rect","x":["+",["*",["var","k"],5],3],"y":16,"w":3,"h":1,"color":["pick",["#2f6fd0","#c0392b","#27ae60"],["rnd"]]}]},{"op":"rect","x":19,"y":12,"w":7,"h":5,"color":"#d8d2c4"},{"op":"rect","x":19,"y":12,"w":7,"h":1,"color":"#a8a294"},{"op":"win","x":21,"y":14},{"op":"win","x":23,"y":14},{"op":"park","x":14,"y":12,"v":1},{"op":"park","x":16,"y":12,"v":1},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"dock":{"size":[27,18],"params":{"seed":0,"wet":null,"crane":false},"ops":[{"op":"each","as":"ty","in":["range",["param","th"]],"ops":[{"op":"each","as":"tx","in":["range",["param","tw"]],"ops":[{"op":"if","test":["fn","wet",["var","tx"],["var","ty"]],"then":[{"op":"rect","x":["*",["var","tx"],9],"y":["+",["*",["var","ty"],9],1],"w":9,"h":7,"color":"#8b6a43"},{"op":"each","as":"k","in":[2,4,6],"ops":[{"op":"rect","x":["*",["var","tx"],9],"y":["+",["*",["var","ty"],9],["var","k"]],"w":9,"h":1,"color":"#6e5233"}]},{"op":"pixel","x":["*",["var","tx"],9],"y":["+",["*",["var","ty"],9],1],"color":"#3e2c1c"},{"op":"pixel","x":["+",["*",["var","tx"],9],8],"y":["+",["*",["var","ty"],9],1],"color":"#3e2c1c"},{"op":"pixel","x":["*",["var","tx"],9],"y":["+",["*",["var","ty"],9],7],"color":"#3e2c1c"},{"op":"pixel","x":["+",["*",["var","tx"],9],8],"y":["+",["*",["var","ty"],9],7],"color":"#3e2c1c"},{"op":"berth","x":["var","tx"],"y":["var","ty"]}],"else":[{"op":"rect","x":["*",["var","tx"],9],"y":["*",["var","ty"],9],"w":9,"h":9,"color":"#9a9ca2"},{"op":"if","test":["not",["param","crane"]],"then":[{"op":"set","as":"crane","value":true},{"op":"rect","x":["+",["*",["var","tx"],9],1],"y":["+",["*",["var","ty"],9],1],"w":6,"h":4,"color":"#d8d2c4"},{"op":"rect","x":["+",["*",["var","tx"],9],1],"y":["+",["*",["var","ty"],9],1],"w":6,"h":1,"color":"#a8a294"},{"op":"win","x":["+",["*",["var","tx"],9],2],"y":["+",["*",["var","ty"],9],3]},{"op":"win","x":["+",["*",["var","tx"],9],5],"y":["+",["*",["var","ty"],9],3]},{"op":"rect","x":["+",["*",["var","tx"],9],7],"y":["*",["var","ty"],9],"w":1,"h":6,"color":"#e0b030"},{"op":"rect","x":["+",["*",["var","tx"],9],3],"y":["*",["var","ty"],9],"w":6,"h":1,"color":"#e0b030"}],"else":[{"op":"rect","x":["+",["*",["var","tx"],9],1],"y":["+",["*",["var","ty"],9],1],"w":3,"h":3,"color":"#b07a3a"},{"op":"rect","x":["+",["*",["var","tx"],9],1],"y":["+",["*",["var","ty"],9],1],"w":3,"h":1,"color":"#8a5a2a"},{"op":"rect","x":["+",["*",["var","tx"],9],5],"y":["+",["*",["var","ty"],9],1],"w":3,"h":4,"color":["pick",["#c0392b","#2f6fd0","#27ae60","#e67e22"],["rnd"]]}]},{"op":"park","x":["+",["*",["var","tx"],9],5],"y":["+",["*",["var","ty"],9],6],"v":0}]}]}]},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"farm":{"size":[36,27],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":36,"h":27,"color":"#7fb35a"},{"op":"repeat","as":"y","times":17,"ops":[{"op":"rect","x":0,"y":["var","y"],"w":22,"h":1,"color":["if",["==",["mod",["var","y"],3],0],"#c9b24a",["if",["==",["mod",["var","y"],3],1],"#a8c04a","#86a83c"]]}]},{"op":"rect","x":0,"y":18,"w":22,"h":9,"color":"#6d5a3a"},{"op":"each","as":"y","in":[19,21,23,25],"ops":[{"op":"rect","x":0,"y":["var","y"],"w":22,"h":1,"color":"#5a4a30"}]},{"op":"rect","x":24,"y":2,"w":10,"h":8,"color":"#b33a2e"},{"op":"rect","x":24,"y":2,"w":10,"h":2,"color":"#7a2a22"},{"op":"rect","x":27,"y":7,"w":4,"h":3,"color":"#5a2420"},{"op":"pixel","x":28,"y":8,"color":"#e8e2d2"},{"op":"pixel","x":29,"y":7,"color":"#e8e2d2"},{"op":"win","x":25,"y":5},{"op":"win","x":32,"y":5},{"op":"rect","x":25,"y":12,"w":4,"h":8,"color":"#c8ccd2"},{"op":"rect","x":25,"y":11,"w":4,"h":1,"color":"#9aa0a8"},{"op":"rect","x":25,"y":15,"w":4,"h":1,"color":"#9aa0a8"},{"op":"rect","x":30,"y":14,"w":3,"h":2,"color":"#3a8a3a"},{"op":"pixel","x":30,"y":16,"color":"#222222"},{"op":"pixel","x":32,"y":16,"color":"#222222"},{"op":"rect","x":23,"y":21,"w":13,"h":6,"color":"#a8946e"},{"op":"park","x":24,"y":22,"v":0},{"op":"park","x":28,"y":22,"v":0},{"op":"park","x":32,"y":22,"v":0},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"orchard":{"size":[27,27],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":27,"color":"#6fa84a"},{"op":"each","as":"ty","in":[1,8,15],"ops":[{"op":"each","as":"tx","in":[1,9,17],"ops":[{"op":"rect","x":["+",["var","tx"],3],"y":["+",["var","ty"],4],"w":1,"h":2,"color":"#6b4a2b"},{"op":"rect","x":["+",["var","tx"],1],"y":["var","ty"],"w":5,"h":4,"color":"#2f7d34"},{"op":"rect","x":["+",["var","tx"],2],"y":["var","ty"],"w":3,"h":5,"color":"#2f7d34"},{"op":"rect","x":["+",["var","tx"],2],"y":["var","ty"],"w":2,"h":1,"color":"#4fa84f"},{"op":"pixel","x":["+",["var","tx"],2],"y":["+",["var","ty"],1],"color":"#e04a3a"},{"op":"pixel","x":["+",["var","tx"],4],"y":["+",["var","ty"],2],"color":"#e04a3a"},{"op":"pixel","x":["+",["var","tx"],1],"y":["+",["var","ty"],3],"color":"#f0a030"}]}]},{"op":"rect","x":1,"y":22,"w":6,"h":4,"color":"#8a6a4a"},{"op":"rect","x":1,"y":22,"w":6,"h":1,"color":"#5a4030"},{"op":"win","x":3,"y":24},{"op":"rect","x":8,"y":22,"w":19,"h":5,"color":"#a8946e"},{"op":"park","x":10,"y":23,"v":0},{"op":"park","x":15,"y":23,"v":0},{"op":"park","x":20,"y":23,"v":0},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"school":{"size":[27,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":18,"color":"#68ad52"},{"op":"rect","x":1,"y":1,"w":17,"h":10,"color":"#b5543c"},{"op":"rect","x":1,"y":1,"w":17,"h":1,"color":"#7a3424"},{"op":"each","as":"y","in":[4,7],"ops":[{"op":"each","as":"x","in":[3,5,7,11,13,15],"ops":[{"op":"win","x":["var","x"],"y":["var","y"]}]}]},{"op":"rect","x":9,"y":8,"w":2,"h":3,"color":"#3a2a1a"},{"op":"rect","x":20,"y":1,"w":1,"h":6,"color":"#dddddd"},{"op":"rect","x":21,"y":1,"w":3,"h":2,"color":"#3a6fd0"},{"op":"rect","x":19,"y":8,"w":7,"h":3,"color":"#c9a66b"},{"op":"rect","x":20,"y":8,"w":4,"h":1,"color":"#c0392b"},{"op":"rect","x":24,"y":9,"w":1,"h":2,"color":"#f1c40f"},{"op":"rect","x":0,"y":12,"w":27,"h":6,"color":"#6f727a"},{"op":"each","as":"x","in":[9,13,17,21],"ops":[{"op":"park","x":["var","x"],"y":13,"v":0}]},{"op":"rect","x":1,"y":13,"w":6,"h":3,"color":"#f5c518"},{"op":"rect","x":2,"y":13,"w":4,"h":1,"color":"#9fc4e0"},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"hospital":{"size":[27,27],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":27,"color":"#68ad52"},{"op":"rect","x":2,"y":1,"w":20,"h":16,"color":"#eef0f2"},{"op":"rect","x":2,"y":16,"w":20,"h":1,"color":"#c4c8ce"},{"op":"rect","x":10,"y":4,"w":4,"h":10,"color":"#d63a3a"},{"op":"rect","x":7,"y":7,"w":10,"h":4,"color":"#d63a3a"},{"op":"each","as":"y","in":[3,5,7,9,11,13],"ops":[{"op":"each","as":"x","in":[3,5,18,20],"ops":[{"op":"win","x":["var","x"],"y":["var","y"]}]}]},{"op":"rect","x":22,"y":2,"w":5,"h":5,"color":"#5a5d64"},{"op":"each","as":"p","in":[[23,3],[23,4],[23,5],[25,3],[25,4],[25,5],[24,4]],"ops":[{"op":"rect","x":["at",["var","p"],0],"y":["at",["var","p"],1],"w":1,"h":1,"color":"#ffffff"}]},{"op":"rect","x":10,"y":17,"w":5,"h":2,"color":"#d63a3a"},{"op":"rect","x":17,"y":18,"w":3,"h":2,"color":"#ffffff"},{"op":"rect","x":18,"y":18,"w":1,"h":2,"color":"#d63a3a"},{"op":"rect","x":0,"y":20,"w":27,"h":7,"color":"#6f727a"},{"op":"each","as":"y","in":[21,24],"ops":[{"op":"each","as":"x","in":[1,5,9,13,17,21],"ops":[{"op":"park","x":["var","x"],"y":["var","y"],"v":0}]}]},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"airport":{"size":[90,45],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":90,"h":45,"color":"#7fa85a"},{"op":"rect","x":0,"y":4,"w":90,"h":9,"color":"#3a3d44"},{"op":"rect","x":0,"y":4,"w":90,"h":1,"color":"#cfd2d6"},{"op":"rect","x":0,"y":12,"w":90,"h":1,"color":"#cfd2d6"},{"op":"each","as":"k","in":["range",13],"ops":[{"op":"rect","x":["+",["*",["var","k"],6],8],"y":8,"w":3,"h":1,"color":"#ffffff"}]},{"op":"each","as":"k","in":[0,1,2,3],"ops":[{"op":"rect","x":1,"y":["+",["*",["var","k"],2],5],"w":3,"h":1,"color":"#ffffff"},{"op":"rect","x":86,"y":["+",["*",["var","k"],2],5],"w":3,"h":1,"color":"#ffffff"}]},{"op":"rect","x":10,"y":13,"w":70,"h":3,"color":"#4a4d55"},{"op":"rect","x":8,"y":16,"w":74,"h":10,"color":"#5a5d64"},{"op":"each","as":"x","in":[20,34,48],"ops":[{"op":"rect","x":["var","x"],"y":20,"w":7,"h":1,"color":"#f4f5f7"},{"op":"rect","x":["+",["var","x"],3],"y":18,"w":1,"h":5,"color":"#f4f5f7"},{"op":"rect","x":["var","x"],"y":19,"w":1,"h":3,"color":"#d63a3a"}]},{"op":"rect","x":14,"y":27,"w":52,"h":10,"color":"#d9dde4"},{"op":"rect","x":14,"y":27,"w":52,"h":1,"color":"#a8adb6"},{"op":"each","as":"k","in":["range",25],"ops":[{"op":"win","x":["+",["*",["var","k"],2],16],"y":31}]},{"op":"each","as":"x","in":[22,36,50],"ops":[{"op":"rect","x":["var","x"],"y":24,"w":2,"h":3,"color":"#9aa0a8"}]},{"op":"rect","x":70,"y":26,"w":4,"h":11,"color":"#c8ccd2"},{"op":"rect","x":69,"y":25,"w":6,"h":3,"color":"#5a8fc0"},{"op":"rect","x":14,"y":38,"w":60,"h":7,"color":"#6f727a"},{"op":"each","as":"y","in":[39,42],"ops":[{"op":"each","as":"k","in":["range",14],"ops":[{"op":"park","x":["+",["*",["var","k"],4],15],"y":["var","y"],"v":0}]}]},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"park":{"size":[18,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":18,"h":18,"color":"#5bb04a"},{"op":"repeat","as":"k","times":18,"ops":[{"op":"rect","x":["floor",["*",["rnd"],18]],"y":["floor",["*",["rnd"],18]],"w":1,"h":1,"color":["if",["<",["rnd"],0.5],"#f5e663","#ff9ec4"]}]},{"op":"rect","x":8,"y":0,"w":2,"h":18,"color":"#dbc99f"},{"op":"rect","x":0,"y":8,"w":18,"h":2,"color":"#dbc99f"},{"op":"rect","x":11,"y":12,"w":5,"h":4,"color":"#3f82c8"},{"op":"rect","x":12,"y":11,"w":3,"h":1,"color":"#3f82c8"},{"op":"pixel","x":12,"y":13,"color":"#9fd0ff"},{"op":"use","file":"trees","texture":"tree","at":[0,0],"params":{"v":1}},{"op":"use","file":"trees","texture":"tree","at":[10,0],"params":{"v":2}},{"op":"use","file":"trees","texture":"tree","at":[0,9],"params":{"v":3}},{"op":"rect","x":4,"y":10,"w":3,"h":1,"color":"#8b5a2b"},{"op":"mark","as":"win","of":[[3,7],[6,6],[12,6],[14,3],[5,12],[2,15],[6,15],[11,10],[15,10],[4,3],[13,16],[16,7]]}]},"metro":{"size":[9,9],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":9,"h":9,"color":"#cfc6b4"},{"op":"rect","x":1,"y":1,"w":7,"h":7,"color":"#bdb39e"},{"op":"rect","x":2,"y":1,"w":5,"h":4,"color":"#1f4fb0"},{"op":"each","as":"p","in":[[3,2],[3,3],[4,2],[5,2],[5,3]],"ops":[{"op":"pixel","x":["at",["var","p"],0],"y":["at",["var","p"],1],"color":"#ffffff"}]},{"op":"rect","x":2,"y":6,"w":5,"h":2,"color":"#8a8170"},{"op":"rect","x":2,"y":7,"w":5,"h":1,"color":"#5f584b"},{"op":"spots","of":[[1,5],[7,5],[1,7],[7,7],[1,3],[7,3]]}]},"busstop":{"size":[9,9],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":9,"h":9,"color":"#c4c7cd"},{"op":"rect","x":1,"y":1,"w":7,"h":3,"color":"#3a6f9a"},{"op":"rect","x":1,"y":1,"w":7,"h":1,"color":"#6f9fc8"},{"op":"rect","x":2,"y":4,"w":5,"h":1,"color":"#8b5a2b"},{"op":"rect","x":7,"y":4,"w":1,"h":4,"color":"#5c5f66"},{"op":"rect","x":6,"y":4,"w":3,"h":2,"color":"#f5c518"},{"op":"pixel","x":7,"y":4,"color":"#2f4f6f"},{"op":"spots","of":[[2,6],[4,6],[3,7],[5,7],[1,7],[2,5]]}]},"parking":{"size":[18,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":18,"h":18,"color":"#4a4d55"},{"op":"rect","x":0,"y":0,"w":18,"h":1,"color":"#8c8f96"},{"op":"rect","x":0,"y":17,"w":18,"h":1,"color":"#8c8f96"},{"op":"each","as":"x","in":[0,3,6,9,12,15],"ops":[{"op":"rect","x":["var","x"],"y":1,"w":1,"h":4,"color":"#d8d8d8"},{"op":"rect","x":["var","x"],"y":13,"w":1,"h":4,"color":"#d8d8d8"}]},{"op":"each","as":"y","in":[1,14],"ops":[{"op":"each","as":"x","in":[1,4,7,10,13,16],"ops":[{"op":"park","x":["var","x"],"y":["var","y"],"v":1}]}]},{"op":"rect","x":7,"y":8,"w":4,"h":1,"color":"#d8d8d8"},{"op":"rect","x":10,"y":7,"w":1,"h":3,"color":"#d8d8d8"},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"garage":{"size":[18,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":18,"h":18,"color":"#9a9ca2"},{"op":"rect","x":1,"y":1,"w":16,"h":16,"color":"#7d8087"},{"op":"rect","x":13,"y":2,"w":3,"h":14,"color":"#6a6d73"},{"op":"repeat","as":"k","times":7,"ops":[{"op":"rect","x":13,"y":["+",["*",["var","k"],2],3],"w":3,"h":1,"color":"#8a8d93"}]},{"op":"rect","x":2,"y":2,"w":4,"h":5,"color":"#2f6fd0"},{"op":"each","as":"p","in":[[3,3],[3,4],[3,5],[4,3],[4,4]],"ops":[{"op":"pixel","x":["at",["var","p"],0],"y":["at",["var","p"],1],"color":"#ffffff"}]},{"op":"each","as":"y","in":[2,6,10],"ops":[{"op":"each","as":"x","in":[7,10],"ops":[{"op":"park","x":["var","x"],"y":["var","y"],"v":1}]}]},{"op":"each","as":"x","in":[2,4],"ops":[{"op":"park","x":["var","x"],"y":10,"v":1}]},{"op":"each","as":"x","in":[2,7,10],"ops":[{"op":"park","x":["var","x"],"y":14,"v":0}]},{"op":"stat","x":["-",["param","w"],2],"y":0}]},"fishery":{"size":[18,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":18,"h":18,"color":"#6fa85a"},{"op":"rect","x":0,"y":12,"w":18,"h":6,"color":"#9a8f7a"},{"op":"rect","x":1,"y":1,"w":10,"h":9,"color":"#d9d3c4"},{"op":"rect","x":1,"y":1,"w":10,"h":3,"color":"#3f6f8f"},{"op":"rect","x":1,"y":4,"w":10,"h":1,"color":"#8aa8b8"},{"op":"win","x":3,"y":6},{"op":"win","x":6,"y":6},{"op":"rect","x":8,"y":8,"w":2,"h":2,"color":"#8a5a32"},{"op":"rect","x":12,"y":1,"w":5,"h":3,"color":"#2f5f7f"},{"op":"win","x":13,"y":2},{"op":"rect","x":12,"y":6,"w":3,"h":2,"color":"#b07a3a"},{"op":"rect","x":15,"y":6,"w":2,"h":2,"color":"#c8ccd2"},{"op":"rect","x":0,"y":14,"w":18,"h":2,"color":"#8b6a43"},{"op":"each","as":"x","in":[1,4,7,10,13,16],"ops":[{"op":"pixel","x":["var","x"],"y":14,"color":"#6e5233"}]},{"op":"rect","x":11,"y":10,"w":4,"h":2,"color":"#e0a030"},{"op":"pixel","x":12,"y":10,"color":"#ffffff"},{"op":"park","x":2,"y":16,"v":0},{"op":"park","x":5,"y":16,"v":0},{"op":"stat","x":16,"y":0}]},"seafoodMarket":{"size":[18,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":18,"h":18,"color":"#6fa85a"},{"op":"rect","x":2,"y":2,"w":14,"h":9,"color":"#efe9dc"},{"op":"rect","x":2,"y":2,"w":14,"h":1,"color":"#bdb3a0"},{"op":"each","as":"k","in":[0,1,2,3,4,5,6],"ops":[{"op":"rect","x":["+",["*",["var","k"],2],2],"y":3,"w":1,"h":2,"color":"#2f6fa8"}]},{"op":"rect","x":3,"y":6,"w":12,"h":3,"color":"#a9d2ee"},{"op":"win","x":5,"y":7},{"op":"win","x":8,"y":7},{"op":"win","x":11,"y":7},{"op":"rect","x":12,"y":5,"w":3,"h":1,"color":"#d63a3a"},{"op":"rect","x":3,"y":12,"w":3,"h":2,"color":"#b07a3a"},{"op":"rect","x":6,"y":12,"w":3,"h":2,"color":"#d8d2c4"},{"op":"pixel","x":4,"y":13,"color":"#e77b3a"},{"op":"pixel","x":7,"y":13,"color":"#8fc0e0"},{"op":"park","x":10,"y":14,"v":0},{"op":"park","x":13,"y":14,"v":0},{"op":"stat","x":16,"y":0}]},"seafoodPlant":{"size":[27,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":18,"color":"#9aa0a8"},{"op":"rect","x":1,"y":1,"w":17,"h":11,"color":"#b9bcc2"},{"op":"rect","x":1,"y":1,"w":17,"h":3,"color":"#3f6f8f"},{"op":"rect","x":1,"y":4,"w":17,"h":1,"color":"#8aa8b8"},{"op":"each","as":"x","in":[3,6,9,12,15],"ops":[{"op":"win","x":["var","x"],"y":7}]},{"op":"rect","x":3,"y":10,"w":3,"h":2,"color":"#3a3d44"},{"op":"rect","x":8,"y":10,"w":3,"h":2,"color":"#3a3d44"},{"op":"rect","x":20,"y":1,"w":3,"h":8,"color":"#8a5a3a"},{"op":"rect","x":20,"y":1,"w":3,"h":1,"color":"#3a3a3a"},{"op":"rect","x":23,"y":3,"w":3,"h":4,"color":"#cfd6dd"},{"op":"rect","x":23,"y":3,"w":3,"h":1,"color":"#eef2f5"},{"op":"rect","x":12,"y":13,"w":4,"h":3,"color":"#ffffff"},{"op":"rect","x":13,"y":13,"w":2,"h":1,"color":"#2f6fa8"},{"op":"park","x":18,"y":13,"v":0},{"op":"park","x":21,"y":13,"v":0},{"op":"stat","x":25,"y":0}]},"oilRig":{"size":[18,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":18,"h":18,"color":"#9c8f76"},{"op":"rect","x":1,"y":1,"w":10,"h":12,"color":"#8a7d64"},{"op":"rect","x":5,"y":2,"w":2,"h":10,"color":"#4a4a4a"},{"op":"each","as":"y","in":[3,5,7,9],"ops":[{"op":"rect","x":3,"y":["var","y"],"w":6,"h":1,"color":"#5a5a5a"}]},{"op":"rect","x":4,"y":11,"w":4,"h":2,"color":"#3a3a3a"},{"op":"rect","x":12,"y":2,"w":4,"h":4,"color":"#b0b8c0"},{"op":"rect","x":12,"y":2,"w":4,"h":1,"color":"#d6dde3"},{"op":"rect","x":12,"y":9,"w":5,"h":3,"color":"#8a8f96"},{"op":"rect","x":13,"y":9,"w":3,"h":1,"color":"#c0c6cc"},{"op":"line","x1":8,"y1":12,"x2":12,"y2":10,"color":"#6a6a6a"},{"op":"rect","x":2,"y":14,"w":6,"h":3,"color":"#c0392b"},{"op":"pixel","x":3,"y":15,"color":"#ffd24a"},{"op":"park","x":10,"y":14,"v":0},{"op":"stat","x":16,"y":0}]},"gasWell":{"size":[18,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":18,"h":18,"color":"#9a988c"},{"op":"rect","x":1,"y":1,"w":12,"h":12,"color":"#8a887c"},{"op":"rect","x":2,"y":2,"w":2,"h":7,"color":"#5a5a5a"},{"op":"rect","x":1,"y":2,"w":4,"h":1,"color":"#6a6a6a"},{"op":"rect","x":5,"y":4,"w":2,"h":6,"color":"#c8ccd2"},{"op":"rect","x":5,"y":4,"w":2,"h":1,"color":"#eef2f5"},{"op":"line","x1":4,"y1":9,"x2":7,"y2":9,"color":"#9a6b32"},{"op":"line","x1":7,"y1":9,"x2":11,"y2":6,"color":"#9a6b32"},{"op":"rect","x":11,"y":3,"w":4,"h":3,"color":"#b8c0c8"},{"op":"rect","x":11,"y":3,"w":4,"h":1,"color":"#dde3e8"},{"op":"rect","x":14,"y":8,"w":1,"h":6,"color":"#5a5a5a"},{"op":"pixel","x":14,"y":7,"color":"#ff8a1e"},{"op":"pixel","x":14,"y":6,"color":"#ffd24a"},{"op":"park","x":2,"y":15,"v":0},{"op":"park","x":6,"y":15,"v":0},{"op":"stat","x":16,"y":0}]},"loggingCamp":{"size":[27,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":18,"color":"#6fa85a"},{"op":"rect","x":0,"y":9,"w":27,"h":9,"color":"#8a7150"},{"op":"rect","x":1,"y":1,"w":9,"h":7,"color":"#b88a5a"},{"op":"rect","x":1,"y":1,"w":9,"h":2,"color":"#6a4a2a"},{"op":"win","x":3,"y":4},{"op":"win","x":6,"y":4},{"op":"each","as":"k","in":[0,1,2,3,4,5],"ops":[{"op":"rect","x":["+",["*",["var","k"],4],12],"y":10,"w":3,"h":2,"color":"#7a5428"},{"op":"pixel","x":["+",["*",["var","k"],4],12],"y":10,"color":"#c8a06a"}]},{"op":"each","as":"k","in":[0,1,2],"ops":[{"op":"rect","x":["+",["*",["var","k"],3],13],"y":14,"w":2,"h":2,"color":"#a87a4a"}]},{"op":"rect","x":11,"y":2,"w":4,"h":5,"color":"#4a4a4a"},{"op":"rect","x":11,"y":2,"w":4,"h":1,"color":"#2a2a2a"},{"op":"rect","x":22,"y":2,"w":3,"h":5,"color":"#d8d2c4"},{"op":"stat","x":25,"y":0}]},"greenhouse":{"size":[18,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":18,"h":18,"color":"#7fb35a"},{"op":"rect","x":1,"y":1,"w":7,"h":11,"color":"#d8ece8"},{"op":"rect","x":10,"y":1,"w":7,"h":11,"color":"#d8ece8"},{"op":"each","as":"x","in":[3,5,12,14],"ops":[{"op":"rect","x":["var","x"],"y":2,"w":1,"h":9,"color":"#8fc8a8"}]},{"op":"rect","x":1,"y":4,"w":7,"h":1,"color":"#b8d8cc"},{"op":"rect","x":10,"y":4,"w":7,"h":1,"color":"#b8d8cc"},{"op":"rect","x":1,"y":8,"w":7,"h":1,"color":"#b8d8cc"},{"op":"rect","x":10,"y":8,"w":7,"h":1,"color":"#b8d8cc"},{"op":"each","as":"x","in":[2,4,6,11,13,15],"ops":[{"op":"pixel","x":["var","x"],"y":6,"color":"#4a9a3a"}]},{"op":"rect","x":15,"y":13,"w":2,"h":3,"color":"#3f82c8"},{"op":"park","x":3,"y":14,"v":0},{"op":"park","x":6,"y":14,"v":0},{"op":"stat","x":16,"y":0}]},"quarry":{"size":[27,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":18,"color":"#8a857a"},{"op":"rect","x":2,"y":2,"w":22,"h":13,"color":"#767168"},{"op":"rect","x":5,"y":4,"w":16,"h":9,"color":"#5f5b54"},{"op":"rect","x":8,"y":6,"w":10,"h":5,"color":"#47443f"},{"op":"each","as":"k","in":[0,1,2],"ops":[{"op":"rect","x":["+",["*",["var","k"],4],9],"y":["+",["*",["var","k"],2],7],"w":3,"h":1,"color":"#6a665e"}]},{"op":"rect","x":20,"y":1,"w":1,"h":8,"color":"#e0b030"},{"op":"rect","x":15,"y":1,"w":6,"h":1,"color":"#e0b030"},{"op":"rect","x":18,"y":2,"w":3,"h":2,"color":"#d8d2c4"},{"op":"each","as":"x","in":[2,5,8],"ops":[{"op":"rect","x":["var","x"],"y":15,"w":2,"h":2,"color":"#a8a294"}]},{"op":"rect","x":1,"y":13,"w":6,"h":3,"color":"#b0a898"},{"op":"stat","x":25,"y":0}]},"mine":{"size":[27,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":18,"color":"#7a756c"},{"op":"rect","x":1,"y":1,"w":18,"h":11,"color":"#8f8a80"},{"op":"rect","x":5,"y":3,"w":8,"h":9,"color":"#3a3630"},{"op":"rect","x":6,"y":5,"w":6,"h":7,"color":"#14120f"},{"op":"rect","x":6,"y":5,"w":6,"h":1,"color":"#8a7a5a"},{"op":"each","as":"y","in":[7,9,11],"ops":[{"op":"rect","x":4,"y":["var","y"],"w":14,"h":1,"color":"#6a5a3a"}]},{"op":"rect","x":20,"y":2,"w":5,"h":4,"color":"#b0b8c0"},{"op":"rect","x":20,"y":2,"w":5,"h":1,"color":"#d6dde3"},{"op":"rect","x":20,"y":8,"w":6,"h":5,"color":"#5a5a5a"},{"op":"pixel","x":22,"y":10,"color":"#e0b030"},{"op":"each","as":"x","in":[2,4,7],"ops":[{"op":"rect","x":["var","x"],"y":14,"w":2,"h":2,"color":"#a8a294"}]},{"op":"stat","x":25,"y":0}]},"fireStation":{"size":[27,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":18,"color":"#b5483c"},{"op":"rect","x":1,"y":1,"w":20,"h":10,"color":"#c2564a"},{"op":"rect","x":1,"y":1,"w":20,"h":2,"color":"#8a342a"},{"op":"rect","x":3,"y":3,"w":6,"h":7,"color":"#e8e2d8"},{"op":"rect","x":11,"y":3,"w":6,"h":7,"color":"#e8e2d8"},{"op":"each","as":"x","in":[4,6,12,14],"ops":[{"op":"win","x":["var","x"],"y":4}]},{"op":"rect","x":18,"y":2,"w":3,"h":9,"color":"#d8d2c4"},{"op":"rect","x":22,"y":1,"w":4,"h":6,"color":"#8a8f96"},{"op":"win","x":23,"y":3},{"op":"rect","x":9,"y":11,"w":7,"h":2,"color":"#6f727a"},{"op":"park","x":10,"y":13,"v":0},{"op":"park","x":13,"y":13,"v":0},{"op":"park","x":5,"y":14,"v":0},{"op":"stat","x":25,"y":0}]},"policeStation":{"size":[18,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":18,"h":18,"color":"#6fa85a"},{"op":"rect","x":1,"y":1,"w":12,"h":9,"color":"#3f5f9a"},{"op":"rect","x":1,"y":1,"w":12,"h":2,"color":"#2a3f6a"},{"op":"each","as":"x","in":[3,6,9],"ops":[{"op":"win","x":["var","x"],"y":4}]},{"op":"rect","x":5,"y":6,"w":2,"h":3,"color":"#e8eef8"},{"op":"rect","x":14,"y":2,"w":3,"h":5,"color":"#8a8f96"},{"op":"rect","x":3,"y":12,"w":8,"h":4,"color":"#6f727a"},{"op":"park","x":4,"y":13,"v":0},{"op":"park","x":7,"y":13,"v":0},{"op":"stat","x":16,"y":0}]},"researchLab":{"size":[18,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":18,"h":18,"color":"#6fa85a"},{"op":"rect","x":1,"y":2,"w":12,"h":8,"color":"#eef2f5"},{"op":"rect","x":1,"y":2,"w":12,"h":1,"color":"#b8c4cc"},{"op":"rect","x":6,"y":1,"w":4,"h":3,"color":"#a9d2ee"},{"op":"each","as":"x","in":[3,5,9,11],"ops":[{"op":"win","x":["var","x"],"y":5}]},{"op":"rect","x":9,"y":7,"w":2,"h":2,"color":"#3a3d44"},{"op":"rect","x":14,"y":1,"w":1,"h":6,"color":"#8a8f96"},{"op":"pixel","x":14,"y":0,"color":"#ff4848"},{"op":"rect","x":2,"y":12,"w":9,"h":4,"color":"#6f727a"},{"op":"park","x":3,"y":13,"v":0},{"op":"park","x":6,"y":13,"v":0},{"op":"stat","x":16,"y":0}]},"woodPlant":{"size":[27,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":18,"color":"#9a8a6a"},{"op":"rect","x":1,"y":1,"w":16,"h":9,"color":"#c8a878"},{"op":"rect","x":1,"y":1,"w":16,"h":2,"color":"#7a5a3a"},{"op":"each","as":"x","in":[3,6,9,12],"ops":[{"op":"win","x":["var","x"],"y":5}]},{"op":"rect","x":19,"y":1,"w":3,"h":8,"color":"#7a5a3a"},{"op":"rect","x":19,"y":1,"w":3,"h":1,"color":"#3a3a3a"},{"op":"each","as":"k","in":[0,1,2,3],"ops":[{"op":"rect","x":["+",["*",["var","k"],4],1],"y":12,"w":3,"h":3,"color":"#8a5a32"},{"op":"pixel","x":["+",["*",["var","k"],4],1],"y":12,"color":"#c8a06a"}]},{"op":"rect","x":21,"y":12,"w":5,"h":4,"color":"#b89a6a"},{"op":"stat","x":25,"y":0}]},"coalPlant":{"size":[27,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":18,"color":"#8a8a86"},{"op":"rect","x":1,"y":1,"w":14,"h":9,"color":"#5a5d64"},{"op":"rect","x":1,"y":1,"w":14,"h":1,"color":"#3a3d44"},{"op":"each","as":"x","in":[3,7,11],"ops":[{"op":"win","x":["var","x"],"y":4,"color":"#ffd27a"}]},{"op":"rect","x":16,"y":2,"w":4,"h":8,"color":"#b8b5aa"},{"op":"rect","x":15,"y":1,"w":6,"h":1,"color":"#d8d5ca"},{"op":"rect","x":22,"y":3,"w":4,"h":7,"color":"#b8b5aa"},{"op":"rect","x":21,"y":2,"w":6,"h":1,"color":"#d8d5ca"},{"op":"rect","x":2,"y":12,"w":8,"h":4,"color":"#2e2e2e"},{"op":"each","as":"x","in":[5,8],"ops":[{"op":"rect","x":["var","x"],"y":11,"w":1,"h":1,"color":"#e8eef8"}]},{"op":"stat","x":25,"y":0}]},"gasPlant":{"size":[27,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":18,"color":"#a8a8a2"},{"op":"rect","x":1,"y":1,"w":12,"h":8,"color":"#d8dde2"},{"op":"rect","x":1,"y":1,"w":12,"h":1,"color":"#aab4bc"},{"op":"each","as":"x","in":[3,7,10],"ops":[{"op":"win","x":["var","x"],"y":4}]},{"op":"rect","x":15,"y":2,"w":5,"h":5,"color":"#eef2f5"},{"op":"rect","x":15,"y":2,"w":5,"h":1,"color":"#c8d0d8"},{"op":"rect","x":21,"y":4,"w":4,"h":4,"color":"#eef2f5"},{"op":"line","x1":13,"y1":7,"x2":16,"y2":8,"color":"#8a9aa8"},{"op":"line","x1":20,"y1":7,"x2":22,"y2":9,"color":"#8a9aa8"},{"op":"rect","x":18,"y":11,"w":1,"h":5,"color":"#5a5a5a"},{"op":"pixel","x":18,"y":10,"color":"#ff8a1e"},{"op":"pixel","x":18,"y":9,"color":"#ffd24a"},{"op":"stat","x":25,"y":0}]},"hydroPlant":{"size":[27,27],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":27,"color":"#6fa85a"},{"op":"rect","x":1,"y":2,"w":25,"h":16,"color":"#c8c8c4"},{"op":"rect","x":1,"y":2,"w":25,"h":2,"color":"#9a9a96"},{"op":"each","as":"x","in":[4,8,12,16,20,24],"ops":[{"op":"rect","x":["var","x"],"y":5,"w":2,"h":9,"color":"#a8a8a4"}]},{"op":"rect","x":1,"y":18,"w":25,"h":8,"color":"#3f82c8"},{"op":"each","as":"k","in":[0,1,2,3,4,5],"ops":[{"op":"rect","x":["+",["*",["var","k"],4],2],"y":20,"w":2,"h":1,"color":"#8fc0e8"}]},{"op":"rect","x":3,"y":2,"w":4,"h":3,"color":"#e0b030"},{"op":"win","x":4,"y":3},{"op":"win","x":18,"y":6},{"op":"win","x":21,"y":6},{"op":"stat","x":25,"y":0}]},"solarPlant":{"size":[27,18],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":18,"color":"#8aa85a"},{"op":"each","as":"y","in":[1,5,9,13],"ops":[{"op":"each","as":"x","in":[1,8,15,22],"ops":[{"op":"rect","x":["var","x"],"y":["var","y"],"w":6,"h":3,"color":"#26456f"},{"op":"rect","x":["var","x"],"y":["var","y"],"w":6,"h":1,"color":"#6fa0d0"}]}]},{"op":"rect","x":25,"y":1,"w":1,"h":3,"color":"#8a8f96"},{"op":"rect","x":24,"y":12,"w":3,"h":4,"color":"#b8c0c8"},{"op":"stat","x":25,"y":0}]},"nuclearPlant":{"size":[27,27],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":27,"color":"#8aa85a"},{"op":"rect","x":1,"y":1,"w":25,"h":25,"color":"#b0b0ac"},{"op":"rect","x":2,"y":13,"w":10,"h":10,"color":"#d8dde2"},{"op":"rect","x":3,"y":14,"w":8,"h":3,"color":"#c8d0d8"},{"op":"rect","x":5,"y":17,"w":4,"h":2,"color":"#3a6a8a"},{"op":"rect","x":14,"y":3,"w":4,"h":11,"color":"#c8c8c4"},{"op":"rect","x":13,"y":2,"w":6,"h":1,"color":"#e0e0dc"},{"op":"rect","x":20,"y":5,"w":5,"h":12,"color":"#c8c8c4"},{"op":"rect","x":19,"y":4,"w":7,"h":1,"color":"#e0e0dc"},{"op":"pixel","x":15,"y":1,"color":"#ffffff"},{"op":"pixel","x":22,"y":3,"color":"#ffffff"},{"op":"rect","x":14,"y":16,"w":4,"h":4,"color":"#8a8f96"},{"op":"rect","x":15,"y":17,"w":2,"h":2,"color":"#e0b030"},{"op":"stat","x":25,"y":0}]},"port":{"size":[36,27],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":36,"h":27,"color":"#a8a8a0"},{"op":"rect","x":0,"y":22,"w":36,"h":5,"color":"#8c8c84"},{"op":"rect","x":0,"y":25,"w":36,"h":2,"color":"#3f82c8"},{"op":"each","as":"x","in":[3,7,11,15,19,23,27,31],"ops":[{"op":"pixel","x":["var","x"],"y":26,"color":"#8fc0e8"}]},{"op":"rect","x":1,"y":1,"w":10,"h":6,"color":"#c8ccd2"},{"op":"rect","x":1,"y":1,"w":10,"h":1,"color":"#9aa0a8"},{"op":"each","as":"x","in":[3,6,9],"ops":[{"op":"win","x":["var","x"],"y":3}]},{"op":"each","as":"k","in":[0,1,2,3],"ops":[{"op":"rect","x":["+",["*",["var","k"],4],2],"y":9,"w":3,"h":4,"color":["pick",["#c0392b","#2f6fd0","#27ae60","#e67e22"],["/",["mod",["var","k"],4],4]]}]},{"op":"each","as":"k","in":[0,1,2,3],"ops":[{"op":"rect","x":["+",["*",["var","k"],4],20],"y":9,"w":3,"h":4,"color":["pick",["#2f6fd0","#c0392b","#e67e22","#27ae60"],["/",["mod",["var","k"],4],4]]}]},{"op":"rect","x":14,"y":9,"w":2,"h":12,"color":"#e0b030"},{"op":"rect","x":12,"y":8,"w":6,"h":1,"color":"#e0b030"},{"op":"rect","x":26,"y":2,"w":2,"h":12,"color":"#e0b030"},{"op":"rect","x":22,"y":1,"w":10,"h":1,"color":"#e0b030"},{"op":"rect","x":13,"y":14,"w":10,"h":3,"color":"#6f727a"},{"op":"each","as":"x","in":[14,18,22],"ops":[{"op":"park","x":["var","x"],"y":15,"v":0}]},{"op":"stat","x":34,"y":0}]},"distribution":{"size":[27,27],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":27,"h":27,"color":"#9aa0a8"},{"op":"rect","x":1,"y":1,"w":25,"h":12,"color":"#c0c4ca"},{"op":"rect","x":1,"y":1,"w":25,"h":2,"color":"#9a9ea6"},{"op":"each","as":"x","in":[3,7,11,15,19,23],"ops":[{"op":"rect","x":["var","x"],"y":4,"w":3,"h":8,"color":"#e8e8e8"},{"op":"rect","x":["var","x"],"y":4,"w":3,"h":1,"color":"#8a8f96"}]},{"op":"rect","x":1,"y":15,"w":12,"h":5,"color":"#6f727a"},{"op":"each","as":"k","in":[0,1,2],"ops":[{"op":"rect","x":2,"y":["+",["*",["var","k"],2],16],"w":10,"h":1,"color":"#d8d8d8"}]},{"op":"each","as":"k","in":[0,1,2],"ops":[{"op":"rect","x":16,"y":["+",["*",["var","k"],4],14],"w":8,"h":3,"color":["pick",["#2f6fd0","#c0392b","#27ae60"],["/",["mod",["var","k"],3],3]]}]},{"op":"rect","x":20,"y":23,"w":5,"h":2,"color":"#c8ccd2"},{"op":"each","as":"x","in":[2,6,10],"ops":[{"op":"park","x":["var","x"],"y":22,"v":0}]},{"op":"stat","x":25,"y":0}]},"railyard":{"size":[36,27],"params":{"seed":0,"wet":null},"ops":[{"op":"rect","x":0,"y":0,"w":36,"h":27,"color":"#9a968c"},{"op":"rect","x":0,"y":18,"w":36,"h":9,"color":"#7a756a"},{"op":"rect","x":1,"y":1,"w":13,"h":9,"color":"#8a5a3a"},{"op":"rect","x":1,"y":1,"w":13,"h":2,"color":"#5a3a22"},{"op":"rect","x":3,"y":4,"w":9,"h":6,"color":"#3a3d44"},{"op":"win","x":4,"y":5},{"op":"rect","x":16,"y":1,"w":18,"h":3,"color":"#b0b4ba"},{"op":"rect","x":16,"y":1,"w":18,"h":1,"color":"#8a8f96"},{"op":"each","as":"x","in":[18,24,30],"ops":[{"op":"rect","x":["var","x"],"y":5,"w":3,"h":3,"color":["pick",["#2f6fd0","#c0392b","#27ae60"],["/",["mod",["var","x"],3],3]]}]},{"op":"each","as":"y","in":[20,24],"ops":[{"op":"rect","x":0,"y":["var","y"],"w":36,"h":1,"color":"#5a5a52"},{"op":"rect","x":0,"y":["+",["var","y"],1],"w":36,"h":1,"color":"#3f3f38"}]},{"op":"each","as":"x","in":[2,8,14,20,26,32],"ops":[{"op":"rect","x":["var","x"],"y":19,"w":2,"h":6,"color":"#6a5a42"}]},{"op":"rect","x":18,"y":15,"w":6,"h":2,"color":"#e0b030"},{"op":"stat","x":34,"y":0}]}}},"people":{"format":"texture/1","name":"people","tile":9,"defs":{"skin":"#f1c9a0","ink":"#1a1d26","faces":{"happy":[".FFF.","FkFkF","FFFFF","kFFFk",".kkk."],"ok":[".FFF.","FkFkF","FFFFF","FkkkF",".FFF."],"sad":[".FFF.","FkFkF","FFFFF","FkkkF","kFFFk"],"angry":["kFFFk","FkFkF","FFFFF","FkkkF","kFFFk"]},"faceCol":{"happy":"#5fdc7a","ok":"#ffd75e","sad":"#ff9a4d","angry":"#ff4848"}},"textures":{"ped":{"size":[1,2],"params":{"color":"#ff6b6b"},"ops":[{"op":"pixel","x":0,"y":0,"color":["def","skin"]},{"op":"pixel","x":0,"y":1,"color":["param","color"]}]},"face":{"size":[5,5],"params":{"kind":"happy","rows":["at",["def","faces"],["param","kind"]],"fill":["at",["def","faceCol"],["param","kind"]]},"ops":[{"op":"repeat","as":"r","times":5,"ops":[{"op":"repeat","as":"k","times":5,"ops":[{"op":"if","test":["!=",["at",["at",["param","rows"],["var","r"]],["var","k"]],"."],"then":[{"op":"pixel","x":["var","k"],"y":["var","r"],"color":["if",["==",["at",["at",["param","rows"],["var","r"]],["var","k"]],"F"],["param","fill"],["def","ink"]]}]}]}]}]}}},"rails":{"format":"texture/1","name":"rails","tile":9,"defs":{"ballast":"#6b6459","sleeper":"#5a4433","steel":"#c3c9d1","rust":"#8a7a68"},"textures":{"track":{"size":[9,9],"params":{"m":0},"ops":[{"op":"if","test":["bit",["param","m"],0],"then":[{"op":"rect","x":2,"y":0,"w":5,"h":5,"color":["def","ballast"]}]},{"op":"if","test":["bit",["param","m"],2],"then":[{"op":"rect","x":2,"y":4,"w":5,"h":5,"color":["def","ballast"]}]},{"op":"if","test":["bit",["param","m"],1],"then":[{"op":"rect","x":4,"y":2,"w":5,"h":5,"color":["def","ballast"]}]},{"op":"if","test":["bit",["param","m"],3],"then":[{"op":"rect","x":0,"y":2,"w":5,"h":5,"color":["def","ballast"]}]},{"op":"rect","x":2,"y":2,"w":5,"h":5,"color":["def","ballast"]},{"op":"if","test":["or",["bit",["param","m"],0],["bit",["param","m"],2]],"then":[{"op":"each","as":"y","in":[0,3,6],"ops":[{"op":"rect","x":1,"y":["var","y"],"w":7,"h":1,"color":["def","sleeper"]}]}]},{"op":"if","test":["or",["bit",["param","m"],1],["bit",["param","m"],3]],"then":[{"op":"each","as":"x","in":[0,3,6],"ops":[{"op":"rect","x":["var","x"],"y":1,"w":1,"h":7,"color":["def","sleeper"]}]}]},{"op":"if","test":["==",["param","m"],0],"then":[{"op":"each","as":"y","in":[0,3,6],"ops":[{"op":"rect","x":1,"y":["var","y"],"w":7,"h":1,"color":["def","sleeper"]}]}]},{"op":"if","test":["or",["or",["bit",["param","m"],0],["bit",["param","m"],2]],["==",["param","m"],0]],"then":[{"op":"rect","x":3,"y":0,"w":1,"h":9,"color":["def","steel"]},{"op":"rect","x":5,"y":0,"w":1,"h":9,"color":["def","steel"]}]},{"op":"if","test":["or",["bit",["param","m"],1],["bit",["param","m"],3]],"then":[{"op":"rect","x":0,"y":3,"w":9,"h":1,"color":["def","steel"]},{"op":"rect","x":0,"y":5,"w":9,"h":1,"color":["def","steel"]}]},{"op":"pixel","x":3,"y":2,"color":["def","rust"]},{"op":"pixel","x":5,"y":7,"color":["def","rust"]}]}}},"roads":{"format":"texture/1","name":"roads","tile":9,"defs":{"arrow":[[4,2],[3,3],[5,3],[4,3],[4,4],[4,5],[4,6]]},"textures":{"markings":{"size":[9,9],"params":{"m":0,"hw":0,"ow":0,"ml":0,"px":0,"py":0,"ed":null,"horiz":["or",["==",["param","ml"],2],["==",["param","ml"],4]],"edv":["default",["param","ed"],["if",["or",["==",["param","ml"],4],["==",["param","ml"],3]],[0,2],[2,0]]],"dashBase":["if",["param","horiz"],["param","px"],["param","py"]],"H":["and",[">",["mask",["param","m"],10],0],["==",["mask",["param","m"],5],0]],"V":["and",[">",["mask",["param","m"],5],0],["==",["mask",["param","m"],10],0]],"lineCol":["if",["param","hw"],"#e3b542","#e8c55a"]},"ops":[{"op":"if","test":["param","ml"],"then":[{"op":"repeat","as":"k","times":9,"ops":[{"op":"if","test":["<",["mod",["+",["param","dashBase"],["var","k"]],6],3],"then":[{"op":"if","test":["param","horiz"],"then":[{"op":"pixel","x":["var","k"],"y":4,"color":"#e8e8e8"}],"else":[{"op":"pixel","x":4,"y":["var","k"],"color":"#e8e8e8"}]}]}]},{"op":"each","as":"s","in":[0,1],"ops":[{"op":"if","test":["==",["at",["param","edv"],["var","s"]],1],"then":[{"op":"if","test":["param","horiz"],"then":[{"op":"rect","x":0,"y":["if",["var","s"],8,0],"w":9,"h":1,"color":"#2e3038"}],"else":[{"op":"rect","x":["if",["var","s"],8,0],"y":0,"w":1,"h":9,"color":"#2e3038"}]},{"op":"if","test":["param","horiz"],"then":[{"op":"rect","x":0,"y":["if",["var","s"],7,1],"w":9,"h":1,"color":"#2e3038"}],"else":[{"op":"rect","x":["if",["var","s"],7,1],"y":0,"w":1,"h":9,"color":"#2e3038"}]},{"op":"repeat","as":"k","times":9,"ops":[{"op":"if","test":["<",["mod",["+",["param","dashBase"],["var","k"]],6],3],"then":[{"op":"if","test":["param","horiz"],"then":[{"op":"pixel","x":["var","k"],"y":["if",["var","s"],8,0],"color":"#e8e8e8"}],"else":[{"op":"pixel","x":["if",["var","s"],8,0],"y":["var","k"],"color":"#e8e8e8"}]}]}]}]},{"op":"if","test":["==",["at",["param","edv"],["var","s"]],2],"then":[{"op":"if","test":["param","horiz"],"then":[{"op":"rect","x":0,"y":["if",["var","s"],8,0],"w":9,"h":1,"color":"#a9acb3"}],"else":[{"op":"rect","x":["if",["var","s"],8,0],"y":0,"w":1,"h":9,"color":"#a9acb3"}]},{"op":"if","test":["param","horiz"],"then":[{"op":"rect","x":0,"y":["if",["var","s"],7,1],"w":9,"h":1,"color":"#e3b542"}],"else":[{"op":"rect","x":["if",["var","s"],7,1],"y":0,"w":1,"h":9,"color":"#e3b542"}]}]}]}],"else":[{"op":"if","test":["param","ow"],"then":[{"op":"each","as":"p","in":["def","arrow"],"ops":[{"op":"pixel","x":["rotx",["at",["var","p"],0],["at",["var","p"],1],["param","ow"]],"y":["roty",["at",["var","p"],0],["at",["var","p"],1],["param","ow"]],"color":"#f4f4f4"}]}],"else":[{"op":"if","test":["param","H"],"then":[{"op":"repeat","as":"x","times":9,"ops":[{"op":"if","test":["or",["param","hw"],["<",["mod",["+",["param","px"],["var","x"]],6],3]],"then":[{"op":"pixel","x":["var","x"],"y":4,"color":["param","lineCol"]}]}]}]},{"op":"if","test":["param","V"],"then":[{"op":"repeat","as":"y","times":9,"ops":[{"op":"if","test":["or",["param","hw"],["<",["mod",["+",["param","py"],["var","y"]],6],3]],"then":[{"op":"pixel","x":4,"y":["var","y"],"color":["param","lineCol"]}]}]}]},{"op":"if","test":["and",[">=",["bits",["param","m"]],3],["not",["param","hw"]]],"then":[{"op":"if","test":["bit",["param","m"],0],"then":[{"op":"each","as":"x","in":[2,4,6],"ops":[{"op":"pixel","x":["var","x"],"y":1,"color":"#d6d6d6"}]}]},{"op":"if","test":["bit",["param","m"],2],"then":[{"op":"each","as":"x","in":[2,4,6],"ops":[{"op":"pixel","x":["var","x"],"y":7,"color":"#d6d6d6"}]}]},{"op":"if","test":["bit",["param","m"],3],"then":[{"op":"each","as":"y","in":[2,4,6],"ops":[{"op":"pixel","x":1,"y":["var","y"],"color":"#d6d6d6"}]}]},{"op":"if","test":["bit",["param","m"],1],"then":[{"op":"each","as":"y","in":[2,4,6],"ops":[{"op":"pixel","x":7,"y":["var","y"],"color":"#d6d6d6"}]}]}]}]}]}]},"road":{"size":[9,9],"params":{"m":0,"hw":0,"ow":0,"sw":0,"ml":0,"px":0,"py":0,"ed":null,"asph":["if",["param","hw"],"#2e3038","#3d4049"],"corner":["if",["param","sw"],"#a3a7ae","#6f8a4a"]},"ops":[{"op":"rect","x":0,"y":0,"w":9,"h":9,"color":["if",["param","hw"],"#7c8088",["if",["param","sw"],"#c4c7cd","#8d8262"]]},{"op":"if","test":["not",["param","hw"]],"then":[{"op":"each","as":"k","in":[2,6],"ops":[{"op":"if","test":["not",["bit",["param","m"],0]],"then":[{"op":"pixel","x":["var","k"],"y":0,"color":["param","corner"]}]},{"op":"if","test":["not",["bit",["param","m"],2]],"then":[{"op":"pixel","x":["var","k"],"y":8,"color":["param","corner"]}]},{"op":"if","test":["not",["bit",["param","m"],3]],"then":[{"op":"pixel","x":0,"y":["var","k"],"color":["param","corner"]}]},{"op":"if","test":["not",["bit",["param","m"],1]],"then":[{"op":"pixel","x":8,"y":["var","k"],"color":["param","corner"]}]}]}]},{"op":"rect","x":1,"y":1,"w":7,"h":7,"color":["param","asph"]},{"op":"if","test":["bit",["param","m"],0],"then":[{"op":"rect","x":1,"y":0,"w":7,"h":1,"color":["param","asph"]}]},{"op":"if","test":["bit",["param","m"],1],"then":[{"op":"rect","x":8,"y":1,"w":1,"h":7,"color":["param","asph"]}]},{"op":"if","test":["bit",["param","m"],2],"then":[{"op":"rect","x":1,"y":8,"w":7,"h":1,"color":["param","asph"]}]},{"op":"if","test":["bit",["param","m"],3],"then":[{"op":"rect","x":0,"y":1,"w":1,"h":7,"color":["param","asph"]}]},{"op":"if","test":["param","hw"],"then":[{"op":"if","test":["not",["bit",["param","m"],0]],"then":[{"op":"rect","x":1,"y":1,"w":7,"h":1,"color":"#d9d9d9"}]},{"op":"if","test":["not",["bit",["param","m"],2]],"then":[{"op":"rect","x":1,"y":7,"w":7,"h":1,"color":"#d9d9d9"}]},{"op":"if","test":["not",["bit",["param","m"],3]],"then":[{"op":"rect","x":1,"y":1,"w":1,"h":7,"color":"#d9d9d9"}]},{"op":"if","test":["not",["bit",["param","m"],1]],"then":[{"op":"rect","x":7,"y":1,"w":1,"h":7,"color":"#d9d9d9"}]}]},{"op":"use","texture":"markings","at":[0,0],"params":{"m":["param","m"],"hw":["param","hw"],"ow":["param","ow"],"ml":["param","ml"],"px":["param","px"],"py":["param","py"],"ed":["param","ed"]}}]},"bridge":{"size":[9,9],"params":{"m":0,"hw":0,"ow":0,"sw":0,"ml":0,"px":0,"py":0,"ed":null,"L":["if",["bit",["param","m"],3],0,1],"R":["if",["bit",["param","m"],1],8,7],"Tp":["if",["bit",["param","m"],0],0,1],"Bt":["if",["bit",["param","m"],2],8,7],"rw":["+",["-",["param","R"],["param","L"]],1],"rh":["+",["-",["param","Bt"],["param","Tp"]],1],"asph":["if",["param","hw"],"#2e3038","#3d4049"]},"ops":[{"op":"if","test":["not",["bit",["param","m"],2]],"then":[{"op":"rect","x":["param","L"],"y":8,"w":["param","rw"],"h":1,"color":"#00000057"}]},{"op":"if","test":["not",["bit",["param","m"],1]],"then":[{"op":"rect","x":8,"y":["param","Tp"],"w":1,"h":["param","rh"],"color":"#00000057"}]},{"op":"if","test":["and",["not",["bit",["param","m"],2]],[">",["mask",["param","m"],10],0]],"then":[{"op":"pixel","x":2,"y":8,"color":"#76695a"},{"op":"pixel","x":6,"y":8,"color":"#76695a"}]},{"op":"if","test":["and",["not",["bit",["param","m"],1]],[">",["mask",["param","m"],5],0]],"then":[{"op":"pixel","x":8,"y":2,"color":"#76695a"},{"op":"pixel","x":8,"y":6,"color":"#76695a"}]},{"op":"rect","x":["param","L"],"y":["param","Tp"],"w":["param","rw"],"h":["param","rh"],"color":["param","asph"]},{"op":"if","test":["not",["bit",["param","m"],0]],"then":[{"op":"rect","x":["param","L"],"y":1,"w":["param","rw"],"h":1,"color":["if",["param","sw"],"#d8dade","#b3b6bd"]}]},{"op":"if","test":["not",["bit",["param","m"],2]],"then":[{"op":"rect","x":["param","L"],"y":7,"w":["param","rw"],"h":1,"color":["if",["param","sw"],"#d8dade","#b3b6bd"]}]},{"op":"if","test":["not",["bit",["param","m"],3]],"then":[{"op":"rect","x":1,"y":["param","Tp"],"w":1,"h":["param","rh"],"color":["if",["param","sw"],"#d8dade","#b3b6bd"]}]},{"op":"if","test":["not",["bit",["param","m"],1]],"then":[{"op":"rect","x":7,"y":["param","Tp"],"w":1,"h":["param","rh"],"color":["if",["param","sw"],"#d8dade","#b3b6bd"]}]},{"op":"each","as":"k","in":[1,4,7],"ops":[{"op":"if","test":["not",["bit",["param","m"],0]],"then":[{"op":"pixel","x":["var","k"],"y":1,"color":"#5c5f66"}]},{"op":"if","test":["not",["bit",["param","m"],2]],"then":[{"op":"pixel","x":["var","k"],"y":7,"color":"#5c5f66"}]},{"op":"if","test":["not",["bit",["param","m"],3]],"then":[{"op":"pixel","x":1,"y":["var","k"],"color":"#5c5f66"}]},{"op":"if","test":["not",["bit",["param","m"],1]],"then":[{"op":"pixel","x":7,"y":["var","k"],"color":"#5c5f66"}]}]},{"op":"use","texture":"markings","at":[0,0],"params":{"m":["param","m"],"hw":["param","hw"],"ow":["param","ow"],"ml":["param","ml"],"px":["param","px"],"py":["param","py"],"ed":["param","ed"]}}]},"deck":{"size":[9,9],"params":{"hw":0,"px":0},"ops":[{"op":"rect","x":0,"y":8,"w":9,"h":1,"color":"#00000066"},{"op":"rect","x":0,"y":1,"w":9,"h":7,"color":"#c3c6cd"},{"op":"rect","x":0,"y":7,"w":9,"h":1,"color":"#8d9098"},{"op":"rect","x":0,"y":2,"w":9,"h":5,"color":["if",["param","hw"],"#2e3038","#3d4049"]},{"op":"repeat","as":"x","times":9,"ops":[{"op":"if","test":["or",["param","hw"],["<",["mod",["+",["param","px"],["var","x"]],6],3]],"then":[{"op":"pixel","x":["var","x"],"y":4,"color":["if",["param","hw"],"#e3b542","#e8c55a"]}]}]}]},"path":{"size":[9,9],"params":{"m":0,"br":0,"fill":["if",["param","br"],"#a9875a","#dbc99f"],"speck":["if",["param","br"],"#7a5d3b","#c9b384"]},"ops":[{"op":"if","test":["param","br"],"then":[{"op":"rect","x":2,"y":2,"w":5,"h":5,"color":"#7a5d3b"}]},{"op":"rect","x":3,"y":3,"w":3,"h":3,"color":["param","fill"]},{"op":"if","test":["bit",["param","m"],0],"then":[{"op":"rect","x":3,"y":0,"w":3,"h":3,"color":["param","fill"]}]},{"op":"if","test":["bit",["param","m"],1],"then":[{"op":"rect","x":6,"y":3,"w":3,"h":3,"color":["param","fill"]}]},{"op":"if","test":["bit",["param","m"],2],"then":[{"op":"rect","x":3,"y":6,"w":3,"h":3,"color":["param","fill"]}]},{"op":"if","test":["bit",["param","m"],3],"then":[{"op":"rect","x":0,"y":3,"w":3,"h":3,"color":["param","fill"]}]},{"op":"rect","x":4,"y":4,"w":1,"h":1,"color":["param","speck"]}]},"plaza":{"size":[9,9],"params":{"par":0,"deco":0},"ops":[{"op":"rect","x":0,"y":0,"w":9,"h":9,"color":"#d3c9b4"},{"op":"repeat","as":"y","times":9,"ops":[{"op":"repeat","as":"x","times":9,"ops":[{"op":"if","test":["==",["mod",["+",["param","par"],["var","x"],["var","y"]],4],0],"then":[{"op":"pixel","x":["var","x"],"y":["var","y"],"color":"#c3b8a0"}]}]}]},{"op":"if","test":["param","deco"],"then":[{"op":"rect","x":3,"y":4,"w":3,"h":2,"color":"#7a5b3a"},{"op":"rect","x":3,"y":2,"w":3,"h":3,"color":"#3f9a42"},{"op":"rect","x":3,"y":2,"w":2,"h":1,"color":"#5fbf5a"}]}]}}},"trees":{"format":"texture/1","name":"trees","tile":9,"defs":{"leafLight":"#2f7d34","leafDark":"#2b6e3a","leafLightHi":"#4fa84f","leafDarkHi":"#3f8d4a","trunk":"#6b4a2b","shadow":"#14321459"},"textures":{"tree":{"size":[9,9],"params":{"v":1,"dx":["if",["bit",["param","v"],0],1,-1],"dy":["if",["bit",["param","v"],1],1,0],"leaf":["if",[">",["param","v"],2],["def","leafDark"],["def","leafLight"]],"hi":["if",[">",["param","v"],2],["def","leafDarkHi"],["def","leafLightHi"]]},"ops":[{"op":"rect","x":["+",3,["param","dx"]],"y":["+",6,["param","dy"]],"w":4,"h":2,"color":["def","shadow"]},{"op":"rect","x":["+",4,["param","dx"]],"y":["+",5,["param","dy"]],"w":1,"h":2,"color":["def","trunk"]},{"op":"rect","x":["+",2,["param","dx"]],"y":["+",2,["param","dy"]],"w":5,"h":3,"color":["param","leaf"]},{"op":"rect","x":["+",3,["param","dx"]],"y":["+",1,["param","dy"]],"w":3,"h":5,"color":["param","leaf"]},{"op":"rect","x":["+",3,["param","dx"]],"y":["+",2,["param","dy"]],"w":2,"h":1,"color":["param","hi"]}]}}},"underground":{"format":"texture/1","name":"underground","tile":9,"defs":{"board":"#06120e","trace":"#1e6b4f","core":"#45c98d","pad":"#e0b654","padLit":"#ffe6a1"},"textures":{"rail":{"size":[9,9],"params":{"m":0},"ops":[{"op":"rect","x":0,"y":0,"w":9,"h":9,"color":["def","board"]},{"op":"each","as":"y","in":[0,3,6],"ops":[{"op":"rect","x":0,"y":["var","y"],"w":9,"h":1,"color":"#081a14"}]},{"op":"if","test":["bit",["param","m"],0],"then":[{"op":"rect","x":3,"y":0,"w":3,"h":5,"color":["def","trace"]},{"op":"rect","x":4,"y":0,"w":1,"h":5,"color":["def","core"]}]},{"op":"if","test":["bit",["param","m"],2],"then":[{"op":"rect","x":3,"y":4,"w":3,"h":5,"color":["def","trace"]},{"op":"rect","x":4,"y":4,"w":1,"h":5,"color":["def","core"]}]},{"op":"if","test":["bit",["param","m"],1],"then":[{"op":"rect","x":4,"y":3,"w":5,"h":3,"color":["def","trace"]},{"op":"rect","x":4,"y":4,"w":5,"h":1,"color":["def","core"]}]},{"op":"if","test":["bit",["param","m"],3],"then":[{"op":"rect","x":0,"y":3,"w":5,"h":3,"color":["def","trace"]},{"op":"rect","x":0,"y":4,"w":5,"h":1,"color":["def","core"]}]},{"op":"rect","x":3,"y":3,"w":3,"h":3,"color":["def","trace"]},{"op":"pixel","x":4,"y":4,"color":["def","core"]}]},"junction":{"extends":"rail","size":[9,9],"params":{"m":0},"ops":[{"op":"use","texture":"rail","at":[0,0],"params":{"m":["param","m"]}},{"op":"rect","x":2,"y":2,"w":5,"h":1,"color":["def","pad"]},{"op":"rect","x":2,"y":6,"w":5,"h":1,"color":["def","pad"]},{"op":"rect","x":2,"y":2,"w":1,"h":5,"color":["def","pad"]},{"op":"rect","x":6,"y":2,"w":1,"h":5,"color":["def","pad"]},{"op":"rect","x":4,"y":4,"w":1,"h":1,"color":["def","padLit"]}]},"reverse":{"extends":"rail","size":[9,9],"params":{"m":0},"ops":[{"op":"use","texture":"rail","at":[0,0],"params":{"m":["param","m"]}},{"op":"rect","x":3,"y":2,"w":3,"h":1,"color":["def","pad"]},{"op":"rect","x":3,"y":6,"w":3,"h":1,"color":["def","pad"]},{"op":"rect","x":2,"y":3,"w":1,"h":3,"color":["def","pad"]},{"op":"rect","x":6,"y":3,"w":1,"h":3,"color":["def","pad"]},{"op":"pixel","x":4,"y":4,"color":["def","padLit"]}]},"station":{"size":[9,9],"params":{},"ops":[{"op":"rect","x":0,"y":0,"w":9,"h":9,"color":["def","board"]},{"op":"rect","x":1,"y":1,"w":7,"h":7,"color":"#0f3126"},{"op":"rect","x":1,"y":1,"w":7,"h":1,"color":["def","pad"]},{"op":"rect","x":1,"y":7,"w":7,"h":1,"color":["def","pad"]},{"op":"rect","x":1,"y":1,"w":1,"h":7,"color":["def","pad"]},{"op":"rect","x":7,"y":1,"w":1,"h":7,"color":["def","pad"]},{"op":"rect","x":3,"y":3,"w":3,"h":3,"color":["def","trace"]},{"op":"rect","x":4,"y":4,"w":1,"h":1,"color":["def","padLit"]}]},"train_h":{"size":[7,3],"params":{},"ops":[{"op":"rect","x":0,"y":1,"w":7,"h":2,"color":"#2a9b72"},{"op":"rect","x":1,"y":2,"w":5,"h":1,"color":"#0b2119"},{"op":"rect","x":0,"y":1,"w":1,"h":2,"color":["def","pad"]},{"op":"rect","x":6,"y":1,"w":1,"h":2,"color":["def","pad"]},{"op":"pixel","x":0,"y":1,"color":["def","padLit"]}]},"train_v":{"size":[3,7],"params":{},"ops":[{"op":"rect","x":1,"y":0,"w":2,"h":7,"color":"#2a9b72"},{"op":"rect","x":2,"y":1,"w":1,"h":5,"color":"#0b2119"},{"op":"rect","x":1,"y":0,"w":2,"h":1,"color":["def","pad"]},{"op":"rect","x":1,"y":6,"w":2,"h":1,"color":["def","pad"]},{"op":"pixel","x":1,"y":0,"color":["def","padLit"]}]}}},"vehicles":{"format":"texture/1","name":"vehicles","tile":9,"defs":{"glass":"#a9d2ee","busGlass":"#2f4f6f","wake":"#9fd0ff","wood":"#5a3a22","planeE":[[-4,0,0],[-3,0,0],[-2,0,0],[-1,0,0],[0,0,0],[1,0,0],[2,0,0],[3,0,0],[4,0,1],[0,-1,0],[0,-2,0],[0,-3,2],[0,1,0],[0,2,0],[0,3,2],[-1,-3,0],[-1,3,0],[-4,-1,3],[-4,1,3],[-3,-1,3],[-3,1,3]],"planeSE":[[-3,-3,0],[-2,-2,0],[-1,-1,0],[0,0,0],[1,1,0],[2,2,0],[3,3,1],[1,-1,0],[2,-2,0],[3,-3,2],[-1,1,0],[-2,2,0],[-3,3,2],[-4,-3,3],[-3,-4,3],[-4,-4,3]]},"textures":{"car_h":{"size":[3,2],"params":{"color":"#e74c3c"},"ops":[{"op":"rect","x":0,"y":0,"w":3,"h":2,"color":["param","color"]},{"op":"rect","x":1,"y":0,"w":1,"h":2,"color":["def","glass"]}]},"car_v":{"size":[2,3],"params":{"color":"#e74c3c"},"ops":[{"op":"rect","x":0,"y":0,"w":2,"h":3,"color":["param","color"]},{"op":"rect","x":0,"y":1,"w":2,"h":1,"color":["def","glass"]}]},"bus_h":{"size":[5,2],"params":{},"ops":[{"op":"rect","x":0,"y":0,"w":5,"h":2,"color":"#f5c518"},{"op":"rect","x":1,"y":0,"w":3,"h":1,"color":["def","busGlass"]}]},"bus_v":{"size":[2,5],"params":{},"ops":[{"op":"rect","x":0,"y":0,"w":2,"h":5,"color":"#f5c518"},{"op":"rect","x":0,"y":1,"w":1,"h":3,"color":["def","busGlass"]}]},"boat_e":{"size":[8,3],"params":{"color":"#f4f5f7"},"ops":[{"op":"pixel","x":1,"y":0,"color":["def","wake"]},{"op":"pixel","x":1,"y":2,"color":["def","wake"]},{"op":"pixel","x":0,"y":1,"color":["def","wake"]},{"op":"rect","x":3,"y":0,"w":5,"h":3,"color":["param","color"]},{"op":"pixel","x":7,"y":1,"color":["def","wood"]},{"op":"rect","x":4,"y":1,"w":2,"h":1,"color":["def","busGlass"]}]},"boat_w":{"size":[8,3],"params":{"color":"#f4f5f7"},"ops":[{"op":"pixel","x":6,"y":0,"color":["def","wake"]},{"op":"pixel","x":6,"y":2,"color":["def","wake"]},{"op":"pixel","x":7,"y":1,"color":["def","wake"]},{"op":"rect","x":0,"y":0,"w":5,"h":3,"color":["param","color"]},{"op":"pixel","x":0,"y":1,"color":["def","wood"]},{"op":"rect","x":1,"y":1,"w":2,"h":1,"color":["def","busGlass"]}]},"boat_s":{"size":[3,8],"params":{"color":"#f4f5f7"},"ops":[{"op":"pixel","x":0,"y":1,"color":["def","wake"]},{"op":"pixel","x":2,"y":1,"color":["def","wake"]},{"op":"pixel","x":1,"y":0,"color":["def","wake"]},{"op":"rect","x":0,"y":3,"w":3,"h":5,"color":["param","color"]},{"op":"pixel","x":1,"y":7,"color":["def","wood"]},{"op":"rect","x":1,"y":4,"w":1,"h":2,"color":["def","busGlass"]}]},"boat_n":{"size":[3,8],"params":{"color":"#f4f5f7"},"ops":[{"op":"pixel","x":0,"y":6,"color":["def","wake"]},{"op":"pixel","x":2,"y":6,"color":["def","wake"]},{"op":"pixel","x":1,"y":7,"color":["def","wake"]},{"op":"rect","x":0,"y":0,"w":3,"h":5,"color":["param","color"]},{"op":"pixel","x":1,"y":0,"color":["def","wood"]},{"op":"rect","x":1,"y":1,"w":1,"h":2,"color":["def","busGlass"]}]},"plane":{"size":[9,9],"params":{"h":0,"night":0,"blink":0,"hull":["rot",["if",["==",["mod",["param","h"],2],0],["def","planeE"],["def","planeSE"]],["floor",["/",["param","h"],2]]]},"ops":[{"op":"each","as":"p","in":["param","hull"],"ops":[{"op":"pixel","x":["+",["at",["var","p"],0],4],"y":["+",["at",["var","p"],1],4],"color":["if",["==",["at",["var","p"],2],3],"#d63a3a",["if",["==",["at",["var","p"],2],1],"#9aa3b5",["if",["==",["at",["var","p"],2],2],["if",["and",["param","night"],["param","blink"]],["if",[">",["+",["at",["var","p"],0],["at",["var","p"],1]],0],"#3ef06b","#ff4848"],"#c8ccd4"],"#f4f5f7"]]]}]}]},"plane_shadow":{"size":[9,9],"params":{"h":0,"hull":["rot",["if",["==",["mod",["param","h"],2],0],["def","planeE"],["def","planeSE"]],["floor",["/",["param","h"],2]]]},"ops":[{"op":"each","as":"p","in":["param","hull"],"ops":[{"op":"pixel","x":["+",["at",["var","p"],0],4],"y":["+",["at",["var","p"],1],4],"color":"#00000040"}]}]},"truck_h":{"size":[5,2],"params":{"color":"#ddd6c2"},"ops":[{"op":"rect","x":0,"y":0,"w":2,"h":2,"color":"#3f6f9f"},{"op":"rect","x":2,"y":0,"w":3,"h":2,"color":["param","color"]},{"op":"rect","x":2,"y":0,"w":3,"h":1,"color":["shade",["param","color"],22]},{"op":"pixel","x":1,"y":0,"color":"#a9d2ee"},{"op":"pixel","x":4,"y":1,"color":"#ffe27a"}]},"truck_v":{"size":[2,5],"params":{"color":"#ddd6c2"},"ops":[{"op":"rect","x":0,"y":0,"w":2,"h":3,"color":["param","color"]},{"op":"rect","x":0,"y":0,"w":1,"h":3,"color":["shade",["param","color"],22]},{"op":"rect","x":0,"y":3,"w":2,"h":2,"color":"#3f6f9f"},{"op":"pixel","x":0,"y":3,"color":"#a9d2ee"},{"op":"pixel","x":1,"y":4,"color":"#ffe27a"}]},"ship_e":{"size":[13,5],"params":{"color":"#f4f5f7"},"ops":[{"op":"pixel","x":0,"y":2,"color":"#9fd0ff"},{"op":"rect","x":1,"y":1,"w":11,"h":3,"color":"#a8483a"},{"op":"rect","x":2,"y":1,"w":10,"h":1,"color":"#c8664f"},{"op":"rect","x":1,"y":2,"w":2,"h":2,"color":["param","color"]},{"op":"rect","x":3,"y":1,"w":2,"h":2,"color":"#2f6fd0"},{"op":"rect","x":5,"y":1,"w":2,"h":2,"color":"#27ae60"},{"op":"rect","x":7,"y":1,"w":2,"h":2,"color":"#e67e22"},{"op":"rect","x":9,"y":1,"w":2,"h":2,"color":"#c0392b"},{"op":"pixel","x":11,"y":2,"color":"#ffffff"},{"op":"rect","x":2,"y":3,"w":1,"h":1,"color":"#2f4f6f"}]},"ship_w":{"size":[13,5],"params":{"color":"#f4f5f7"},"ops":[{"op":"pixel","x":12,"y":2,"color":"#9fd0ff"},{"op":"rect","x":1,"y":1,"w":11,"h":3,"color":"#a8483a"},{"op":"rect","x":1,"y":1,"w":10,"h":1,"color":"#c8664f"},{"op":"rect","x":10,"y":2,"w":2,"h":2,"color":["param","color"]},{"op":"rect","x":8,"y":1,"w":2,"h":2,"color":"#2f6fd0"},{"op":"rect","x":6,"y":1,"w":2,"h":2,"color":"#27ae60"},{"op":"rect","x":4,"y":1,"w":2,"h":2,"color":"#e67e22"},{"op":"rect","x":2,"y":1,"w":2,"h":2,"color":"#c0392b"},{"op":"pixel","x":1,"y":2,"color":"#ffffff"},{"op":"rect","x":10,"y":3,"w":1,"h":1,"color":"#2f4f6f"}]},"ship_s":{"size":[5,13],"params":{"color":"#f4f5f7"},"ops":[{"op":"pixel","x":2,"y":0,"color":"#9fd0ff"},{"op":"rect","x":1,"y":1,"w":3,"h":11,"color":"#a8483a"},{"op":"rect","x":1,"y":2,"w":1,"h":10,"color":"#c8664f"},{"op":"rect","x":2,"y":1,"w":2,"h":2,"color":["param","color"]},{"op":"rect","x":1,"y":3,"w":2,"h":2,"color":"#2f6fd0"},{"op":"rect","x":1,"y":5,"w":2,"h":2,"color":"#27ae60"},{"op":"rect","x":1,"y":7,"w":2,"h":2,"color":"#e67e22"},{"op":"rect","x":1,"y":9,"w":2,"h":2,"color":"#c0392b"},{"op":"pixel","x":2,"y":11,"color":"#ffffff"}]},"ship_n":{"size":[5,13],"params":{"color":"#f4f5f7"},"ops":[{"op":"pixel","x":2,"y":12,"color":"#9fd0ff"},{"op":"rect","x":1,"y":1,"w":3,"h":11,"color":"#a8483a"},{"op":"rect","x":1,"y":1,"w":1,"h":10,"color":"#c8664f"},{"op":"rect","x":2,"y":9,"w":2,"h":2,"color":["param","color"]},{"op":"rect","x":1,"y":7,"w":2,"h":2,"color":"#2f6fd0"},{"op":"rect","x":1,"y":5,"w":2,"h":2,"color":"#27ae60"},{"op":"rect","x":1,"y":3,"w":2,"h":2,"color":"#e67e22"},{"op":"rect","x":1,"y":1,"w":2,"h":2,"color":"#c0392b"},{"op":"pixel","x":2,"y":1,"color":"#ffffff"}]},"wagon_h":{"size":[7,3],"params":{"kind":"material","color":"#9a6b45"},"ops":[{"op":"rect","x":0,"y":0,"w":7,"h":1,"color":"#3a3a3a"},{"op":"rect","x":0,"y":1,"w":7,"h":1,"color":["param","color"]},{"op":"rect","x":0,"y":2,"w":7,"h":1,"color":"#3a3a3a"},{"op":"each","as":"k","in":[0,2,4],"ops":[{"op":"rect","x":["var","k"],"y":0,"w":1,"h":3,"color":["shade",["param","color"],34]}]},{"op":"rect","x":1,"y":1,"w":5,"h":1,"color":["shade",["param","color"],18]}]},"wagon_v":{"size":[3,7],"params":{"kind":"material","color":"#9a6b45"},"ops":[{"op":"rect","x":0,"y":0,"w":1,"h":7,"color":"#3a3a3a"},{"op":"rect","x":1,"y":0,"w":1,"h":7,"color":["param","color"]},{"op":"rect","x":2,"y":0,"w":1,"h":7,"color":"#3a3a3a"},{"op":"each","as":"k","in":[0,2,4],"ops":[{"op":"rect","x":0,"y":["var","k"],"w":3,"h":1,"color":["shade",["param","color"],34]}]},{"op":"rect","x":1,"y":1,"w":1,"h":5,"color":["shade",["param","color"],18]}]}}}});
 
 
 // ---- js/art.js ----
@@ -1410,15 +1459,9 @@ function wetMask(type, wet) {
   return k;
 }
 
-// New building kinds borrow the nearest existing texture of the same footprint
-// until they get their own art. Seeds still give each one its own palette.
-const BUILDING_TEX = {
-  fishery: 'office', seafoodMarket: 'market', seafoodPlant: 'warehouse',
-  oilRig: 'office', gasWell: 'garage', loggingCamp: 'factory', greenhouse: 'orchard',
-  fireStation: 'school', policeStation: 'market', researchLab: 'office',
-  powerPlant: 'factory', woodPlant: 'factory', coalPlant: 'factory', gasPlant: 'factory',
-  hydroPlant: 'warehouse', solarPlant: 'garage', nuclearPlant: 'hq', quarry: 'warehouse', mine: 'factory',
-};
+// Every building type has its own texture in buildings.texture; this table is
+// only for any future kind that has to borrow art until its sprite is drawn.
+const BUILDING_TEX = {};
 const buildingTex = type => BUILDING_TEX[type] || type;
 
 function drawBuilding(c, type, ox, oy, seed, wet) {
@@ -1458,6 +1501,21 @@ function drawBoat(c, b) {
   TEX.draw(c, 'vehicles', tex, Math.round(b.x) - ax, Math.round(b.y) - ay, { color: b.color });
 }
 
+const SHIP_AT = {1: ['ship_n', 2, 6], 2: ['ship_e', 6, 2], 3: ['ship_s', 2, 6], 4: ['ship_w', 6, 2]};
+function drawShip(c, s) {
+  const [tex, ax, ay] = SHIP_AT[s.d] || SHIP_AT[2];
+  TEX.draw(c, 'vehicles', tex, Math.round(s.x) - ax, Math.round(s.y) - ay, {color: s.color});
+}
+
+function drawTruck(c, x, y, horiz, col) {
+  TEX.draw(c, 'vehicles', horiz ? 'truck_h' : 'truck_v', x, y, {color: col});
+}
+
+function drawFreightCar(c, x, y, horiz, kind) {
+  const col = kind === 'passenger' ? '#4d96ff' : kind === 'liquid' ? '#b8c4cc' : kind === 'gas' ? '#e8a23a' : '#9a6b45';
+  TEX.draw(c, 'vehicles', horiz ? 'wagon_h' : 'wagon_v', x, y, {kind, color: col});
+}
+
 function drawPlane(c, p, night) {
   const h = ((Math.round(p.ang / (Math.PI / 4)) % 8) + 8) % 8;
   const gx = Math.round(p.x), gy = Math.round(p.y);
@@ -1477,6 +1535,16 @@ function drawPlane(c, p, night) {
 // ---------------------------------------------------------------------
 function drawRailTile(c, x0, y0, m, kind) {
   TEX.draw(c, 'underground', kind, x0, y0, { m });
+}
+
+// Surface freight track. Over water it gets a timber bridge deck first; over
+// a street the ballast sits on the asphalt as a level crossing.
+function drawTrackTile(c, x0, y0, m, wet) {
+  if (wet) {
+    c.fillStyle = '#8b6a43'; c.fillRect(x0, y0, T, T);
+    c.fillStyle = '#6e5233'; c.fillRect(x0, y0, T, 1); c.fillRect(x0, y0 + T - 1, T, 1);
+  }
+  TEX.draw(c, 'rails', 'track', x0, y0, { m });
 }
 
 function drawStationPad(c, x0, y0) {
@@ -1534,6 +1602,16 @@ const BIOME_PAL = {
   4: [226, 233, 242, 210, 220, 234, 240, 246, 252, 196, 214, 236, 232, 238, 248],
   5: [126, 122, 116, 110, 106, 100, 142, 138, 132, 168, 164, 158, 96, 92, 88],
 };
+// How far a biome's colour reaches into the neighbouring tile, in art pixels.
+// The stored biome of each tile never changes; only the ground colour fades.
+const EDGE_BLEND = 3;
+function terrainColor(pal, n) {
+  if (n > 0.88) return (pal[3] << 16) | (pal[4] << 8) | pal[5];
+  if (n < 0.06) return (pal[6] << 16) | (pal[7] << 8) | pal[8];
+  if (n < 0.064) return (pal[9] << 16) | (pal[10] << 8) | pal[11];
+  if (n < 0.067) return (pal[12] << 16) | (pal[13] << 8) | pal[14];
+  return (pal[0] << 16) | (pal[1] << 8) | pal[2];
+}
 function buildChunk(cx, cy) {
   const tx0 = cx * CW, ty0 = cy * CHH, pw = CW * T, ph = CHH * T;
   const cvs = mk(pw, ph), c = cvs.getContext('2d');
@@ -1549,12 +1627,26 @@ function buildChunk(cx, cy) {
         if (shore) { r = 214; g = 196; b = 140; }
         else { r = 46; g = 108; b = 180; if (n > 0.95) { r = 104; g = 162; b = 224; } else if (n > 0.8) { r = 54; g = 120; b = 194; } }
       } else {
-        const pal = BIOME_PAL[biome[i]] || BIOME_PAL[1];
-        r = pal[0]; g = pal[1]; b = pal[2];
-        if (n > 0.88) { r = pal[3]; g = pal[4]; b = pal[5]; }
-        else if (n < 0.06) { r = pal[6]; g = pal[7]; b = pal[8]; }
-        else if (n < 0.064) { r = pal[9]; g = pal[10]; b = pal[11]; }
-        else if (n < 0.067) { r = pal[12]; g = pal[13]; b = pal[14]; }
+        const bi = biome[i], pal = BIOME_PAL[bi] || BIOME_PAL[1];
+        const base = terrainColor(pal, n);
+        r = base >> 16; g = base >> 8 & 255; b = base & 255;
+        // Near a border, pick the closest land tile with another biome and fade
+        // the ground colour toward it. The tile keeps its own biome for every
+        // rule and simulation system; this is only what the pixels look like.
+        let bd = EDGE_BLEND + 1, bj = -1;
+        if (lx < bd && tx > 0) { const j = i - 1; if (!water[j] && biome[j] !== bi) { bd = lx; bj = biome[j]; } }
+        if (T - 1 - lx < bd && tx < MW - 1) { const j = i + 1; if (!water[j] && biome[j] !== bi) { bd = T - 1 - lx; bj = biome[j]; } }
+        if (ly < bd && ty > 0) { const j = i - MW; if (!water[j] && biome[j] !== bi) { bd = ly; bj = biome[j]; } }
+        if (T - 1 - ly < bd && ty < MH - 1) { const j = i + MW; if (!water[j] && biome[j] !== bi) { bd = T - 1 - ly; bj = biome[j]; } }
+        if (bj >= 0) {
+          // 50/50 exactly on the border and fading to 0 three pixels in, so the
+          // two sides meet on the same colour instead of swapping a hard edge.
+          const ww = 0.5 * (EDGE_BLEND - bd) / EDGE_BLEND;
+          const q = terrainColor(BIOME_PAL[bj] || BIOME_PAL[1], n);
+          r = Math.round(r + ((q >> 16) - r) * ww);
+          g = Math.round(g + ((q >> 8 & 255) - g) * ww);
+          b = Math.round(b + ((q & 255) - b) * ww);
+        }
       }
       const o = (yy * pw + xx) * 4; d[o] = r; d[o + 1] = g; d[o + 2] = b; d[o + 3] = 255;
     }
@@ -1575,6 +1667,9 @@ function drawTile(c, i) {
   else if (t === 3) drawPathTile(c, x0, y0, walkMask(i), water[i]);
   else if (t === 4) drawPlazaTile(c, x0, y0, i);
   else if (tree[i] && !bldAt[i]) drawTree(c, x0, y0, tree[i]);
+  // Surface freight track lies over whatever is underneath, so a line can
+  // cross a street at grade and still leave the street intact for traffic.
+  if (trackOn[i]) drawTrackTile(c, x0, y0, track[i], water[i]);
 }
 const miniCv = mk(MW, MH), mctx = miniCv.getContext('2d'), miniImg = mctx.createImageData(MW, MH);
 const MINIC = [[88, 156, 68], [215, 218, 224], [240, 200, 90], [219, 201, 159], [211, 201, 180]];
@@ -1676,22 +1771,54 @@ function findPath(s, g, mode, maxCost = Infinity) {
 // =====================================================================
 // Map editing and network analysis
 // =====================================================================
-function canPlace(type, x, y) {
+// Every building has an access rule. Streets (not highways) carry cars and
+// trucks up to the door; parks and metro stations are reached on foot instead.
+function roadAdjacent(x, y, w, h) { return perimeter(x, y, w, h).some(i => tile[i] === 1 && !overpass[i]); }
+function trackAdjacent(x, y, w, h) { return perimeter(x, y, w, h).some(i => trackOn[i]); }
+function hubAdjacent(x, y, w, h) {
+  for (const i of perimeter(x, y, w, h)) {
+    if (trackOn[i]) return true;
+    const id = bldAt[i];
+    if (id) { const b = B(id); if (b && b.type === 'port') return true; }
+  }
+  return false;
+}
+// How far a plot is from the nearest train yard, in blocks between footprints.
+function railyardNear(x, y, w, h) {
+  for (const o of buildings.values()) {
+    if (o.type !== 'railyard') continue;
+    const dx = Math.max(0, x - (o.x + o.w), o.x - (x + w));
+    const dy = Math.max(0, y - (o.y + o.h), o.y - (y + h));
+    if (dx + dy <= 5) return true;
+  }
+  return false;
+}
+const needsRoad = type => type !== 'park' && type !== 'metro';
+// Why a plot cannot take a building. An empty string means it fits. The order
+// matters: an unmet research requirement is a more useful answer than a
+// shoreline complaint on a dam that is not unlocked yet.
+function whyNot(type, x, y, ignoreRoad) {
   const d = BT[type];
-  if (x < 0 || y < 0 || x + d.w > MW || y + d.h > MH) return false;
+  if (!d) return 'Unknown building.';
+  if (x < 0 || y < 0 || x + d.w > MW || y + d.h > MH) return 'That does not fit inside the region.';
   let wet = 0;
   for (let yy = y; yy < y + d.h; yy++) for (let xx = x; xx < x + d.w; xx++) {
     const i = yy * MW + xx;
-    if (tile[i] || bldAt[i]) return false;
-    if (water[i]) { if (!d.water) return false; wet++; }
+    if (tile[i] || bldAt[i] || trackOn[i]) return 'That spot is already taken.';
+    if (water[i]) { if (!d.water) return 'Buildings cannot sit on water.'; wet++; }
   }
-  if (d.water && (wet === 0 || wet === d.w * d.h)) return false;
-  if (d.shore && !shoreAdjacent(x, y, d.w, d.h)) return false;
-  if (d.rock && biome[y * MW + x] !== 5) return false;
-  if (d.jungle && biome[y * MW + x] !== 2) return false;
-  if (POWER_REQ[type] && !powerReqMet(type)) return false;
-  return true;
+  if (d.water && (wet === 0 || wet === d.w * d.h)) return 'A dock goes on the shoreline: part on land, part on water.';
+  if (POWER_REQ[type] && !powerReqMet(type)) return 'Needs ' + powerGap(type) + ' first.';
+  if (d.shore && !shoreAdjacent(x, y, d.w, d.h)) return 'This one has to sit on a shoreline.';
+  if (d.rock && biome[y * MW + x] !== 5) return 'That needs rocky ground.';
+  if (d.jungle && biome[y * MW + x] !== 2) return 'That needs jungle.';
+  if (d.rig && !railyardNear(x, y, d.w, d.h)) return 'Oil and gas need a train yard within 5 blocks.';
+  if (d.rail && !trackAdjacent(x, y, d.w, d.h)) return 'A train yard needs a freight track running alongside it.';
+  if (d.hub && !hubAdjacent(x, y, d.w, d.h)) return 'A distribution terminal needs a port or freight track next to it.';
+  if (!ignoreRoad && needsRoad(type) && !roadAdjacent(x, y, d.w, d.h)) return 'It needs a street next to it.';
+  return '';
 }
+function canPlace(type, x, y, ignoreRoad) { return whyNot(type, x, y, ignoreRoad) === ''; }
 // Loading an old save must not lose buildings when placement rules get stricter
 // later: this checks bounds and overlap only.
 function canPlaceLoose(type, x, y) {
@@ -1872,6 +1999,7 @@ function laneEdges(i) {
 }
 function mapChanged() {
   relinkRail();
+  relinkTrack();
   computeLinks();
   connections = []; overpassList = [];
   for (let i = 0; i < N; i++) {
@@ -1885,7 +2013,7 @@ function mapChanged() {
   computeComps(compR, isRoad);
   computeComps(compW, isWalk);
   for (const i of [...lights.keys()]) if (deg[i] < 3 || overpass[i]) lights.delete(i);
-  destCom = []; destPark = []; destWork = []; stations = []; docks = []; airports = []; busStops = [];
+  destCom = []; destPark = []; destWork = []; stations = []; docks = []; airports = []; busStops = []; ports = []; yards = []; hubs = [];
   for (const b of buildings.values()) {
     computeAccess(b);
     const d = BT[b.type];
@@ -1896,6 +2024,9 @@ function mapChanged() {
     if (b.type === 'busstop') busStops.push(b);
     if (b.type === 'dock') docks.push(b);
     if (b.type === 'airport') airports.push(b);
+    if (b.type === 'port') ports.push(b);
+    if (b.type === 'railyard') yards.push(b);
+    if (b.type === 'distribution') hubs.push(b);
   }
   mergeAccess();
   syncUnits();
@@ -1903,6 +2034,7 @@ function mapChanged() {
   roadVersion++;
   validateMovers();
   syncMetros();   // two trains per station, wherever the rails happen to run
+  if (typeof syncLogistics === 'function') syncLogistics();
 }
 // Attribute merging: five like buildings that touch each other need only one
 // road between them; farms and orchards merge in twenties.
@@ -2237,7 +2369,7 @@ function tryLaneChange(c) {
 function stepCar(c, dt) {
   if (c.ghost > 0) c.ghost -= dt;
   const p = c.path, a0 = p[c.i], b = p[c.i + 1];
-  const maxSp = ((tile[b] === 2 && tile[a0] === 2) ? 38 : 22) * weatherSpeed();
+  const maxSp = ((tile[b] === 2 && tile[a0] === 2) ? 38 : 22) * weatherSpeedAt(c.x / T, c.y / T);
   c.max = maxSp;
   let target = maxSp;
   if (c.ghost <= 0) {
@@ -2282,6 +2414,7 @@ function endCar(c) { c.dead = true; releaseAll(c); carById.delete(c.id); if (c.a
 function capOf(b) { return BT[b.type].cap; }
 function destTileOf(c) { if (c.through) return c.destTile; const D = B(c.dest); return D ? D.road : -1; }
 function arriveCar(c) {
+  if (c.truck) { deliverTruck(c); return; }
   if (c.through) { endCar(c); return; }
   if (c.bus) { busArrive(c); return; }
   const a = c.agent, here = c.path[c.path.length - 1];
@@ -2348,11 +2481,11 @@ function pathOK(c) {
 }
 function rerouteCar(c) {
   const cur = c.path[c.i], a = c.agent;
-  if (c.through || c.bus) {
+  if (c.through || c.bus || c.truck) {
     const goal = destTileOf(c);
     const np = isRoad(cur) && goal >= 0 && isRoad(goal) ? findPath(cur, goal, 'car') : null;
     releaseAll(c);
-    if (!np || np.length < 2) { if (c.bus) busArrive(c); else endCar(c); return; }
+    if (!np || np.length < 2) { if (c.bus) busArrive(c); else if (c.truck) deliverTruck(c); else endCar(c); return; }
     const oldD = c.d; c.path = np; c.i = 0; if (dirOf(np[0], np[1]) !== oldD) c.t = 0; carGeom(c);
     return;
   }
@@ -2432,7 +2565,11 @@ function reconsiderJob(a) {
 }
 function leisure(a, from) {
   const usePark = destPark.length && Math.random() < 0.3;
-  const dst = nearestPick(usePark ? destPark : destCom, from, b => b.id !== from.id && reach(from, b), 4, 1.7);
+  // Shops with goods on the shelf are the attractive ones; if nothing has been
+  // delivered anywhere yet, people still go out.
+  let shops = destCom;
+  if (!usePark && destCom.some(b => (b.stock || 0) > 0)) shops = destCom.filter(b => (b.stock || 0) > 0);
+  const dst = nearestPick(usePark ? destPark : shops, from, b => b.id !== from.id && reach(from, b), 4, 1.7);
   if (dst) return go(a, dst.id, 'leisure');
   return false;
 }
@@ -2529,6 +2666,7 @@ function hourTick() {
     if (b.type === 'mine') resources.stone += 6;
   }
   updateMoods();
+  if (typeof logisticsHour === 'function') logisticsHour();
   if (changed) markDirty(changed[0], changed[1], changed[2] + 22, changed[3] + 22);
 }
 function minuteTick() {
@@ -2731,6 +2869,7 @@ function simStep(dt) {
   for (const c of cars) if (!c.dead) stepCar(c, dt);
   for (const p of peds) if (!p.dead) stepPed(p, dt);
   stepPlanes(dt); stepBoats(dt); stepBusStops(dt); stepMetros(dt); stepMetroWait(); stepIncidents(dt);
+  stepWeather(dt); if (typeof stepLogistics === 'function') stepLogistics(dt);
   if (cars.some(c => c.dead)) cars = cars.filter(c => !c.dead);
   if (agentsDirty) { agentsDirty = false; agents = agents.filter(a => !a.dead); recount(); }
   if (peds.some(p => p.dead)) peds = peds.filter(p => !p.dead);
@@ -2762,26 +2901,88 @@ const WEATHER = {
   lastRoll: -1,
 };
 const WEATHER_KINDS = {
-  sunny:  {name: 'Sunny',       speed: 1,    crash: 1,    fire: 1,   wet: 0},
-  cloudy: {name: 'Cloudy',      speed: 1,    crash: 1.15, fire: 1,   wet: 0},
-  rain:   {name: 'Rainy',       speed: 0.85, crash: 2.2,  fire: 0.6, wet: 1},
-  storm:  {name: 'Thunderstorm',speed: 0.7,  crash: 3.2,  fire: 2.4, wet: 2},
+  sunny:  {name: 'Sunny',       speed: 1,    crash: 1,    fire: 1,   wet: 0, tint: null},
+  cloudy: {name: 'Cloudy',      speed: 1,    crash: 1.15, fire: 1,   wet: 0, tint: [125, 135, 150, 0.1]},
+  rain:   {name: 'Rainy',       speed: 0.85, crash: 2.2,  fire: 0.6, wet: 1, tint: [60, 105, 165, 0.25]},
+  storm:  {name: 'Thunderstorm',speed: 0.7,  crash: 3.2,  fire: 2.4, wet: 2, tint: [16, 26, 52, 0.32]},
 };
-const weatherNow = () => WEATHER_KINDS[WEATHER.kind] || WEATHER_KINDS.sunny;
+// The weather is a field of 90-tile circles. Each cell drifts slowly around its
+// home so the edges are never static, and neighbouring circles overlap: the
+// colours and rain fade through each cell's own radial gradient, so there is no
+// hard border between one cell and the next.
+const WX_R = 90;
+const WX_COLS = 4, WX_ROWS = 3;
+const weatherCells = [];
+let weatherSeeded = false;
+function newWeatherCell(bx, by, k) {
+  return {id: k, bx, by, x: bx, y: by, tx: bx, ty: by, retarget: 0, kind: 'sunny', until: gameMin + 120};
+}
+function weatherKindRoll(r) {
+  return r > 0.9 ? 'storm' : r > 0.6 ? 'rain' : r > 0.3 ? 'cloudy' : 'sunny';
+}
+function initWeather() {
+  const rng = mulberry((worldSeed ^ 0x51A7) >>> 0);
+  weatherCells.length = 0;
+  let k = 0;
+  for (let gy = 0; gy < WX_ROWS; gy++) for (let gx = 0; gx < WX_COLS; gx++) {
+    const bx = (gx + 0.5) * MW / WX_COLS, by = (gy + 0.5) * MH / WX_ROWS;
+    const c = newWeatherCell(bx, by, k++);
+    c.kind = weatherKindRoll(rng());
+    c.until = gameMin + 150 + rng() * 420;
+    weatherCells.push(c);
+  }
+  weatherSeeded = true;
+  syncWeatherLabel();
+}
+const weatherCellAt = (tx, ty) => {
+  if (!weatherCells.length) initWeather();
+  let best = weatherCells[0], bd = Infinity;
+  for (const c of weatherCells) {
+    const d = (c.x - tx) * (c.x - tx) + (c.y - ty) * (c.y - ty);
+    if (d < bd) { bd = d; best = c; }
+  }
+  return best;
+};
+const weatherAt = (tx, ty) => weatherCellAt(tx, ty).kind;
+function cameraTile() {
+  if (typeof cam === 'undefined' || typeof innerWidth === 'undefined') return {x: MW / 2, y: MH / 2};
+  return {x: (cam.x + innerWidth / 2 / cam.z) / T, y: (cam.y + innerHeight / 2 / cam.z) / T};
+}
+const weatherNow = () => WEATHER_KINDS[weatherAt(cameraTile().x, cameraTile().y)] || WEATHER_KINDS.sunny;
 const weatherSpeed = () => weatherNow().speed;
-
-function rollWeather() {
-  const r = Math.random();
-  let kind = 'sunny';
-  if (r > 0.92) kind = 'storm';
-  else if (r > 0.62) kind = 'rain';
-  else if (r > 0.28) kind = 'cloudy';
-  WEATHER.kind = kind;
-  WEATHER.until = gameMin + (180 + Math.random() * 360);   // 3-9 game hours
-  if (typeof weatherChip === 'function') weatherChip();
+const weatherSpeedAt = (tx, ty) => (WEATHER_KINDS[weatherAt(tx, ty)] || WEATHER_KINDS.sunny).speed;
+function syncWeatherLabel() {
+  const p = cameraTile(), c = weatherCellAt(p.x, p.y);
+  WEATHER.kind = c.kind;
+  WEATHER.until = c.until;
+}
+function rollWeather(cell) {
+  const c = cell || weatherCellAt(cameraTile().x, cameraTile().y);
+  c.kind = weatherKindRoll(Math.random());
+  c.until = gameMin + (180 + Math.random() * 360);   // 3-9 game hours
+  syncWeatherLabel();
 }
 function weatherTick() {
-  if (gameMin >= WEATHER.until) rollWeather();
+  if (!weatherCells.length) initWeather();
+  for (const c of weatherCells) if (gameMin >= c.until) {
+    c.kind = weatherKindRoll(Math.random());
+    c.until = gameMin + 180 + Math.random() * 360;
+  }
+  syncWeatherLabel();
+}
+// A very small wander: each cell picks a new nearby target every couple of game
+// minutes and eases toward it, so a storm slowly drifts across a district.
+function stepWeather(dt) {
+  if (!weatherCells.length) initWeather();
+  for (const c of weatherCells) {
+    if (gameMin >= c.retarget) {
+      c.retarget = gameMin + 90 + Math.random() * 150;
+      c.tx = clamp(c.bx + (Math.random() - 0.5) * 34, 20, MW - 20);
+      c.ty = clamp(c.by + (Math.random() - 0.5) * 34, 20, MH - 20);
+    }
+    const dx = c.tx - c.x, dy = c.ty - c.y, d = Math.hypot(dx, dy);
+    if (d > 0.05) { const m = Math.min(d, 0.16 * dt); c.x += dx / d * m; c.y += dy / d * m; }
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -3310,6 +3511,552 @@ function metroRiders() { let n = 0; for (const m of metros) n += m.riders.length
 function metroWaiting() { let n = 0; for (const [, list] of metroWait) n += list.length; return n; }
 
 
+// ---- js/logistics.js ----
+'use strict';
+// =====================================================================
+// Logistics: trucks, ports, distribution terminals and freight trains
+//
+// Producers (farms, quarries, fisheries, rigs, logging camps) build up a
+// stock of goods. Trucks carry it to shops, or to a distribution terminal or
+// port. Ports send cargo ships to other ports and to the edge of the region.
+// Freight trains run on surface tracks between yards (and track-served
+// terminals), made of 12-18 cars in runs of three of the same kind. Passenger
+// cars take riders between metro stations that stand beside the line.
+// =====================================================================
+const PRODUCER = {
+  farm:        {good: 'produce', rate: 7, cap: 90},
+  orchard:     {good: 'produce', rate: 5, cap: 70},
+  greenhouse:  {good: 'produce', rate: 3, cap: 50},
+  fishery:     {good: 'fish',    rate: 5, cap: 70},
+  seafoodPlant:{good: 'fish',    rate: 4, cap: 70},
+  quarry:      {good: 'stone',   rate: 8, cap: 100},
+  mine:        {good: 'ore',     rate: 8, cap: 100},
+  loggingCamp: {good: 'timber',  rate: 6, cap: 80},
+  oilRig:      {good: 'oil',     rate: 6, cap: 80},
+  gasWell:     {good: 'gas',     rate: 6, cap: 80},
+};
+const GOOD_NAME = {produce: 'Produce', fish: 'Fish', stone: 'Stone', ore: 'Ore', timber: 'Timber', oil: 'Oil', gas: 'Gas', goods: 'Goods'};
+const TRUCK_CAP = 20;
+const SHOP_STOCK_CAP = 60;
+const HUB_STOCK_CAP = 160;
+const cargoStats = {deliveries: 0, shipped: 0, moved: 0, trainRuns: 0};
+let truckTimer = 0, shipTimer = 0;
+let logisticsReady = false;
+
+const stockLimit = b => (b.type === 'port' || b.type === 'distribution' || b.type === 'railyard') ? HUB_STOCK_CAP
+  : BT[b.type].cat === 'com' ? SHOP_STOCK_CAP : ((PRODUCER[b.type] && PRODUCER[b.type].cap) || 40);
+const producerOf = b => PRODUCER[b.type] || null;
+
+function resetLogistics() {
+  ships.length = 0;
+  freight.length = 0;
+  cargoStats.deliveries = 0; cargoStats.shipped = 0; cargoStats.moved = 0; cargoStats.trainRuns = 0;
+  truckTimer = 0; shipTimer = 0;
+  logisticsReady = false;
+}
+
+// A shop takes whatever is on the shelf; a distributed "goods" load is welcome
+// anywhere. Raw goods only go to the shops that sell that produce.
+function acceptsGood(b, good) {
+  if (good === 'goods') return BT[b.type].cat === 'com';
+  if (b.type === 'distribution' || b.type === 'port' || b.type === 'warehouse' || b.type === 'railyard') return true;
+  const t = b.type;
+  if (good === 'fish') return t === 'seafoodMarket' || t === 'market' || t === 'mall' || t === 'shop';
+  if (good === 'produce') return t === 'market' || t === 'mall' || t === 'shop' || t === 'seafoodMarket';
+  return false;
+}
+
+function syncLogistics() {
+  for (const b of buildings.values()) {
+    if (b.stock === undefined) b.stock = producerOf(b) ? 8 : BT[b.type].cat === 'com' ? 24 : 0;
+    if (b.truckCd === undefined) b.truckCd = 0;
+  }
+  logisticsReady = true;
+  syncFreight();
+}
+
+// ---------------------------------------------------------------------
+// Freight tracks
+//
+// A separate, surface network from the metro tunnels: one tool draws it, the
+// connection mask is rebuilt on every edit, and any two yards joined by track
+// can exchange a train. Track may cross a street at grade, so a line can reach
+// a yard on the far side of a road without breaking the road network.
+// ---------------------------------------------------------------------
+function relinkTrack() {
+  track.fill(0);
+  for (let i = 0; i < N; i++) {
+    if (!trackOn[i]) continue;
+    let m = 0;
+    for (let d = 1; d <= 4; d++) { const j = nb(i, d); if (j >= 0 && trackOn[j]) m |= bit(d); }
+    track[i] = m;
+  }
+}
+const tqPath = new Int32Array(N), tqPrev = new Int32Array(N), tqSeen = new Uint32Array(N);
+let tqGen = 0;
+function trackPath(from, to) {
+  if (from === to) return [from];
+  if (!track[from] || !track[to]) return null;
+  tqGen++;
+  let qh = 0, qt = 0;
+  tqSeen[from] = tqGen; tqPrev[from] = -1; tqPath[qt++] = from;
+  while (qh < qt) {
+    const u = tqPath[qh++];
+    if (u === to) break;
+    const m = track[u];
+    for (let d = 1; d <= 4; d++) {
+      if (!(m & bit(d))) continue;
+      const v = nb(u, d);
+      if (v < 0 || tqSeen[v] === tqGen || !track[v]) continue;
+      tqSeen[v] = tqGen; tqPrev[v] = u; tqPath[qt++] = v;
+    }
+  }
+  if (tqSeen[to] !== tqGen) return null;
+  const out = [];
+  for (let k = to; k !== -1; k = tqPrev[k]) out.push(k);
+  return out.reverse();
+}
+
+// ---------------------------------------------------------------------
+// Trucks
+// ---------------------------------------------------------------------
+function roadTileOf(b) {
+  if (b.road >= 0 && tile[b.road] === 1) return b.road;
+  return perimeter(b.x, b.y, b.w, b.h).find(i => tile[i] === 1) ?? -1;
+}
+function findCustomer(p, good) {
+  const from = roadTileOf(p);
+  if (from < 0) return null;
+  const comp = compR[from];
+  let best = null, bd = Infinity, bestPri = 99;
+  for (const b of buildings.values()) {
+    if (b === p || !acceptsGood(b, good)) continue;
+    if (b.stock >= stockLimit(b)) continue;
+    const r = roadTileOf(b);
+    if (r < 0 || compR[r] !== comp) continue;
+    const d = distB(p, b);
+    if (d > 170) continue;
+    // Sorted goods prefer shops, so a terminal does not bounce a load to
+    // another terminal forever; raw goods prefer the shop that sells them.
+    const isShop = BT[b.type].cat === 'com';
+    const isHub = b.type === 'distribution' || b.type === 'port' || b.type === 'warehouse' || b.type === 'railyard';
+    const pri = good === 'goods' ? (isShop ? 0 : 1) : (isHub ? 1 : 0);
+    if (pri < bestPri || (pri === bestPri && d < bd)) { bestPri = pri; bd = d; best = b; }
+  }
+  return best;
+}
+function sendTruck(from, to, good, amount, color) {
+  if (!from || !to || amount <= 0) return false;
+  const a = roadTileOf(from), b = roadTileOf(to);
+  if (a < 0 || b < 0 || compR[a] !== compR[b]) return false;
+  const path = a === b ? [a] : findPath(a, b, 'car');
+  if (!path || path.length < 1) return false;
+  from.stock = Math.max(0, from.stock - amount);
+  if (path.length < 2) {
+    to.stock = Math.min(stockLimit(to), to.stock + amount);
+    cargoStats.deliveries++; cargoStats.moved += amount;
+    return true;
+  }
+  const c = newCar({truck: true, cargo: {good, amount}, dest: to.id, intent: to.id, path,
+    color: color || '#ddd6c2', max: 18});
+  carGeom(c);
+  if (!spawnCarAt(c)) { from.stock += amount; return false; }
+  return true;
+}
+function deliverTruck(c) {
+  const D = B(c.dest);
+  if (D && c.cargo) {
+    D.stock = Math.min(stockLimit(D), (D.stock || 0) + c.cargo.amount);
+    cargoStats.deliveries++; cargoStats.moved += c.cargo.amount;
+  }
+  endCar(c);
+}
+function dispatchTrucks() {
+  let trucks = 0;
+  for (const c of cars) if (c.truck) trucks++;
+  if (trucks >= 70) return;
+  // producers send their own goods first
+  for (const b of buildings.values()) {
+    if (b.road < 0 || b.truckCd > 0) continue;
+    const p = producerOf(b);
+    if (!p || b.stock < 10) continue;
+    const to = findCustomer(b, p.good);
+    if (!to) continue;
+    const amount = Math.min(TRUCK_CAP, Math.floor(b.stock));
+    if (sendTruck(b, to, p.good, amount)) { b.truckCd = 5 + Math.random() * 4; if (++trucks >= 70) return; }
+  }
+  // terminals and ports send sorted goods on to the shops
+  for (const b of buildings.values()) {
+    if (b.road < 0 || b.truckCd > 0) continue;
+    if (b.type !== 'distribution' && b.type !== 'port' && b.type !== 'railyard') continue;
+    if (b.stock < 12) continue;
+    const to = findCustomer(b, 'goods');
+    if (!to) continue;
+    const amount = Math.min(TRUCK_CAP, Math.floor(b.stock));
+    if (sendTruck(b, to, 'goods', amount, '#cfe0ef')) { b.truckCd = 7 + Math.random() * 5; if (++trucks >= 70) return; }
+  }
+}
+
+// ---------------------------------------------------------------------
+// Ports and ships
+// ---------------------------------------------------------------------
+function waterNeighbour(b) {
+  for (const i of perimeter(b.x, b.y, b.w, b.h)) if (water[i]) return i;
+  return -1;
+}
+function waterPath(from, to) {
+  if (from < 0 || to < 0 || !water[from] || !water[to]) return null;
+  if (from === to) return [from];
+  shGen++;
+  let qh = 0, qt = 0;
+  shQ[qt++] = from; shSeen[from] = shGen; shPrev[from] = -1;
+  while (qh < qt) {
+    const u = shQ[qh++];
+    if (u === to) break;
+    for (let d = 1; d <= 4; d++) {
+      const v = nb(u, d);
+      if (v < 0 || shSeen[v] === shGen || !water[v]) continue;
+      shSeen[v] = shGen; shPrev[v] = u; shQ[qt++] = v;
+    }
+  }
+  if (shSeen[to] !== shGen) return null;
+  const out = [];
+  for (let k = to; k !== -1; k = shPrev[k]) out.push(k);
+  return out.reverse();
+}
+const shQ = new Int32Array(N), shSeen = new Uint32Array(N), shPrev = new Int32Array(N);
+let shGen = 0;
+function exportTile(b) {
+  // Any water tile on the edge of the region: a ship sails off the map there.
+  const berth = waterNeighbour(b);
+  if (berth < 0) return -1;
+  let best = -1, bd = Infinity, q = [berth];
+  shGen++; shSeen[berth] = shGen;
+  for (let h = 0; h < q.length; h++) {
+    const u = q[h], x = u % MW, y = u / MW | 0;
+    if (x === 0 || y === 0 || x === MW - 1 || y === MH - 1) {
+      const d = Math.abs(x - b.cx) + Math.abs(y - b.cy);
+      if (d < bd) { bd = d; best = u; }
+    }
+    for (let d = 1; d <= 4; d++) {
+      const v = nb(u, d);
+      if (v >= 0 && water[v] && shSeen[v] !== shGen) { shSeen[v] = shGen; q.push(v); }
+    }
+    if (q.length > 60000) break;
+  }
+  return best;
+}
+function launchShip(port) {
+  const from = waterNeighbour(port);
+  if (from < 0) return false;
+  const others = ports.filter(p => p !== port && waterNeighbour(p) >= 0);
+  let to = -1, destPort = null, path = null;
+  const order = others.sort((a, b) => distB(port, a) - distB(port, b));
+  for (const p of order) {
+    const t = waterNeighbour(p);
+    if (t < 0) continue;
+    const pp = waterPath(from, t);
+    if (pp && pp.length >= 4) { to = t; destPort = p; path = pp; break; }
+  }
+  if (!path) {
+    to = exportTile(port);
+    path = to >= 0 ? waterPath(from, to) : null;
+  }
+  if (!path || path.length < 4) return false;
+  const amount = Math.min(60, Math.floor(port.stock));
+  if (amount < 8) return false;
+  port.stock -= amount;
+  ships.push({path, i: 0, t: 0, x: 0, y: 0, d: 2, speed: 5 + Math.random() * 2,
+    cargo: {good: 'goods', amount}, destPort: destPort ? destPort.id : 0,
+    color: pick(['#f4f5f7', '#d8e4f0', '#e8d8b8'], Math.random()), dead: false});
+  return true;
+}
+function stepShips(dt) {
+  for (const s of ships) {
+    s.t += (s.speed || 6) * dt / T;
+    while (s.t >= 1) { s.t -= 1; s.i++; }
+    if (s.i >= s.path.length - 1 || !water[s.path[s.i]]) { s.dead = true; continue; }
+    const a = s.path[s.i], c = s.path[s.i + 1];
+    s.x = ((a % MW) + ((c % MW) - (a % MW)) * s.t) * T + 4.5;
+    s.y = ((a / MW | 0) + ((c / MW | 0) - (a / MW | 0)) * s.t) * T + 4.5;
+    s.d = dirOf(a, c);
+    if (s.i >= s.path.length - 2) {
+      // arrived: unload at the other port, or the cargo leaves the region
+      const P = B(s.destPort);
+      if (P) P.stock = Math.min(stockLimit(P), (P.stock || 0) + s.cargo.amount);
+      else cargoStats.shipped += s.cargo.amount;
+      if (P) cargoStats.moved += s.cargo.amount;
+      s.dead = true;
+    }
+  }
+  if (ships.some(s => s.dead)) ships = ships.filter(s => !s.dead);
+}
+
+// ---------------------------------------------------------------------
+// Freight trains
+// ---------------------------------------------------------------------
+const FREIGHT_SPEED = 7;
+function freightConsist() {
+  const total = 3 * (4 + Math.floor(Math.random() * 3));   // 12, 15 or 18 cars
+  // One group of each kind is guaranteed, so every train can move people as
+  // well as solids, liquids and gas; the remaining groups are random.
+  const kinds = ['passenger', 'material', 'liquid', 'gas'];
+  const groups = kinds.slice();
+  while (groups.length * 3 < total) groups.push(kinds[Math.floor(Math.random() * kinds.length)]);
+  shuffle(groups, Math.random);
+  return groups.flatMap(k => [k, k, k]);
+}
+function yardTrack(b) {
+  if (!b) return -1;
+  const per = perimeter(b.x, b.y, b.w, b.h);
+  return per.find(i => trackOn[i]) ?? -1;
+}
+function partnerYard(y) {
+  const mine = yardTrack(y);
+  if (mine < 0) return null;
+  const list = [];
+  for (const o of buildings.values()) {
+    if (o.type !== 'railyard' && o.type !== 'distribution') continue;
+    if (o.id === y.id) continue;
+    const t = yardTrack(o);
+    if (t < 0) continue;
+    const p = trackPath(mine, t);
+    if (p && p.length > 1) list.push({b: o, d: distB(y, o), path: p});
+  }
+  if (!list.length) return null;
+  list.sort((a, b) => a.d - b.d);
+  return list[0];
+}
+function retireFreight(t) {
+  t.dead = true;
+  for (const p of t.riders) if (!p.dead) { p.riding = false; p.hidden = false; p.ride = 0; nextLeg(p); }
+  t.riders = [];
+}
+function syncFreight() {
+  for (const t of freight) {
+    const a = B(t.home), b = B(t.partner);
+    if (!a || !b || a.type !== 'railyard' || yardTrack(a) < 0 || yardTrack(b) < 0) retireFreight(t);
+  }
+  freight = freight.filter(t => !t.dead);
+  const homed = new Set(freight.map(t => t.home));
+  for (const y of yards) {
+    if (homed.has(y.id) || freight.length >= 10) continue;
+    const p = partnerYard(y);
+    if (!p) continue;
+    const train = {
+      id: nextIncident++, home: y.id, partner: p.b.id, consist: freightConsist(),
+      path: null, i: 0, t: 0, x: y.cx * T, y: y.cy * T, d: 2,
+      state: 'dwell', wait: 2 + Math.random() * 2, at: y.id, target: p.b.id,
+      cargo: {material: 0, liquid: 0, gas: 0}, riders: [], lastStop: -1, dead: false,
+    };
+    freight.push(train);
+    homed.add(y.id);
+  }
+}
+const freightCars = t => t.consist.length;
+const freightCap = (t, kind) => t.consist.filter(k => k === kind).length * 10;
+function freightEnds(t) {
+  const a = B(t.target), y = B(t.at);
+  return {from: yardTrack(y), to: yardTrack(a), a, y};
+}
+// Distance between two footprints in blocks, so loading uses exactly the
+// radius that placement advertises: five blocks from the yard's edge.
+function nearYard(b, y) {
+  const dx = Math.max(0, b.x - (y.x + y.w), y.x - (b.x + b.w));
+  const dy = Math.max(0, b.y - (y.y + y.h), y.y - (b.y + b.h));
+  return dx + dy <= 5;
+}
+function loadFreight(t) {
+  const y = B(t.at);
+  if (!y) return;
+  // oil and gas only reach a yard if the rig is within five blocks, which is
+  // the placement rule; the same radius gathers the other goods too.
+  for (const b of buildings.values()) {
+    if (b === y) continue;
+    const p = producerOf(b);
+    if (!p || b.stock <= 0) continue;
+    if (!nearYard(b, y)) continue;
+    const kind = p.good === 'oil' ? 'liquid' : p.good === 'gas' ? 'gas' : 'material';
+    const room = freightCap(t, kind) - t.cargo[kind];
+    const n = Math.min(room, Math.floor(b.stock));
+    if (n <= 0) continue;
+    t.cargo[kind] += n; b.stock -= n;
+  }
+  // a rail-served terminal hands its sorted stock to the train
+  for (const b of buildings.values()) {
+    if (b.type !== 'distribution' || b === y || b.stock <= 0) continue;
+    if (!nearYard(b, y)) continue;
+    const room = freightCap(t, 'material') - t.cargo.material;
+    const n = Math.min(room, Math.floor(b.stock));
+    if (n <= 0) continue;
+    t.cargo.material += n; b.stock -= n;
+  }
+}
+function unloadFreight(t) {
+  const total = t.cargo.material + t.cargo.liquid + t.cargo.gas;
+  if (!total) return;
+  const y = B(t.at);
+  if (!y) return;
+  let best = null, bd = Infinity;
+  for (const b of buildings.values()) {
+    if (b.type !== 'distribution' && b.type !== 'port' && b.type !== 'railyard') continue;
+    const d = Math.abs(b.cx - y.cx) + Math.abs(b.cy - y.cy);
+    if (d < bd) { bd = d; best = b; }
+  }
+  const target = best && bd < 14 ? best : y;
+  target.stock = Math.min(stockLimit(target), (target.stock || 0) + total);
+  t.cargo.material = 0; t.cargo.liquid = 0; t.cargo.gas = 0;
+  cargoStats.moved += total;
+}
+// A metro station within one tile of the line gets a platform stop for the
+// freight train, so its passenger cars are good for something.
+function stationBeside(i) {
+  const here = bldAt[i];
+  if (here) { const b = B(here); if (b && b.type === 'metro') return b; }
+  for (let d = 1; d <= 4; d++) {
+    const j = nb(i, d);
+    if (j < 0) continue;
+    const id = bldAt[j];
+    if (!id) continue;
+    const b = B(id);
+    if (b && b.type === 'metro') return b;
+  }
+  return null;
+}
+function stationsAlong(path) {
+  const out = [];
+  let last = 0;
+  for (let k = 0; k < path.length; k++) {
+    const st = stationBeside(path[k]);
+    if (st && st.id !== last) { out.push({k, id: st.id}); last = st.id; }
+  }
+  return out;
+}
+function freightStop(t, st, ahead) {
+  if (!st) return;
+  // passengers get off at their station
+  const stay = [];
+  for (const p of t.riders) {
+    if (p.dead) continue;
+    if (p.metroTo === st.id || !B(p.metroTo)) { p.riding = false; p.ride = 0; p.hidden = false; nextLeg(p); }
+    else stay.push(p);
+  }
+  t.riders = stay;
+  // and people waiting here for a station still ahead on this line get on board
+  const cap = t.consist.filter(k => k === 'passenger').length * 8;
+  const list = metroWait.get(st.id) || [];
+  for (let k = list.length - 1; k >= 0 && t.riders.length < cap; k--) {
+    const p = list[k];
+    if (p.dead || p.riding || !ahead.has(p.metroTo)) continue;
+    list.splice(k, 1);
+    st.waiting = Math.max(0, (st.waiting || 0) - 1);
+    p.riding = true; p.hidden = true; p.ride = 0;
+    t.riders.push(p);
+  }
+}
+function stepFreight(dt) {
+  for (const t of freight) {
+    if (t.dead) continue;
+    if (t.state === 'dwell') {
+      t.wait -= dt;
+      if (t.wait > 0) continue;
+      const ends = freightEnds(t);
+      if (ends.from < 0 || ends.to < 0) { t.wait = 3; continue; }
+      const path = trackPath(ends.from, ends.to);
+      if (!path || path.length < 2) { t.wait = 3; continue; }
+      loadFreight(t);
+      t.path = path; t.i = 0; t.t = 0; t.state = 'run'; t.year = (t.year || 0) + 1;
+      t.lastStop = -1;
+      t.stops = stationsAlong(path);
+      cargoStats.trainRuns++;
+      const a = path[0], b = path[1];
+      t.x = (a % MW) * T + 4.5; t.y = (a / MW | 0) * T + 4.5;
+      t.d = dirOf(a, b);
+      continue;
+    }
+    if (t.state === 'stop') {
+      t.wait -= dt;
+      if (t.wait <= 0) t.state = 'run';
+      continue;
+    }
+    if (t.state !== 'run' || !t.path) continue;
+    // A station beside the line is a stop: riders get on and off.
+    const stopIdx = t.stops ? t.stops.findIndex(s => s.k === t.i) : -1;
+    if (stopIdx >= 0 && stopIdx !== t.lastStop) {
+      const ahead = new Set(t.stops.slice(stopIdx + 1).map(s => s.id));
+      t.lastStop = stopIdx;
+      freightStop(t, B(t.stops[stopIdx].id), ahead);
+      t.state = 'stop'; t.wait = 1.1;
+      continue;
+    }
+    t.t += FREIGHT_SPEED * dt;
+    while (t.t >= 1) {
+      t.t -= 1; t.i++;
+      if (t.i >= t.path.length - 1) {
+        t.at = t.target; t.target = t.partner === t.target ? t.home : t.partner;
+        // at the far end the train turns around; at home it loads and goes out again
+        unloadFreight(t);
+        t.state = 'dwell'; t.wait = 3; t.path = null; t.i = 0; t.t = 0; t.lastStop = -1; t.stops = null;
+        const y = B(t.at);
+        if (y) { t.x = y.cx * T; t.y = y.cy * T; }
+        break;
+      }
+    }
+    if (t.state !== 'run' || !t.path) continue;
+    const a = t.path[t.i], b = t.path[t.i + 1];
+    if (!track[a] || !track[b]) { t.state = 'dwell'; t.wait = 2; t.path = null; t.stops = null; continue; }
+    const ax = a % MW, ay = a / MW | 0, bx = b % MW, by = b / MW | 0;
+    t.x = (ax + (bx - ax) * t.t) * T + 4.5;
+    t.y = (ay + (by - ay) * t.t) * T + 4.5;
+    t.d = dirOf(a, b);
+  }
+  if (freight.some(t => t.dead)) freight = freight.filter(t => !t.dead);
+}
+
+// ---------------------------------------------------------------------
+// Hourly production and consumption
+// ---------------------------------------------------------------------
+function logisticsHour() {
+  for (const b of buildings.values()) {
+    const p = producerOf(b);
+    if (p) { b.stock = Math.min(p.cap, (b.stock || 0) + p.rate); continue; }
+    if (BT[b.type].cat === 'com') {
+      const use = 1 + BT[b.type].cap / 8;
+      b.stock = Math.max(0, (b.stock || 0) - use);
+    }
+  }
+}
+
+function stepLogistics(dt) {
+  if (!logisticsReady) syncLogistics();
+  truckTimer += dt;
+  if (truckTimer >= 1.4) { truckTimer = 0; dispatchTrucks(); }
+  // terminals beside a port pass their cargo straight to the quay
+  for (const h of hubs) {
+    if (h.stock <= 0) continue;
+    for (const i of perimeter(h.x, h.y, h.w, h.h)) {
+      const id = bldAt[i];
+      if (!id) continue;
+      const b = B(id);
+      if (!b || b.type !== 'port') continue;
+      const n = Math.min(h.stock, 40);
+      b.stock = Math.min(stockLimit(b), (b.stock || 0) + n);
+      h.stock -= n;
+      break;
+    }
+  }
+  shipTimer += dt;
+  if (shipTimer >= 2.5) {
+    shipTimer = 0;
+    if (ships.length < 10) for (const p of ports) {
+      if (p.stock >= 20 && launchShip(p)) break;
+    }
+  }
+  stepShips(dt);
+  stepFreight(dt);
+}
+
+
 // ---- js/render.js ----
 // =====================================================================
 // Rendering
@@ -3440,13 +4187,7 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
       for (let k = 0; k < n; k++) { const w = a.win[a.order[k]]; f.fillStyle = SHIRT[(k * 3 + b.id) % SHIRT.length]; f.fillRect(w[0], w[1], 1, 1); }
     }
   }
-  if (overlays.weather) {
-    const w = weatherNow();
-    if (w.wet) {
-      f.fillStyle = w.wet === 2 ? 'rgba(18,28,48,.24)' : 'rgba(70,110,160,.14)';
-      f.fillRect(sx0, sy0, sw, sh);
-    }
-  }
+
   // emergency units and the incidents they are working
   for (const u of units) {
     if (!inP(u.x * T, u.y * T)) continue;
@@ -3473,6 +4214,7 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
     }
   }
   for (const b of boats) if (inP(b.x, b.y)) drawBoat(f, b);
+  for (const s of ships) if (inP(s.x, s.y)) drawShip(f, s);
   for (const p of peds) {
     if (p.dead || p.hidden || !inP(p.x, p.y)) continue;
     drawPed(f, Math.round(p.x - 0.5), Math.round(p.y - 0.5), p.color);
@@ -3491,6 +4233,10 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
       drawBus(f, Math.round(c.x - (hz ? 2.5 : 1)), Math.round(c.y - (hz ? 1 : 2.5)), hz);
       return;
     }
+    if (c.truck) {
+      drawTruck(f, Math.round(c.x - (hz ? 2.5 : 1)), Math.round(c.y - (hz ? 1 : 2.5)), hz, c.color);
+      return;
+    }
     drawCarSprite(f, Math.round(c.x - (hz ? 1.5 : 1)), Math.round(c.y - (hz ? 1 : 1.5)), hz, c.color);
   };
   const onDeck = [];
@@ -3501,6 +4247,21 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
   }
   for (const i of overpassList) { const x = i % MW, y = i / MW | 0; if (x >= vx0 && x <= vx1 && y >= vy0 && y <= vy1) drawDeck(f, x * T, y * T, tile[i] === 2); }
   for (const c of onDeck) drawCar(c);
+  // freight trains on the surface tracks: the head, then one wagon per tile behind it
+  for (const t of freight) {
+    if (!t.path || t.state === 'dwell') continue;
+    const hz = t.d === 2 || t.d === 4;
+    for (let k = 0; k < t.consist.length; k++) {
+      const idx = t.i - k;
+      if (idx < 0 || idx >= t.path.length - 1) continue;
+      const a = t.path[idx], b = t.path[idx + 1];
+      const ax = a % MW, ay = a / MW | 0, bx = b % MW, by = b / MW | 0;
+      const tt = k === 0 ? t.t : 0.5;
+      const px = (ax + (bx - ax) * tt) * T + 4.5, py = (ay + (by - ay) * tt) * T + 4.5;
+      if (px / T < vx0 - 2 || px / T > vx1 + 2 || py / T < vy0 - 2 || py / T > vy1 + 2) continue;
+      drawFreightCar(f, Math.round(px - (hz ? 3.5 : 1.5)), Math.round(py - (hz ? 1.5 : 3.5)), hz, t.consist[k]);
+    }
+  }
   // roads that leave the region
   f.fillStyle = '#6fb3ff';
   for (const i of connections) {
@@ -3596,7 +4357,49 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
     const x = (flash.i % MW) * T + 4, y = (flash.i / MW | 0) * T + 4, r = 10 + ((performance.now() / 60) % 12);
     f.strokeStyle = '#ffffff'; f.lineWidth = 2; f.beginPath(); f.arc(x, y, r, 0, Math.PI * 2); f.stroke();
   }
+  if (overlays.weather) drawWeather(f, sx0, sy0, sx1, sy1);
   drawPreview(f);
+}
+
+// Weather: one soft disc per cell. The middle is a little darker, the rim is
+// fully transparent, so two neighbouring cells cross-fade into each other.
+function drawWeather(f, sx0, sy0, sx1, sy1) {
+  for (const cell of weatherCells) {
+    const k = WEATHER_KINDS[cell.kind];
+    if (!k || !k.tint) continue;
+    const cx = cell.x * T, cy = cell.y * T, R = WX_R * T;
+    if (cx + R < sx0 || cx - R > sx1 || cy + R < sy0 || cy - R > sy1) continue;
+    const [r, g, b, a] = k.tint;
+    const gr = f.createRadialGradient(cx, cy, 0, cx, cy, R);
+    gr.addColorStop(0, `rgba(${r},${g},${b},${a})`);
+    gr.addColorStop(0.7, `rgba(${r},${g},${b},${a})`);
+    gr.addColorStop(0.9, `rgba(${r},${g},${b},${a * 0.4})`);
+    gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    f.fillStyle = gr;
+    f.fillRect(cx - R, cy - R, R * 2, R * 2);
+    if (k.wet) drawRain(f, cell, R, sx0, sy0, sx1, sy1);
+  }
+}
+function drawRain(f, cell, R, sx0, sy0, sx1, sy1) {
+  const t = performance.now() / 1000;
+  const cx = cell.x * T, cy = cell.y * T;
+  const heavy = cell.kind === 'storm';
+  f.strokeStyle = heavy ? 'rgba(178,205,255,.6)' : 'rgba(190,220,255,.45)';
+  f.lineWidth = 1;
+  f.beginPath();
+  const n = heavy ? 260 : 170;
+  for (let k = 0; k < n; k++) {
+    const ang = hash(k, 11, cell.id) * Math.PI * 2;
+    const rr = Math.sqrt(hash(k, 12, cell.id)) * R;
+    const fall = (t * 55 + hash(k, 13, cell.id) * 900) % 180;
+    const x = cx + Math.cos(ang) * rr + fall * 0.18;
+    const y = cy + Math.sin(ang) * rr + fall * 0.55;
+    if (x < sx0 - 4 || x > sx1 + 4 || y < sy0 - 4 || y > sy1 + 4) continue;
+    const dx = x - cx, dy = y - cy;
+    if (dx * dx + dy * dy > R * R) continue;
+    f.moveTo(x, y); f.lineTo(x - 1, y + 4);
+  }
+  f.stroke();
 }
 
 // Underground view: the city above is gone, so all that is left of the surface
@@ -3636,7 +4439,6 @@ function drawUnderground(f, sx0, sy0, sx1, sy1) {
     const hz = m.d === 2 || m.d === 4;
     drawMetro(f, Math.round(m.x - (hz ? 3.5 : 1.5)), Math.round(m.y - (hz ? 1.5 : 3.5)), hz);
   }
-
   // the placement ghost still works down here, so you can see where a station lands
   drawPreview(f);
 }
@@ -3700,29 +4502,36 @@ const TOOLS = {
   inspect:   {name: 'Inspect', kind: 'inspect', key: 'Q', desc: 'Click buildings, roads and traffic lights to see details and tune them.'},
   select:    {name: 'Select', kind: 'select', key: 'X', desc: 'Drag a box to highlight an area. Copy (Ctrl+C), cut (Ctrl+X) or delete (Del) it, then paste (Ctrl+V) and click to place copies.'},
   bulldoze:  {name: 'Bulldoze', kind: 'rect', key: 'B', desc: 'Drag a box to clear roads, buildings and trees.'},
-  road:      {cat: 'roads', name: 'Street', kind: 'line', key: 'R', desc: 'Two-way street with sidewalks on both sides. Drag to draw.'},
-  country:   {cat: 'roads', name: 'Country Road', kind: 'line', key: 'K', desc: 'A street with gravel shoulders and no sidewalks. Nobody walks along it.'},
-  sidewalk:  {cat: 'roads', name: 'Sidewalks', kind: 'line', key: 'J', desc: 'Drag along streets to add sidewalks. Start on a street that has them to remove them instead.'},
-  oneway:    {cat: 'roads', name: 'One-Way', kind: 'line', key: 'O', desc: 'Drag in the direction traffic should flow. Click a one-way tile to rotate it.'},
-  highway:   {cat: 'roads', name: 'Highway', kind: 'line', key: 'H', desc: 'Fast road (1.7x speed). Draw two side by side for two lanes each way. Buildings can\'t connect to it.'},
-  light:     {cat: 'roads', name: 'Traffic Light', kind: 'click', key: 'L', desc: 'Click a 3- or 4-way intersection to add or remove a signal.'},
-  overpass:  {cat: 'roads', name: 'Overpass', kind: 'click', key: 'U', desc: 'Click a 4-way crossing to bridge one road over the other. Traffic flies straight through, but nobody can turn there, so build ramps.'},
-  'b:parking': {cat: 'roads'}, 'b:garage': {cat: 'roads'},
-  'b:house': {cat: 'res'}, 'b:apartment': {cat: 'res'}, 'b:tower': {cat: 'res'},
-  'b:shop': {cat: 'com'}, 'b:market': {cat: 'com'}, 'b:mall': {cat: 'com'},
-  'b:office': {cat: 'work'}, 'b:hq': {cat: 'work'}, 'b:factory': {cat: 'work'}, 'b:warehouse': {cat: 'work'}, 'b:dock': {cat: 'work'},
-  'b:farmhouse': {cat: 'rural'}, 'b:farm': {cat: 'rural'}, 'b:orchard': {cat: 'rural'}, 'b:greenhouse': {cat: 'rural'},
-  'b:fishery': {cat: 'work'}, 'b:seafoodMarket': {cat: 'com'}, 'b:seafoodPlant': {cat: 'work'},
-  'b:oilRig': {cat: 'resource'}, 'b:gasWell': {cat: 'resource'}, 'b:loggingCamp': {cat: 'resource'}, 'b:quarry': {cat: 'resource'}, 'b:mine': {cat: 'resource'},
+  road:      {cat: 'roads', group: 'Streets', name: 'Street', kind: 'line', key: 'R', desc: 'Two-way street with sidewalks on both sides. Drag to draw.'},
+  country:   {cat: 'roads', group: 'Streets', name: 'Country Road', kind: 'line', key: 'K', desc: 'A street with gravel shoulders and no sidewalks. Nobody walks along it.'},
+  sidewalk:  {cat: 'roads', group: 'Streets', name: 'Sidewalks', kind: 'line', key: 'J', desc: 'Drag along streets to add sidewalks. Start on a street that has them to remove them instead.'},
+  oneway:    {cat: 'roads', group: 'Streets', name: 'One-Way', kind: 'line', key: 'O', desc: 'Drag in the direction traffic should flow. Click a one-way tile to rotate it.'},
+  highway:   {cat: 'roads', group: 'Streets', name: 'Highway', kind: 'line', key: 'H', desc: 'Fast road (1.7x speed). Draw two side by side for two lanes each way. Buildings can\'t connect to it.'},
+  light:     {cat: 'roads', group: 'Junctions', name: 'Traffic Light', kind: 'click', key: 'L', desc: 'Click a 3- or 4-way intersection to add or remove a signal.'},
+  overpass:  {cat: 'roads', group: 'Junctions', name: 'Overpass', kind: 'click', key: 'U', desc: 'Click a 4-way crossing to bridge one road over the other. Traffic flies straight through, but nobody can turn there, so build ramps.'},
+  'b:house': {cat: 'res'}, 'b:apartment': {cat: 'res'}, 'b:tower': {cat: 'res'}, 'b:farmhouse': {cat: 'res'},
+  'b:office': {cat: 'work', group: 'Offices & industry'}, 'b:hq': {cat: 'work', group: 'Offices & industry'},
+  'b:factory': {cat: 'work', group: 'Offices & industry'}, 'b:warehouse': {cat: 'work', group: 'Offices & industry'},
+  'b:dock': {cat: 'work', group: 'Resources'}, 'b:quarry': {cat: 'work', group: 'Resources'},
+  'b:mine': {cat: 'work', group: 'Resources'}, 'b:oilRig': {cat: 'work', group: 'Resources'},
+  'b:gasWell': {cat: 'work', group: 'Resources'}, 'b:seafoodPlant': {cat: 'work', group: 'Resources'},
+  'b:shop': {cat: 'com'}, 'b:market': {cat: 'com'}, 'b:mall': {cat: 'com'}, 'b:seafoodMarket': {cat: 'com'},
+  'b:woodPlant': {cat: 'power'}, 'b:coalPlant': {cat: 'power'}, 'b:gasPlant': {cat: 'power'}, 'b:hydroPlant': {cat: 'power'}, 'b:solarPlant': {cat: 'power'}, 'b:nuclearPlant': {cat: 'power'},
+  'b:farm': {cat: 'rural'}, 'b:orchard': {cat: 'rural'}, 'b:greenhouse': {cat: 'rural'}, 'b:loggingCamp': {cat: 'rural'}, 'b:fishery': {cat: 'rural'},
   'b:school': {cat: 'civic'}, 'b:hospital': {cat: 'civic'}, 'b:airport': {cat: 'civic'},
   'b:fireStation': {cat: 'civic'}, 'b:policeStation': {cat: 'civic'}, 'b:researchLab': {cat: 'civic'},
-  'b:woodPlant': {cat: 'power'}, 'b:coalPlant': {cat: 'power'}, 'b:gasPlant': {cat: 'power'}, 'b:hydroPlant': {cat: 'power'}, 'b:solarPlant': {cat: 'power'}, 'b:nuclearPlant': {cat: 'power'},
-  path:      {cat: 'ped', name: 'Footpath', kind: 'line', key: 'F', desc: 'Pedestrian path. Makes nearby buildings walkable, so fewer people drive.'},
-  plaza:     {cat: 'ped', name: 'Plaza', kind: 'rect', desc: 'Paved pedestrian square. Drag a box. Raises the walk score of everything nearby.'},
-  'b:park': {cat: 'ped'}, 'b:busstop': {cat: 'ped'},
-  rail:      {cat: 'metro', name: 'Metro Rails', kind: 'line', key: 'T', desc: 'Drag to lay track under the city. Rails that share an edge connect on their own, so a crossing becomes a junction and a loose end becomes a reversing block. Draw from a station tile to join the line to it.'},
-  unrail:    {cat: 'metro', name: 'Lift Rails', kind: 'rect', desc: 'Drag a box to take up track. Bulldoze does the same while the Underground layer is showing.'},
-  'b:metro': {cat: 'metro'},
+  'b:metro': {cat: 'transit', group: 'Metro'},
+  rail:      {cat: 'transit', group: 'Metro', name: 'Metro Rails', kind: 'line', key: 'T', desc: 'Drag to lay track under the city. Rails that share an edge connect on their own, so a crossing becomes a junction and a loose end becomes a reversing block. Draw from a station tile to join the line to it.'},
+  unrail:    {cat: 'transit', group: 'Metro', name: 'Lift Rails', kind: 'rect', desc: 'Drag a box to take up metro track. Bulldoze does the same while the Underground layer is showing.'},
+  'b:busstop': {cat: 'transit', group: 'Walking & parking'},
+  path:      {cat: 'transit', group: 'Walking & parking', name: 'Footpath', kind: 'line', key: 'F', desc: 'Pedestrian path. Makes nearby buildings walkable, so fewer people drive.'},
+  plaza:     {cat: 'transit', group: 'Walking & parking', name: 'Plaza', kind: 'rect', desc: 'Paved pedestrian square. Drag a box. Raises the walk score of everything nearby.'},
+  'b:park': {cat: 'transit', group: 'Walking & parking'},
+  'b:parking': {cat: 'transit', group: 'Walking & parking'}, 'b:garage': {cat: 'transit', group: 'Walking & parking'},
+  track:     {cat: 'transit', group: 'Freight', name: 'Freight Track', kind: 'line', key: 'I', desc: 'Drag to lay surface rail for freight trains. Track joins track that touches it, can cross a street at grade, and bridges water. Train yards and distribution terminals have to touch it.'},
+  untrack:   {cat: 'transit', group: 'Freight', name: 'Lift Freight Track', kind: 'rect', desc: 'Drag a box to take up surface freight track.'},
+  'b:railyard': {cat: 'transit', group: 'Freight'},
+  'b:port': {cat: 'transit', group: 'Freight'}, 'b:distribution': {cat: 'transit', group: 'Freight'},
   tree:      {cat: 'nature', name: 'Trees', kind: 'brush', desc: 'Paint trees on empty grass.'},
   water:     {cat: 'nature', name: 'Water', kind: 'rect', desc: 'Drag a box to flood land. Roads over water become bridges.'},
   land:      {cat: 'nature', name: 'Land', kind: 'rect', desc: 'Drag a box to fill in water.'},
@@ -3739,9 +4548,9 @@ for (const id in TOOLS) if (id.startsWith('b:')) {
   Object.assign(TOOLS[id], {name: d.name, kind: 'build', desc: d.desc, stats: parts.join(' · ')});
 }
 const CATS = [
-  {id: 'roads', name: 'Roads'}, {id: 'res', name: 'Homes'}, {id: 'com', name: 'Shops'}, {id: 'work', name: 'Work'},
-  {id: 'rural', name: 'Rural'}, {id: 'resource', name: 'Resources'}, {id: 'civic', name: 'Civic'}, {id: 'power', name: 'Power'},
-  {id: 'ped', name: 'Walk & Transit'}, {id: 'metro', name: 'Metro'}, {id: 'districts', name: 'Districts'}, {id: 'nature', name: 'Nature'},
+  {id: 'roads', name: 'Roads'}, {id: 'res', name: 'Housing'}, {id: 'work', name: 'Work'}, {id: 'com', name: 'Shops'},
+  {id: 'power', name: 'Power'}, {id: 'rural', name: 'Agriculture'}, {id: 'civic', name: 'Civic'},
+  {id: 'transit', name: 'Transit'}, {id: 'districts', name: 'Districts'}, {id: 'nature', name: 'Nature'},
 ];
 let curTool = 'inspect', curCat = null;
 let hoverT = {x: -1, y: -1}, drag = null, pan = null, spaceDown = false;
@@ -3788,6 +4597,18 @@ function commitLine(tool, sx, sy, ex, ey) {
     mapChanged();
     return;
   }
+  if (tool === 'track') {
+    // Surface freight track may cross a street at grade, and bridges water; it
+    // only refuses a tile a building stands on.
+    let n = 0, blocked = 0;
+    for (const i of tiles) {
+      if (bldAt[i]) { blocked++; continue; }
+      if (!trackOn[i]) { trackOn[i] = 1; tree[i] = 0; n++; }
+    }
+    if (!n) { toast(blocked ? 'Buildings are in the way of that line.' : 'There is already freight track along that line.'); return; }
+    markTiles(tiles); mapChanged();
+    return;
+  }
   let changed = false;
   tiles.forEach((i, k) => {
     if (bldAt[i]) return;
@@ -3808,7 +4629,7 @@ function commitRect(tool, sx, sy, ex, ey) {
       for (const i of tiles) railOn[i] = 0;
     } else {
       const kill = new Set();
-      for (const i of tiles) { if (bldAt[i]) kill.add(bldAt[i]); tile[i] = 0; oneway[i] = 0; walkway[i] = 0; tree[i] = 0; overpass[i] = 0; lights.delete(i); }
+      for (const i of tiles) { if (bldAt[i]) kill.add(bldAt[i]); tile[i] = 0; oneway[i] = 0; walkway[i] = 0; tree[i] = 0; overpass[i] = 0; trackOn[i] = 0; lights.delete(i); }
       for (const id of kill) { const b = B(id); if (b) removeBuilding(b); }
     }
   } else if (tool === 'plaza') {
@@ -3819,6 +4640,8 @@ function commitRect(tool, sx, sy, ex, ey) {
     for (const i of tiles) if (!bldAt[i] || !BT[B(bldAt[i]).type].water) water[i] = 0;
   } else if (tool === 'unrail') {
     for (const i of tiles) railOn[i] = 0;
+  } else if (tool === 'untrack') {
+    for (const i of tiles) trackOn[i] = 0;
   } else if (tool === 'district') {
     let d = districts.get(activeDistrict);
     if (!d) {
@@ -3860,14 +4683,9 @@ function updateDistrictUI() {
 }
 function tryBuild(t) {
   const type = curTool.slice(2), a = anchorFor(type, t);
-  if (!canPlace(type, a.x, a.y)) {
-    if (!drag) {
-      if (BT[type].water) toast('Docks go on a shore: part on land, part on water.');
-      else if (BT[type].shore) toast('This one has to sit on a shoreline.');
-      else if (BT[type].rock) toast('That needs rocky ground.');
-      else if (BT[type].jungle) toast('That needs jungle.');
-      else if (POWER_REQ[type] && !powerReqMet(type)) toast('Needs ' + powerGap(type) + ' first.');
-    }
+  const why = whyNot(type, a.x, a.y);
+  if (why) {
+    if (!drag) toast(why);
     return false;
   }
   const b = placeBuilding(type, a.x, a.y);
@@ -4031,16 +4849,16 @@ function drawPreview(f) {
   }
   if (drag && tool.kind === 'line') {
     const {tiles} = lineTiles(drag.sx, drag.sy, drag.ex, drag.ey);
-    const col = curTool === 'rail' ? 'rgba(69,201,141,.55)'
+    const col = curTool === 'rail' ? 'rgba(69,201,141,.55)' : curTool === 'track' ? 'rgba(170,140,100,.6)'
       : curTool === 'highway' ? 'rgba(120,130,150,.6)' : curTool === 'path' ? 'rgba(230,210,160,.6)' : curTool === 'country' ? 'rgba(170,150,110,.6)' : curTool === 'sidewalk' ? 'rgba(220,225,235,.55)' : 'rgba(200,210,230,.55)';
     for (const i of tiles) { f.fillStyle = bldAt[i] ? 'rgba(255,70,70,.5)' : col; f.fillRect((i % MW) * T, (i / MW | 0) * T, T, T); }
     return;
   }
   if (drag && tool.kind === 'rect') {
     const x0 = Math.min(drag.sx, drag.ex), y0 = Math.min(drag.sy, drag.ey), x1 = Math.max(drag.sx, drag.ex), y1 = Math.max(drag.sy, drag.ey);
-    const col = curTool === 'bulldoze' || curTool === 'unrail' ? 'rgba(255,70,70,.35)' : curTool === 'water' ? 'rgba(60,130,220,.5)' : curTool === 'plaza' ? 'rgba(230,220,190,.55)' : 'rgba(120,200,90,.5)';
+    const col = curTool === 'bulldoze' || curTool === 'unrail' || curTool === 'untrack' ? 'rgba(255,70,70,.35)' : curTool === 'water' ? 'rgba(60,130,220,.5)' : curTool === 'plaza' ? 'rgba(230,220,190,.55)' : 'rgba(120,200,90,.5)';
     f.fillStyle = col; f.fillRect(x0 * T, y0 * T, (x1 - x0 + 1) * T, (y1 - y0 + 1) * T);
-    outline(x0 * T, y0 * T, (x1 - x0 + 1) * T, (y1 - y0 + 1) * T, curTool === 'bulldoze' || curTool === 'unrail' ? '#ff5050' : '#ffffff');
+    outline(x0 * T, y0 * T, (x1 - x0 + 1) * T, (y1 - y0 + 1) * T, curTool === 'bulldoze' || curTool === 'unrail' || curTool === 'untrack' ? '#ff5050' : '#ffffff');
     return;
   }
   if (!inb(hoverT.x, hoverT.y)) return;
@@ -4165,6 +4983,29 @@ addEventListener('keydown', e => {
 });
 addEventListener('keyup', e => { const k = e.key.toLowerCase(); if (k === ' ') spaceDown = false; keys.delete(k); });
 addEventListener('blur', () => keys.clear());
+// Push-scrolling: with the pointer in the last pixel at the edge of the window,
+// the map slides that way. The speed is in screen pixels per second, so the
+// ground moves at the same rate on screen whatever the zoom; in world units
+// that means dividing by the zoom. It also keeps working while you drag out a
+// road or a box, because the drag endpoint follows the cursor every frame.
+function panEdge(dt) {
+  if (regionView || !mouse.in || pan) return;
+  let dx = 0, dy = 0;
+  if (mouse.x <= 0) dx = -1; else if (mouse.x >= innerWidth - 1) dx = 1;
+  if (mouse.y <= 0) dy = -1; else if (mouse.y >= innerHeight - 1) dy = 1;
+  if (!dx && !dy) return;
+  const move = 520 * dt / cam.z;
+  cam.x += dx * move; cam.y += dy * move;
+  clampCam();
+  const t = screenToTile(mouse.x, mouse.y);
+  const moved = t.x !== hoverT.x || t.y !== hoverT.y;
+  hoverT = t;
+  if (drag) {
+    if (drag.paint && moved) {
+      if (TOOLS[curTool].kind === 'build') tryBuild(t); else brushTree(t);
+    } else if (!drag.paint) { drag.ex = t.x; drag.ey = t.y; }
+  }
+}
 function panKeys(dt) {
   if (regionView) return;
   const s = 420 * dt / cam.z;
@@ -4200,6 +5041,11 @@ function makeIcon(id) {
   } else switch (id) {
     case 'rail': aw = ah = 9; drawRailTile(t, 0, 0, 15, 'junction'); break;
     case 'unrail': aw = ah = 9; drawRailTile(t, 0, 0, 5, 'rail');
+      t.fillStyle = '#ff5050';
+      for (let k = 1; k < 8; k++) { t.fillRect(k, k, 1, 1); t.fillRect(8 - k, k, 1, 1); }
+      break;
+    case 'track': aw = ah = 9; grass(); drawTrackTile(t, 0, 0, 10, false); break;
+    case 'untrack': aw = ah = 9; grass(); drawTrackTile(t, 0, 0, 10, false);
       t.fillStyle = '#ff5050';
       for (let k = 1; k < 8; k++) { t.fillRect(k, k, 1, 1); t.fillRect(8 - k, k, 1, 1); }
       break;
@@ -4288,9 +5134,19 @@ function openCat(cat) {
   barEl.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.cat === cat));
   if (!cat) { flyEl.classList.add('hidden'); return; }
   flyEl.innerHTML = '';
+  // Tools are laid out in labelled groups, so a tab reads as sections rather
+  // than one long row: metro, walking, then freight, for example.
+  let group = null, row = null;
   for (const id in TOOLS) {
     if (TOOLS[id].cat !== cat) continue;
-    const t = TOOLS[id];
+    const t = TOOLS[id], g = t.group || '';
+    if (g !== group) {
+      group = g;
+      const wrap = document.createElement('div'); wrap.className = 'fgroup';
+      if (g) { const lbl = document.createElement('small'); lbl.textContent = g; wrap.append(lbl); }
+      row = document.createElement('div'); row.className = 'frow'; wrap.append(row);
+      flyEl.append(wrap);
+    }
     const b = document.createElement('button'); b.className = 'card'; b.dataset.tool = id;
     b.append(icon(id));
     const nm = document.createElement('span'); nm.textContent = t.name; b.append(nm);
@@ -4298,7 +5154,7 @@ function openCat(cat) {
     else if (t.key) { const s = document.createElement('small'); s.textContent = `[${t.key}]`; b.append(s); }
     b.onclick = () => setTool(id);
     b.onmouseenter = () => showTip(b, id); b.onmouseleave = hideTip;
-    flyEl.append(b);
+    row.append(b);
   }
   if (cat === 'districts') {
     const wrap = document.createElement('div');
@@ -4317,14 +5173,16 @@ function setTool(id) {
   if (id !== 'select') pasteMode = false;
   updateSelBar();
   const cat = TOOLS[id].cat;
-  // The Metro tab edits what is under the city, so opening it shows the tunnels.
-  // Switching to an ordinary tool puts the surface back, unless the player had
-  // already switched the Underground layer on by hand.
-  if (cat === 'metro') {
+  // The rail and station tools edit what is under the city, so opening them
+  // shows the tunnels. Switching to an ordinary tool puts the surface back,
+  // unless the player had already switched the Underground layer on by hand.
+  if (id === 'rail' || id === 'unrail' || id === 'metro') {
     if (!overlays.underground) { overlays.underground = true; railViewAuto = true; syncOverlayButtons(); }
   } else if (railViewAuto) {
     overlays.underground = false; railViewAuto = false; syncOverlayButtons();
   }
+  // Surface track cannot be seen — or drawn — while the city is hidden.
+  if (id === 'track' && overlays.underground) { overlays.underground = false; railViewAuto = false; syncOverlayButtons(); }
   if (cat && cat !== curCat) openCat(cat);
   markTool();
   cv.style.cursor = id === 'inspect' ? 'pointer' : 'crosshair';
@@ -4453,6 +5311,10 @@ function select(sel) {
     if (b.type === 'metro') html += row('Riders nearby', 'ivRiders');
     if (b.type === 'airport') html += row('Planes in the air', 'ivPlanes');
     if (b.type === 'dock') html += row('Boats on the water', 'ivBoats');
+    if (b.type === 'port') html += row('Ships at sea', 'ivShips') + row('Cargo at the quay', 'ivStock');
+    if (b.type === 'distribution' || b.type === 'railyard') html += row('Cargo waiting', 'ivStock');
+    if (typeof producerOf === 'function' && producerOf(b)) html += row('Stock in the yard', 'ivStock');
+    if (BT[b.type].cat === 'com') html += row('Goods on the shelf', 'ivStock');
     html += row('Road access', 'ivRoad') + row('Walk score', 'ivWalk') + row('Cars heading here', 'ivIncoming');
     html += row('District', 'ivDistrict');
     if (d.homes) html += row('Job mood', 'ivMoodJob') + row('Transport mood', 'ivMoodRide') + row('Birth mood', 'ivMoodBirth');
@@ -4503,6 +5365,8 @@ function buildRoadButtons() {
   box.append(del);
 }
 function setT(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
+const CATEXTRA = {rural: 'Agriculture', resource: 'Resource', power: 'Power', transit: 'Transit'};
+for (const k of Object.keys(CATEXTRA)) if (!CATLABEL[k]) CATLABEL[k] = CATEXTRA[k];
 function heatLabel(h) { return h < 0.15 ? 'Free flowing' : h < 0.6 ? 'Light' : h < 1.3 ? 'Busy' : h < 2.2 ? 'Heavy' : 'Jammed'; }
 const MOODWORD = {happy: 'happy', ok: 'okay', sad: 'annoyed', angry: 'furious'};
 function updateInspector() {
@@ -4527,6 +5391,8 @@ function updateInspector() {
     if (b.type === 'metro') { let r = 0; for (const p of peds) if (p.mode === 'metro') r++; setT('ivRiders', r); }
     if (b.type === 'airport') setT('ivPlanes', planes.filter(p => p.ap === b.id).length);
     if (b.type === 'dock') setT('ivBoats', boats.length);
+    if (b.type === 'port') setT('ivShips', ships.length);
+    setT('ivStock', Math.floor(b.stock || 0));
     const dist = districtAt(b.y * MW + b.x);
     setT('ivDistrict', dist ? dist.name : 'none');
     if (d.homes) {
@@ -4616,6 +5482,11 @@ function hud(dt) {
   let buses = 0, riders = 0; for (const c of cars) if (c.bus) { buses++; riders += c.riders.length; }
   setT('gTransit', `${buses} · ${riders}`);
   setT('gMetro', `${metros.length} · ${metroRiders()}`);
+  let trucks = 0; for (const c of cars) if (c.truck) trucks++;
+  setT('gCargo', `${trucks} · ${typeof cargoStats === 'object' ? cargoStats.deliveries : 0}`);
+  setT('gShips', `${ships.length} · ${ports.length}`);
+  let wagons = 0; for (const t of freight) wagons += t.consist.length;
+  setT('gFreight', `${freight.length} · ${wagons} cars`);
   const m = {car: 0, walk: 0, metro: 0, bus: 0}; for (const v of stats.modes) m[v]++;
   document.getElementById('mBus').style.width = (m.bus / (stats.modes.length || 1) * 100) + '%';
   setT('lBus', `bus ${Math.round(m.bus / (stats.modes.length || 1) * 100)}%`);
@@ -4661,17 +5532,18 @@ function updateHover() {
 // World generation
 // =====================================================================
 function clearWorld(keepClock) {
-  tile.fill(0); water.fill(0); tree.fill(0); oneway.fill(0); walkway.fill(0); bldAt.fill(0); heat.fill(0); heatAcc.fill(0); resv.fill(0); overpass.fill(0); rail.fill(0); railOn.fill(0);
+  tile.fill(0); water.fill(0); tree.fill(0); oneway.fill(0); walkway.fill(0); bldAt.fill(0); heat.fill(0); heatAcc.fill(0); resv.fill(0); overpass.fill(0); rail.fill(0); railOn.fill(0); track.fill(0); trackOn.fill(0);
   lights.clear(); buildings.clear(); carById.clear(); chunks.clear();
   districts.clear(); districtLayer.fill(0); nextDid = 1; units = []; incidents.length = 0;
   power.plants = []; power.capacity = 0; power.demand = 0;
-  agents = []; cars = []; peds = []; planes = []; boats = []; metros = []; connections = []; busWait.clear(); metroWait.clear();
+  agents = []; cars = []; peds = []; planes = []; boats = []; metros = []; ships = []; freight = []; connections = []; busWait.clear(); metroWait.clear();
+  if (typeof resetLogistics === 'function') resetLogistics();
   nextBid = 1; nextAid = 1; nextCid = 1;
   if (!keepClock) { simTime = 0; gameMin = 6.5 * 60; }
   stats = {trips: [], modes: [], frustrated: 0, stranded: 0, ti: 0, tiAcc: 0, tiN: 0, waitN: 0, hist: [], lastFrustToast: stats.lastFrustToast};
   select(null);
 }
-function finishWorld() { markAllDirty(); mapChanged(); computeDistStats(); }
+function finishWorld() { markAllDirty(); mapChanged(); computeDistStats(); if (typeof initWeather === 'function') initWeather(); }
 function lineRoad(x0, y0, x1, y1, t = 1, sw = 1) {
   const dx = Math.sign(x1 - x0), dy = Math.sign(y1 - y0); let x = x0, y = y0;
   for (;;) { const i = y * MW + x; tile[i] = t; tree[i] = 0; oneway[i] = 0; walkway[i] = t === 1 ? sw : 0; if (x === x1 && y === y1) break; x += dx; y += dy; }
@@ -4774,7 +5646,7 @@ function placeCoastalBuildings(rng) {
       const ang = a / 32 * Math.PI * 2 + r * 0.11;
       const x = Math.round(town.x + Math.cos(ang) * r), y = Math.round(town.y + Math.sin(ang) * r);
       const type = types[made % types.length];
-      if (!inb(x, y) || !canPlace(type, x, y)) continue;
+      if (!inb(x, y) || !canPlace(type, x, y, true)) continue;
       let best = null, bd = Infinity;
       for (const i of roadTiles) {
         const d = Math.abs(i % MW - x) + Math.abs((i / MW | 0) - y);
@@ -5033,7 +5905,7 @@ function diffEnc(arr, gen, skip) { let s = '', last = 0; for (let i = 0; i < N; 
 function serialize() {
   const gw = new Uint8Array(N), gt = new Uint8Array(N); genTerrainInto(worldSeed, gw, gt);
   return {v: 5, seed: worldSeed, t: Math.round(gameMin),
-    tile: rle(tile), oneway: rle(oneway), overpass: rle(overpass), walkway: rle(walkway), rail: rle(railOn),
+    tile: rle(tile), oneway: rle(oneway), overpass: rle(overpass), walkway: rle(walkway), rail: rle(railOn), track: rle(trackOn),
     water: diffEnc(water, gw), tree: diffEnc(tree, gt, i => tile[i] || bldAt[i]),
     lights: [...lights].map(([i, L]) => [i, L.ns, L.ew, Math.round(L.off)]),
     b: [...buildings.values()].map(b => [b.type, b.x, b.y, b.seed >>> 0]),
@@ -5073,19 +5945,21 @@ function loadData(d) {
   if (!isInt(d.seed, 0, 1e9)) throw new Error(BAD);
   for (const k of ['tile', 'oneway', 'overpass', 'walkway', 'water', 'tree']) if (typeof d[k] !== 'string' || d[k].length > 5e6) throw new Error(BAD);
   if (!Array.isArray(d.b) || d.b.length > 40000 || !Array.isArray(d.lights) || d.lights.length > 40000) throw new Error(BAD);
-  // rail was added after the first v5 saves, so it may be missing: an old region
-  // simply has no tunnels until you draw some
+  // rail and track were added after the first v5 saves, so they may be missing:
+  // an old region simply has no tunnels or tracks until you draw some
   if (d.rail !== undefined && (typeof d.rail !== 'string' || d.rail.length > 5e6)) throw new Error(BAD);
-  const nt = new Uint8Array(N), no = new Uint8Array(N), nov = new Uint8Array(N), nw = new Uint8Array(N), nwa = new Uint8Array(N), ntr = new Uint8Array(N), nra = new Uint8Array(N);
+  if (d.track !== undefined && (typeof d.track !== 'string' || d.track.length > 5e6)) throw new Error(BAD);
+  const nt = new Uint8Array(N), no = new Uint8Array(N), nov = new Uint8Array(N), nw = new Uint8Array(N), nwa = new Uint8Array(N), ntr = new Uint8Array(N), nra = new Uint8Array(N), ntk = new Uint8Array(N);
   unrleInto(d.tile, nt, 4); unrleInto(d.oneway, no, 4); unrleInto(d.overpass, nov, 1); unrleInto(d.walkway, nw, 1);
   if (typeof d.rail === 'string') unrleInto(d.rail, nra, 1);
+  if (typeof d.track === 'string') unrleInto(d.track, ntk, 1);
   genTerrainInto(d.seed, nwa, ntr); applyDiff(d.water, nwa, 1); applyDiff(d.tree, ntr, 4);
   for (const e of d.b) if (!Array.isArray(e) || !hasType(e[0]) || !isInt(e[1], 0, MW - 1) || !isInt(e[2], 0, MH - 1) || !isInt(e[3], 0, 4294967295)) throw new Error(BAD);
   for (const e of d.lights) if (!Array.isArray(e) || !isInt(e[0], 0, N - 1) || !isInt(e[1], 3, 25) || !isInt(e[2], 3, 25) || !isInt(e[3], 0, 60)) throw new Error(BAD);
   // the save is valid: replace the region
   clearWorld();
   worldSeed = d.seed;
-  tile.set(nt); oneway.set(no); overpass.set(nov); walkway.set(nw); water.set(nwa); tree.set(ntr); railOn.set(nra);
+  tile.set(nt); oneway.set(no); overpass.set(nov); walkway.set(nw); water.set(nwa); tree.set(ntr); railOn.set(nra); trackOn.set(ntk);
   for (let i = 0; i < N; i++) if (tile[i]) tree[i] = 0;
   for (const [type, x, y, seed] of d.b) if (canPlace(type, x, y) || canPlaceLoose(type, x, y)) placeBuilding(type, x, y, seed);
   for (const [i, ns, ew, off] of d.lights) lights.set(i, {ns, ew, off});
@@ -5741,7 +6615,7 @@ function frame(now) {
   const dt = Math.min(0.1, (now - lastT) / 1000); lastT = now;
   const inGameMenu = gameActive && document.body.classList.contains('menu-screen');
   if (gameActive || menuPreview.active) {
-    if (gameActive && !inGameMenu) panKeys(dt);
+    if (gameActive && !inGameMenu) { panKeys(dt); panEdge(dt); }
     if (speed > 0 && ((!inGameMenu && gameActive) || menuPreview.advancing)) {
       let sdt = dt * speed;
       while (sdt > 1e-6) { const s = Math.min(sdt, 1 / 30); simStep(s); sdt -= s; }
@@ -5754,6 +6628,7 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 </script>
+
 
 
 

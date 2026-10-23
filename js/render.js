@@ -127,13 +127,7 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
       for (let k = 0; k < n; k++) { const w = a.win[a.order[k]]; f.fillStyle = SHIRT[(k * 3 + b.id) % SHIRT.length]; f.fillRect(w[0], w[1], 1, 1); }
     }
   }
-  if (overlays.weather) {
-    const w = weatherNow();
-    if (w.wet) {
-      f.fillStyle = w.wet === 2 ? 'rgba(18,28,48,.24)' : 'rgba(70,110,160,.14)';
-      f.fillRect(sx0, sy0, sw, sh);
-    }
-  }
+
   // emergency units and the incidents they are working
   for (const u of units) {
     if (!inP(u.x * T, u.y * T)) continue;
@@ -160,6 +154,7 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
     }
   }
   for (const b of boats) if (inP(b.x, b.y)) drawBoat(f, b);
+  for (const s of ships) if (inP(s.x, s.y)) drawShip(f, s);
   for (const p of peds) {
     if (p.dead || p.hidden || !inP(p.x, p.y)) continue;
     drawPed(f, Math.round(p.x - 0.5), Math.round(p.y - 0.5), p.color);
@@ -178,6 +173,10 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
       drawBus(f, Math.round(c.x - (hz ? 2.5 : 1)), Math.round(c.y - (hz ? 1 : 2.5)), hz);
       return;
     }
+    if (c.truck) {
+      drawTruck(f, Math.round(c.x - (hz ? 2.5 : 1)), Math.round(c.y - (hz ? 1 : 2.5)), hz, c.color);
+      return;
+    }
     drawCarSprite(f, Math.round(c.x - (hz ? 1.5 : 1)), Math.round(c.y - (hz ? 1 : 1.5)), hz, c.color);
   };
   const onDeck = [];
@@ -188,6 +187,21 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
   }
   for (const i of overpassList) { const x = i % MW, y = i / MW | 0; if (x >= vx0 && x <= vx1 && y >= vy0 && y <= vy1) drawDeck(f, x * T, y * T, tile[i] === 2); }
   for (const c of onDeck) drawCar(c);
+  // freight trains on the surface tracks: the head, then one wagon per tile behind it
+  for (const t of freight) {
+    if (!t.path || t.state === 'dwell') continue;
+    const hz = t.d === 2 || t.d === 4;
+    for (let k = 0; k < t.consist.length; k++) {
+      const idx = t.i - k;
+      if (idx < 0 || idx >= t.path.length - 1) continue;
+      const a = t.path[idx], b = t.path[idx + 1];
+      const ax = a % MW, ay = a / MW | 0, bx = b % MW, by = b / MW | 0;
+      const tt = k === 0 ? t.t : 0.5;
+      const px = (ax + (bx - ax) * tt) * T + 4.5, py = (ay + (by - ay) * tt) * T + 4.5;
+      if (px / T < vx0 - 2 || px / T > vx1 + 2 || py / T < vy0 - 2 || py / T > vy1 + 2) continue;
+      drawFreightCar(f, Math.round(px - (hz ? 3.5 : 1.5)), Math.round(py - (hz ? 1.5 : 3.5)), hz, t.consist[k]);
+    }
+  }
   // roads that leave the region
   f.fillStyle = '#6fb3ff';
   for (const i of connections) {
@@ -283,7 +297,49 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
     const x = (flash.i % MW) * T + 4, y = (flash.i / MW | 0) * T + 4, r = 10 + ((performance.now() / 60) % 12);
     f.strokeStyle = '#ffffff'; f.lineWidth = 2; f.beginPath(); f.arc(x, y, r, 0, Math.PI * 2); f.stroke();
   }
+  if (overlays.weather) drawWeather(f, sx0, sy0, sx1, sy1);
   drawPreview(f);
+}
+
+// Weather: one soft disc per cell. The middle is a little darker, the rim is
+// fully transparent, so two neighbouring cells cross-fade into each other.
+function drawWeather(f, sx0, sy0, sx1, sy1) {
+  for (const cell of weatherCells) {
+    const k = WEATHER_KINDS[cell.kind];
+    if (!k || !k.tint) continue;
+    const cx = cell.x * T, cy = cell.y * T, R = WX_R * T;
+    if (cx + R < sx0 || cx - R > sx1 || cy + R < sy0 || cy - R > sy1) continue;
+    const [r, g, b, a] = k.tint;
+    const gr = f.createRadialGradient(cx, cy, 0, cx, cy, R);
+    gr.addColorStop(0, `rgba(${r},${g},${b},${a})`);
+    gr.addColorStop(0.7, `rgba(${r},${g},${b},${a})`);
+    gr.addColorStop(0.9, `rgba(${r},${g},${b},${a * 0.4})`);
+    gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    f.fillStyle = gr;
+    f.fillRect(cx - R, cy - R, R * 2, R * 2);
+    if (k.wet) drawRain(f, cell, R, sx0, sy0, sx1, sy1);
+  }
+}
+function drawRain(f, cell, R, sx0, sy0, sx1, sy1) {
+  const t = performance.now() / 1000;
+  const cx = cell.x * T, cy = cell.y * T;
+  const heavy = cell.kind === 'storm';
+  f.strokeStyle = heavy ? 'rgba(178,205,255,.6)' : 'rgba(190,220,255,.45)';
+  f.lineWidth = 1;
+  f.beginPath();
+  const n = heavy ? 260 : 170;
+  for (let k = 0; k < n; k++) {
+    const ang = hash(k, 11, cell.id) * Math.PI * 2;
+    const rr = Math.sqrt(hash(k, 12, cell.id)) * R;
+    const fall = (t * 55 + hash(k, 13, cell.id) * 900) % 180;
+    const x = cx + Math.cos(ang) * rr + fall * 0.18;
+    const y = cy + Math.sin(ang) * rr + fall * 0.55;
+    if (x < sx0 - 4 || x > sx1 + 4 || y < sy0 - 4 || y > sy1 + 4) continue;
+    const dx = x - cx, dy = y - cy;
+    if (dx * dx + dy * dy > R * R) continue;
+    f.moveTo(x, y); f.lineTo(x - 1, y + 4);
+  }
+  f.stroke();
 }
 
 // Underground view: the city above is gone, so all that is left of the surface
@@ -323,7 +379,6 @@ function drawUnderground(f, sx0, sy0, sx1, sy1) {
     const hz = m.d === 2 || m.d === 4;
     drawMetro(f, Math.round(m.x - (hz ? 3.5 : 1.5)), Math.round(m.y - (hz ? 1.5 : 3.5)), hz);
   }
-
   // the placement ghost still works down here, so you can see where a station lands
   drawPreview(f);
 }

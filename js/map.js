@@ -34,6 +34,16 @@ const BIOME_PAL = {
   4: [226, 233, 242, 210, 220, 234, 240, 246, 252, 196, 214, 236, 232, 238, 248],
   5: [126, 122, 116, 110, 106, 100, 142, 138, 132, 168, 164, 158, 96, 92, 88],
 };
+// How far a biome's colour reaches into the neighbouring tile, in art pixels.
+// The stored biome of each tile never changes; only the ground colour fades.
+const EDGE_BLEND = 3;
+function terrainColor(pal, n) {
+  if (n > 0.88) return (pal[3] << 16) | (pal[4] << 8) | pal[5];
+  if (n < 0.06) return (pal[6] << 16) | (pal[7] << 8) | pal[8];
+  if (n < 0.064) return (pal[9] << 16) | (pal[10] << 8) | pal[11];
+  if (n < 0.067) return (pal[12] << 16) | (pal[13] << 8) | pal[14];
+  return (pal[0] << 16) | (pal[1] << 8) | pal[2];
+}
 function buildChunk(cx, cy) {
   const tx0 = cx * CW, ty0 = cy * CHH, pw = CW * T, ph = CHH * T;
   const cvs = mk(pw, ph), c = cvs.getContext('2d');
@@ -49,12 +59,26 @@ function buildChunk(cx, cy) {
         if (shore) { r = 214; g = 196; b = 140; }
         else { r = 46; g = 108; b = 180; if (n > 0.95) { r = 104; g = 162; b = 224; } else if (n > 0.8) { r = 54; g = 120; b = 194; } }
       } else {
-        const pal = BIOME_PAL[biome[i]] || BIOME_PAL[1];
-        r = pal[0]; g = pal[1]; b = pal[2];
-        if (n > 0.88) { r = pal[3]; g = pal[4]; b = pal[5]; }
-        else if (n < 0.06) { r = pal[6]; g = pal[7]; b = pal[8]; }
-        else if (n < 0.064) { r = pal[9]; g = pal[10]; b = pal[11]; }
-        else if (n < 0.067) { r = pal[12]; g = pal[13]; b = pal[14]; }
+        const bi = biome[i], pal = BIOME_PAL[bi] || BIOME_PAL[1];
+        const base = terrainColor(pal, n);
+        r = base >> 16; g = base >> 8 & 255; b = base & 255;
+        // Near a border, pick the closest land tile with another biome and fade
+        // the ground colour toward it. The tile keeps its own biome for every
+        // rule and simulation system; this is only what the pixels look like.
+        let bd = EDGE_BLEND + 1, bj = -1;
+        if (lx < bd && tx > 0) { const j = i - 1; if (!water[j] && biome[j] !== bi) { bd = lx; bj = biome[j]; } }
+        if (T - 1 - lx < bd && tx < MW - 1) { const j = i + 1; if (!water[j] && biome[j] !== bi) { bd = T - 1 - lx; bj = biome[j]; } }
+        if (ly < bd && ty > 0) { const j = i - MW; if (!water[j] && biome[j] !== bi) { bd = ly; bj = biome[j]; } }
+        if (T - 1 - ly < bd && ty < MH - 1) { const j = i + MW; if (!water[j] && biome[j] !== bi) { bd = T - 1 - ly; bj = biome[j]; } }
+        if (bj >= 0) {
+          // 50/50 exactly on the border and fading to 0 three pixels in, so the
+          // two sides meet on the same colour instead of swapping a hard edge.
+          const ww = 0.5 * (EDGE_BLEND - bd) / EDGE_BLEND;
+          const q = terrainColor(BIOME_PAL[bj] || BIOME_PAL[1], n);
+          r = Math.round(r + ((q >> 16) - r) * ww);
+          g = Math.round(g + ((q >> 8 & 255) - g) * ww);
+          b = Math.round(b + ((q & 255) - b) * ww);
+        }
       }
       const o = (yy * pw + xx) * 4; d[o] = r; d[o + 1] = g; d[o + 2] = b; d[o + 3] = 255;
     }
@@ -75,6 +99,9 @@ function drawTile(c, i) {
   else if (t === 3) drawPathTile(c, x0, y0, walkMask(i), water[i]);
   else if (t === 4) drawPlazaTile(c, x0, y0, i);
   else if (tree[i] && !bldAt[i]) drawTree(c, x0, y0, tree[i]);
+  // Surface freight track lies over whatever is underneath, so a line can
+  // cross a street at grade and still leave the street intact for traffic.
+  if (trackOn[i]) drawTrackTile(c, x0, y0, track[i], water[i]);
 }
 const miniCv = mk(MW, MH), mctx = miniCv.getContext('2d'), miniImg = mctx.createImageData(MW, MH);
 const MINIC = [[88, 156, 68], [215, 218, 224], [240, 200, 90], [219, 201, 159], [211, 201, 180]];
@@ -176,22 +203,54 @@ function findPath(s, g, mode, maxCost = Infinity) {
 // =====================================================================
 // Map editing and network analysis
 // =====================================================================
-function canPlace(type, x, y) {
+// Every building has an access rule. Streets (not highways) carry cars and
+// trucks up to the door; parks and metro stations are reached on foot instead.
+function roadAdjacent(x, y, w, h) { return perimeter(x, y, w, h).some(i => tile[i] === 1 && !overpass[i]); }
+function trackAdjacent(x, y, w, h) { return perimeter(x, y, w, h).some(i => trackOn[i]); }
+function hubAdjacent(x, y, w, h) {
+  for (const i of perimeter(x, y, w, h)) {
+    if (trackOn[i]) return true;
+    const id = bldAt[i];
+    if (id) { const b = B(id); if (b && b.type === 'port') return true; }
+  }
+  return false;
+}
+// How far a plot is from the nearest train yard, in blocks between footprints.
+function railyardNear(x, y, w, h) {
+  for (const o of buildings.values()) {
+    if (o.type !== 'railyard') continue;
+    const dx = Math.max(0, x - (o.x + o.w), o.x - (x + w));
+    const dy = Math.max(0, y - (o.y + o.h), o.y - (y + h));
+    if (dx + dy <= 5) return true;
+  }
+  return false;
+}
+const needsRoad = type => type !== 'park' && type !== 'metro';
+// Why a plot cannot take a building. An empty string means it fits. The order
+// matters: an unmet research requirement is a more useful answer than a
+// shoreline complaint on a dam that is not unlocked yet.
+function whyNot(type, x, y, ignoreRoad) {
   const d = BT[type];
-  if (x < 0 || y < 0 || x + d.w > MW || y + d.h > MH) return false;
+  if (!d) return 'Unknown building.';
+  if (x < 0 || y < 0 || x + d.w > MW || y + d.h > MH) return 'That does not fit inside the region.';
   let wet = 0;
   for (let yy = y; yy < y + d.h; yy++) for (let xx = x; xx < x + d.w; xx++) {
     const i = yy * MW + xx;
-    if (tile[i] || bldAt[i]) return false;
-    if (water[i]) { if (!d.water) return false; wet++; }
+    if (tile[i] || bldAt[i] || trackOn[i]) return 'That spot is already taken.';
+    if (water[i]) { if (!d.water) return 'Buildings cannot sit on water.'; wet++; }
   }
-  if (d.water && (wet === 0 || wet === d.w * d.h)) return false;
-  if (d.shore && !shoreAdjacent(x, y, d.w, d.h)) return false;
-  if (d.rock && biome[y * MW + x] !== 5) return false;
-  if (d.jungle && biome[y * MW + x] !== 2) return false;
-  if (POWER_REQ[type] && !powerReqMet(type)) return false;
-  return true;
+  if (d.water && (wet === 0 || wet === d.w * d.h)) return 'A dock goes on the shoreline: part on land, part on water.';
+  if (POWER_REQ[type] && !powerReqMet(type)) return 'Needs ' + powerGap(type) + ' first.';
+  if (d.shore && !shoreAdjacent(x, y, d.w, d.h)) return 'This one has to sit on a shoreline.';
+  if (d.rock && biome[y * MW + x] !== 5) return 'That needs rocky ground.';
+  if (d.jungle && biome[y * MW + x] !== 2) return 'That needs jungle.';
+  if (d.rig && !railyardNear(x, y, d.w, d.h)) return 'Oil and gas need a train yard within 5 blocks.';
+  if (d.rail && !trackAdjacent(x, y, d.w, d.h)) return 'A train yard needs a freight track running alongside it.';
+  if (d.hub && !hubAdjacent(x, y, d.w, d.h)) return 'A distribution terminal needs a port or freight track next to it.';
+  if (!ignoreRoad && needsRoad(type) && !roadAdjacent(x, y, d.w, d.h)) return 'It needs a street next to it.';
+  return '';
 }
+function canPlace(type, x, y, ignoreRoad) { return whyNot(type, x, y, ignoreRoad) === ''; }
 // Loading an old save must not lose buildings when placement rules get stricter
 // later: this checks bounds and overlap only.
 function canPlaceLoose(type, x, y) {
@@ -372,6 +431,7 @@ function laneEdges(i) {
 }
 function mapChanged() {
   relinkRail();
+  relinkTrack();
   computeLinks();
   connections = []; overpassList = [];
   for (let i = 0; i < N; i++) {
@@ -385,7 +445,7 @@ function mapChanged() {
   computeComps(compR, isRoad);
   computeComps(compW, isWalk);
   for (const i of [...lights.keys()]) if (deg[i] < 3 || overpass[i]) lights.delete(i);
-  destCom = []; destPark = []; destWork = []; stations = []; docks = []; airports = []; busStops = [];
+  destCom = []; destPark = []; destWork = []; stations = []; docks = []; airports = []; busStops = []; ports = []; yards = []; hubs = [];
   for (const b of buildings.values()) {
     computeAccess(b);
     const d = BT[b.type];
@@ -396,6 +456,9 @@ function mapChanged() {
     if (b.type === 'busstop') busStops.push(b);
     if (b.type === 'dock') docks.push(b);
     if (b.type === 'airport') airports.push(b);
+    if (b.type === 'port') ports.push(b);
+    if (b.type === 'railyard') yards.push(b);
+    if (b.type === 'distribution') hubs.push(b);
   }
   mergeAccess();
   syncUnits();
@@ -403,6 +466,7 @@ function mapChanged() {
   roadVersion++;
   validateMovers();
   syncMetros();   // two trains per station, wherever the rails happen to run
+  if (typeof syncLogistics === 'function') syncLogistics();
 }
 // Attribute merging: five like buildings that touch each other need only one
 // road between them; farms and orchards merge in twenties.

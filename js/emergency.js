@@ -8,26 +8,88 @@ const WEATHER = {
   lastRoll: -1,
 };
 const WEATHER_KINDS = {
-  sunny:  {name: 'Sunny',       speed: 1,    crash: 1,    fire: 1,   wet: 0},
-  cloudy: {name: 'Cloudy',      speed: 1,    crash: 1.15, fire: 1,   wet: 0},
-  rain:   {name: 'Rainy',       speed: 0.85, crash: 2.2,  fire: 0.6, wet: 1},
-  storm:  {name: 'Thunderstorm',speed: 0.7,  crash: 3.2,  fire: 2.4, wet: 2},
+  sunny:  {name: 'Sunny',       speed: 1,    crash: 1,    fire: 1,   wet: 0, tint: null},
+  cloudy: {name: 'Cloudy',      speed: 1,    crash: 1.15, fire: 1,   wet: 0, tint: [125, 135, 150, 0.1]},
+  rain:   {name: 'Rainy',       speed: 0.85, crash: 2.2,  fire: 0.6, wet: 1, tint: [60, 105, 165, 0.25]},
+  storm:  {name: 'Thunderstorm',speed: 0.7,  crash: 3.2,  fire: 2.4, wet: 2, tint: [16, 26, 52, 0.32]},
 };
-const weatherNow = () => WEATHER_KINDS[WEATHER.kind] || WEATHER_KINDS.sunny;
+// The weather is a field of 90-tile circles. Each cell drifts slowly around its
+// home so the edges are never static, and neighbouring circles overlap: the
+// colours and rain fade through each cell's own radial gradient, so there is no
+// hard border between one cell and the next.
+const WX_R = 90;
+const WX_COLS = 4, WX_ROWS = 3;
+const weatherCells = [];
+let weatherSeeded = false;
+function newWeatherCell(bx, by, k) {
+  return {id: k, bx, by, x: bx, y: by, tx: bx, ty: by, retarget: 0, kind: 'sunny', until: gameMin + 120};
+}
+function weatherKindRoll(r) {
+  return r > 0.9 ? 'storm' : r > 0.6 ? 'rain' : r > 0.3 ? 'cloudy' : 'sunny';
+}
+function initWeather() {
+  const rng = mulberry((worldSeed ^ 0x51A7) >>> 0);
+  weatherCells.length = 0;
+  let k = 0;
+  for (let gy = 0; gy < WX_ROWS; gy++) for (let gx = 0; gx < WX_COLS; gx++) {
+    const bx = (gx + 0.5) * MW / WX_COLS, by = (gy + 0.5) * MH / WX_ROWS;
+    const c = newWeatherCell(bx, by, k++);
+    c.kind = weatherKindRoll(rng());
+    c.until = gameMin + 150 + rng() * 420;
+    weatherCells.push(c);
+  }
+  weatherSeeded = true;
+  syncWeatherLabel();
+}
+const weatherCellAt = (tx, ty) => {
+  if (!weatherCells.length) initWeather();
+  let best = weatherCells[0], bd = Infinity;
+  for (const c of weatherCells) {
+    const d = (c.x - tx) * (c.x - tx) + (c.y - ty) * (c.y - ty);
+    if (d < bd) { bd = d; best = c; }
+  }
+  return best;
+};
+const weatherAt = (tx, ty) => weatherCellAt(tx, ty).kind;
+function cameraTile() {
+  if (typeof cam === 'undefined' || typeof innerWidth === 'undefined') return {x: MW / 2, y: MH / 2};
+  return {x: (cam.x + innerWidth / 2 / cam.z) / T, y: (cam.y + innerHeight / 2 / cam.z) / T};
+}
+const weatherNow = () => WEATHER_KINDS[weatherAt(cameraTile().x, cameraTile().y)] || WEATHER_KINDS.sunny;
 const weatherSpeed = () => weatherNow().speed;
-
-function rollWeather() {
-  const r = Math.random();
-  let kind = 'sunny';
-  if (r > 0.92) kind = 'storm';
-  else if (r > 0.62) kind = 'rain';
-  else if (r > 0.28) kind = 'cloudy';
-  WEATHER.kind = kind;
-  WEATHER.until = gameMin + (180 + Math.random() * 360);   // 3-9 game hours
-  if (typeof weatherChip === 'function') weatherChip();
+const weatherSpeedAt = (tx, ty) => (WEATHER_KINDS[weatherAt(tx, ty)] || WEATHER_KINDS.sunny).speed;
+function syncWeatherLabel() {
+  const p = cameraTile(), c = weatherCellAt(p.x, p.y);
+  WEATHER.kind = c.kind;
+  WEATHER.until = c.until;
+}
+function rollWeather(cell) {
+  const c = cell || weatherCellAt(cameraTile().x, cameraTile().y);
+  c.kind = weatherKindRoll(Math.random());
+  c.until = gameMin + (180 + Math.random() * 360);   // 3-9 game hours
+  syncWeatherLabel();
 }
 function weatherTick() {
-  if (gameMin >= WEATHER.until) rollWeather();
+  if (!weatherCells.length) initWeather();
+  for (const c of weatherCells) if (gameMin >= c.until) {
+    c.kind = weatherKindRoll(Math.random());
+    c.until = gameMin + 180 + Math.random() * 360;
+  }
+  syncWeatherLabel();
+}
+// A very small wander: each cell picks a new nearby target every couple of game
+// minutes and eases toward it, so a storm slowly drifts across a district.
+function stepWeather(dt) {
+  if (!weatherCells.length) initWeather();
+  for (const c of weatherCells) {
+    if (gameMin >= c.retarget) {
+      c.retarget = gameMin + 90 + Math.random() * 150;
+      c.tx = clamp(c.bx + (Math.random() - 0.5) * 34, 20, MW - 20);
+      c.ty = clamp(c.by + (Math.random() - 0.5) * 34, 20, MH - 20);
+    }
+    const dx = c.tx - c.x, dy = c.ty - c.y, d = Math.hypot(dx, dy);
+    if (d > 0.05) { const m = Math.min(d, 0.16 * dt); c.x += dx / d * m; c.y += dy / d * m; }
+  }
 }
 
 // ---------------------------------------------------------------------

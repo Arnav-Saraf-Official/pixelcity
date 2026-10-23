@@ -583,6 +583,468 @@
           { "op": "park", "x": ["var", "x"], "y": 14, "v": 0 }] },
         { "op": "stat", "x": ["-", ["param", "w"], 2], "y": 0 }
       ]
+    },
+
+    // ------------------------------------------------------------------
+    // Coastal industry, resources, emergency services and power
+    // ------------------------------------------------------------------
+    "fishery": {
+      "size": [18, 18],
+      "params": { "seed": 0, "wet": null },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 18, "h": 18, "color": "#6fa85a" },
+        { "op": "rect", "x": 0, "y": 12, "w": 18, "h": 6, "color": "#9a8f7a" },
+        { "op": "rect", "x": 1, "y": 1, "w": 10, "h": 9, "color": "#d9d3c4" },
+        { "op": "rect", "x": 1, "y": 1, "w": 10, "h": 3, "color": "#3f6f8f" },
+        { "op": "rect", "x": 1, "y": 4, "w": 10, "h": 1, "color": "#8aa8b8" },
+        { "op": "win", "x": 3, "y": 6 },
+        { "op": "win", "x": 6, "y": 6 },
+        { "op": "rect", "x": 8, "y": 8, "w": 2, "h": 2, "color": "#8a5a32" },
+        { "op": "rect", "x": 12, "y": 1, "w": 5, "h": 3, "color": "#2f5f7f" },
+        { "op": "win", "x": 13, "y": 2 },
+        { "op": "rect", "x": 12, "y": 6, "w": 3, "h": 2, "color": "#b07a3a" },
+        { "op": "rect", "x": 15, "y": 6, "w": 2, "h": 2, "color": "#c8ccd2" },
+        { "op": "rect", "x": 0, "y": 14, "w": 18, "h": 2, "color": "#8b6a43" },
+        { "op": "each", "as": "x", "in": [1, 4, 7, 10, 13, 16], "ops": [
+          { "op": "pixel", "x": ["var", "x"], "y": 14, "color": "#6e5233" }] },
+        { "op": "rect", "x": 11, "y": 10, "w": 4, "h": 2, "color": "#e0a030" },
+        { "op": "pixel", "x": 12, "y": 10, "color": "#ffffff" },
+        { "op": "park", "x": 2, "y": 16, "v": 0 },
+        { "op": "park", "x": 5, "y": 16, "v": 0 },
+        { "op": "stat", "x": 16, "y": 0 }
+      ]
+    },
+
+    "seafoodMarket": {
+      "size": [18, 18],
+      "params": { "seed": 0, "wet": null },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 18, "h": 18, "color": "#6fa85a" },
+        { "op": "rect", "x": 2, "y": 2, "w": 14, "h": 9, "color": "#efe9dc" },
+        { "op": "rect", "x": 2, "y": 2, "w": 14, "h": 1, "color": "#bdb3a0" },
+        { "op": "each", "as": "k", "in": [0, 1, 2, 3, 4, 5, 6], "ops": [
+          { "op": "rect", "x": ["+", ["*", ["var", "k"], 2], 2], "y": 3, "w": 1, "h": 2, "color": "#2f6fa8" }] },
+        { "op": "rect", "x": 3, "y": 6, "w": 12, "h": 3, "color": "#a9d2ee" },
+        { "op": "win", "x": 5, "y": 7 },
+        { "op": "win", "x": 8, "y": 7 },
+        { "op": "win", "x": 11, "y": 7 },
+        { "op": "rect", "x": 12, "y": 5, "w": 3, "h": 1, "color": "#d63a3a" },
+        { "op": "rect", "x": 3, "y": 12, "w": 3, "h": 2, "color": "#b07a3a" },
+        { "op": "rect", "x": 6, "y": 12, "w": 3, "h": 2, "color": "#d8d2c4" },
+        { "op": "pixel", "x": 4, "y": 13, "color": "#e77b3a" },
+        { "op": "pixel", "x": 7, "y": 13, "color": "#8fc0e0" },
+        { "op": "park", "x": 10, "y": 14, "v": 0 },
+        { "op": "park", "x": 13, "y": 14, "v": 0 },
+        { "op": "stat", "x": 16, "y": 0 }
+      ]
+    },
+
+    "seafoodPlant": {
+      "size": [27, 18],
+      "params": { "seed": 0, "wet": null },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 27, "h": 18, "color": "#9aa0a8" },
+        { "op": "rect", "x": 1, "y": 1, "w": 17, "h": 11, "color": "#b9bcc2" },
+        { "op": "rect", "x": 1, "y": 1, "w": 17, "h": 3, "color": "#3f6f8f" },
+        { "op": "rect", "x": 1, "y": 4, "w": 17, "h": 1, "color": "#8aa8b8" },
+        { "op": "each", "as": "x", "in": [3, 6, 9, 12, 15], "ops": [
+          { "op": "win", "x": ["var", "x"], "y": 7 }] },
+        { "op": "rect", "x": 3, "y": 10, "w": 3, "h": 2, "color": "#3a3d44" },
+        { "op": "rect", "x": 8, "y": 10, "w": 3, "h": 2, "color": "#3a3d44" },
+        { "op": "rect", "x": 20, "y": 1, "w": 3, "h": 8, "color": "#8a5a3a" },
+        { "op": "rect", "x": 20, "y": 1, "w": 3, "h": 1, "color": "#3a3a3a" },
+        { "op": "rect", "x": 23, "y": 3, "w": 3, "h": 4, "color": "#cfd6dd" },
+        { "op": "rect", "x": 23, "y": 3, "w": 3, "h": 1, "color": "#eef2f5" },
+        { "op": "rect", "x": 12, "y": 13, "w": 4, "h": 3, "color": "#ffffff" },
+        { "op": "rect", "x": 13, "y": 13, "w": 2, "h": 1, "color": "#2f6fa8" },
+        { "op": "park", "x": 18, "y": 13, "v": 0 },
+        { "op": "park", "x": 21, "y": 13, "v": 0 },
+        { "op": "stat", "x": 25, "y": 0 }
+      ]
+    },
+
+    "oilRig": {
+      "size": [18, 18],
+      "params": { "seed": 0, "wet": null },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 18, "h": 18, "color": "#9c8f76" },
+        { "op": "rect", "x": 1, "y": 1, "w": 10, "h": 12, "color": "#8a7d64" },
+        { "op": "rect", "x": 5, "y": 2, "w": 2, "h": 10, "color": "#4a4a4a" },
+        { "op": "each", "as": "y", "in": [3, 5, 7, 9], "ops": [
+          { "op": "rect", "x": 3, "y": ["var", "y"], "w": 6, "h": 1, "color": "#5a5a5a" }] },
+        { "op": "rect", "x": 4, "y": 11, "w": 4, "h": 2, "color": "#3a3a3a" },
+        { "op": "rect", "x": 12, "y": 2, "w": 4, "h": 4, "color": "#b0b8c0" },
+        { "op": "rect", "x": 12, "y": 2, "w": 4, "h": 1, "color": "#d6dde3" },
+        { "op": "rect", "x": 12, "y": 9, "w": 5, "h": 3, "color": "#8a8f96" },
+        { "op": "rect", "x": 13, "y": 9, "w": 3, "h": 1, "color": "#c0c6cc" },
+        { "op": "line", "x1": 8, "y1": 12, "x2": 12, "y2": 10, "color": "#6a6a6a" },
+        { "op": "rect", "x": 2, "y": 14, "w": 6, "h": 3, "color": "#c0392b" },
+        { "op": "pixel", "x": 3, "y": 15, "color": "#ffd24a" },
+        { "op": "park", "x": 10, "y": 14, "v": 0 },
+        { "op": "stat", "x": 16, "y": 0 }
+      ]
+    },
+
+    "gasWell": {
+      "size": [18, 18],
+      "params": { "seed": 0, "wet": null },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 18, "h": 18, "color": "#9a988c" },
+        { "op": "rect", "x": 1, "y": 1, "w": 12, "h": 12, "color": "#8a887c" },
+        { "op": "rect", "x": 2, "y": 2, "w": 2, "h": 7, "color": "#5a5a5a" },
+        { "op": "rect", "x": 1, "y": 2, "w": 4, "h": 1, "color": "#6a6a6a" },
+        { "op": "rect", "x": 5, "y": 4, "w": 2, "h": 6, "color": "#c8ccd2" },
+        { "op": "rect", "x": 5, "y": 4, "w": 2, "h": 1, "color": "#eef2f5" },
+        { "op": "line", "x1": 4, "y1": 9, "x2": 7, "y2": 9, "color": "#9a6b32" },
+        { "op": "line", "x1": 7, "y1": 9, "x2": 11, "y2": 6, "color": "#9a6b32" },
+        { "op": "rect", "x": 11, "y": 3, "w": 4, "h": 3, "color": "#b8c0c8" },
+        { "op": "rect", "x": 11, "y": 3, "w": 4, "h": 1, "color": "#dde3e8" },
+        { "op": "rect", "x": 14, "y": 8, "w": 1, "h": 6, "color": "#5a5a5a" },
+        { "op": "pixel", "x": 14, "y": 7, "color": "#ff8a1e" },
+        { "op": "pixel", "x": 14, "y": 6, "color": "#ffd24a" },
+        { "op": "park", "x": 2, "y": 15, "v": 0 },
+        { "op": "park", "x": 6, "y": 15, "v": 0 },
+        { "op": "stat", "x": 16, "y": 0 }
+      ]
+    },
+
+    "loggingCamp": {
+      "size": [27, 18],
+      "params": { "seed": 0, "wet": null },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 27, "h": 18, "color": "#6fa85a" },
+        { "op": "rect", "x": 0, "y": 9, "w": 27, "h": 9, "color": "#8a7150" },
+        { "op": "rect", "x": 1, "y": 1, "w": 9, "h": 7, "color": "#b88a5a" },
+        { "op": "rect", "x": 1, "y": 1, "w": 9, "h": 2, "color": "#6a4a2a" },
+        { "op": "win", "x": 3, "y": 4 },
+        { "op": "win", "x": 6, "y": 4 },
+        { "op": "each", "as": "k", "in": [0, 1, 2, 3, 4, 5], "ops": [
+          { "op": "rect", "x": ["+", ["*", ["var", "k"], 4], 12], "y": 10, "w": 3, "h": 2, "color": "#7a5428" },
+          { "op": "pixel", "x": ["+", ["*", ["var", "k"], 4], 12], "y": 10, "color": "#c8a06a" }] },
+        { "op": "each", "as": "k", "in": [0, 1, 2], "ops": [
+          { "op": "rect", "x": ["+", ["*", ["var", "k"], 3], 13], "y": 14, "w": 2, "h": 2, "color": "#a87a4a" }] },
+        { "op": "rect", "x": 11, "y": 2, "w": 4, "h": 5, "color": "#4a4a4a" },
+        { "op": "rect", "x": 11, "y": 2, "w": 4, "h": 1, "color": "#2a2a2a" },
+        { "op": "rect", "x": 22, "y": 2, "w": 3, "h": 5, "color": "#d8d2c4" },
+        { "op": "stat", "x": 25, "y": 0 }
+      ]
+    },
+
+    "greenhouse": {
+      "size": [18, 18],
+      "params": { "seed": 0, "wet": null },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 18, "h": 18, "color": "#7fb35a" },
+        { "op": "rect", "x": 1, "y": 1, "w": 7, "h": 11, "color": "#d8ece8" },
+        { "op": "rect", "x": 10, "y": 1, "w": 7, "h": 11, "color": "#d8ece8" },
+        { "op": "each", "as": "x", "in": [3, 5, 12, 14], "ops": [
+          { "op": "rect", "x": ["var", "x"], "y": 2, "w": 1, "h": 9, "color": "#8fc8a8" }] },
+        { "op": "rect", "x": 1, "y": 4, "w": 7, "h": 1, "color": "#b8d8cc" },
+        { "op": "rect", "x": 10, "y": 4, "w": 7, "h": 1, "color": "#b8d8cc" },
+        { "op": "rect", "x": 1, "y": 8, "w": 7, "h": 1, "color": "#b8d8cc" },
+        { "op": "rect", "x": 10, "y": 8, "w": 7, "h": 1, "color": "#b8d8cc" },
+        { "op": "each", "as": "x", "in": [2, 4, 6, 11, 13, 15], "ops": [
+          { "op": "pixel", "x": ["var", "x"], "y": 6, "color": "#4a9a3a" }] },
+        { "op": "rect", "x": 15, "y": 13, "w": 2, "h": 3, "color": "#3f82c8" },
+        { "op": "park", "x": 3, "y": 14, "v": 0 },
+        { "op": "park", "x": 6, "y": 14, "v": 0 },
+        { "op": "stat", "x": 16, "y": 0 }
+      ]
+    },
+
+    "quarry": {
+      "size": [27, 18],
+      "params": { "seed": 0, "wet": null },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 27, "h": 18, "color": "#8a857a" },
+        { "op": "rect", "x": 2, "y": 2, "w": 22, "h": 13, "color": "#767168" },
+        { "op": "rect", "x": 5, "y": 4, "w": 16, "h": 9, "color": "#5f5b54" },
+        { "op": "rect", "x": 8, "y": 6, "w": 10, "h": 5, "color": "#47443f" },
+        { "op": "each", "as": "k", "in": [0, 1, 2], "ops": [
+          { "op": "rect", "x": ["+", ["*", ["var", "k"], 4], 9], "y": ["+", ["*", ["var", "k"], 2], 7], "w": 3, "h": 1, "color": "#6a665e" }] },
+        { "op": "rect", "x": 20, "y": 1, "w": 1, "h": 8, "color": "#e0b030" },
+        { "op": "rect", "x": 15, "y": 1, "w": 6, "h": 1, "color": "#e0b030" },
+        { "op": "rect", "x": 18, "y": 2, "w": 3, "h": 2, "color": "#d8d2c4" },
+        { "op": "each", "as": "x", "in": [2, 5, 8], "ops": [
+          { "op": "rect", "x": ["var", "x"], "y": 15, "w": 2, "h": 2, "color": "#a8a294" }] },
+        { "op": "rect", "x": 1, "y": 13, "w": 6, "h": 3, "color": "#b0a898" },
+        { "op": "stat", "x": 25, "y": 0 }
+      ]
+    },
+
+    "mine": {
+      "size": [27, 18],
+      "params": { "seed": 0, "wet": null },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 27, "h": 18, "color": "#7a756c" },
+        { "op": "rect", "x": 1, "y": 1, "w": 18, "h": 11, "color": "#8f8a80" },
+        { "op": "rect", "x": 5, "y": 3, "w": 8, "h": 9, "color": "#3a3630" },
+        { "op": "rect", "x": 6, "y": 5, "w": 6, "h": 7, "color": "#14120f" },
+        { "op": "rect", "x": 6, "y": 5, "w": 6, "h": 1, "color": "#8a7a5a" },
+        { "op": "each", "as": "y", "in": [7, 9, 11], "ops": [
+          { "op": "rect", "x": 4, "y": ["var", "y"], "w": 14, "h": 1, "color": "#6a5a3a" }] },
+        { "op": "rect", "x": 20, "y": 2, "w": 5, "h": 4, "color": "#b0b8c0" },
+        { "op": "rect", "x": 20, "y": 2, "w": 5, "h": 1, "color": "#d6dde3" },
+        { "op": "rect", "x": 20, "y": 8, "w": 6, "h": 5, "color": "#5a5a5a" },
+        { "op": "pixel", "x": 22, "y": 10, "color": "#e0b030" },
+        { "op": "each", "as": "x", "in": [2, 4, 7], "ops": [
+          { "op": "rect", "x": ["var", "x"], "y": 14, "w": 2, "h": 2, "color": "#a8a294" }] },
+        { "op": "stat", "x": 25, "y": 0 }
+      ]
+    },
+
+    "fireStation": {
+      "size": [27, 18],
+      "params": { "seed": 0, "wet": null },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 27, "h": 18, "color": "#b5483c" },
+        { "op": "rect", "x": 1, "y": 1, "w": 20, "h": 10, "color": "#c2564a" },
+        { "op": "rect", "x": 1, "y": 1, "w": 20, "h": 2, "color": "#8a342a" },
+        { "op": "rect", "x": 3, "y": 3, "w": 6, "h": 7, "color": "#e8e2d8" },
+        { "op": "rect", "x": 11, "y": 3, "w": 6, "h": 7, "color": "#e8e2d8" },
+        { "op": "each", "as": "x", "in": [4, 6, 12, 14], "ops": [
+          { "op": "win", "x": ["var", "x"], "y": 4 }] },
+        { "op": "rect", "x": 18, "y": 2, "w": 3, "h": 9, "color": "#d8d2c4" },
+        { "op": "rect", "x": 22, "y": 1, "w": 4, "h": 6, "color": "#8a8f96" },
+        { "op": "win", "x": 23, "y": 3 },
+        { "op": "rect", "x": 9, "y": 11, "w": 7, "h": 2, "color": "#6f727a" },
+        { "op": "park", "x": 10, "y": 13, "v": 0 },
+        { "op": "park", "x": 13, "y": 13, "v": 0 },
+        { "op": "park", "x": 5, "y": 14, "v": 0 },
+        { "op": "stat", "x": 25, "y": 0 }
+      ]
+    },
+
+    "policeStation": {
+      "size": [18, 18],
+      "params": { "seed": 0, "wet": null },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 18, "h": 18, "color": "#6fa85a" },
+        { "op": "rect", "x": 1, "y": 1, "w": 12, "h": 9, "color": "#3f5f9a" },
+        { "op": "rect", "x": 1, "y": 1, "w": 12, "h": 2, "color": "#2a3f6a" },
+        { "op": "each", "as": "x", "in": [3, 6, 9], "ops": [
+          { "op": "win", "x": ["var", "x"], "y": 4 }] },
+        { "op": "rect", "x": 5, "y": 6, "w": 2, "h": 3, "color": "#e8eef8" },
+        { "op": "rect", "x": 14, "y": 2, "w": 3, "h": 5, "color": "#8a8f96" },
+        { "op": "rect", "x": 3, "y": 12, "w": 8, "h": 4, "color": "#6f727a" },
+        { "op": "park", "x": 4, "y": 13, "v": 0 },
+        { "op": "park", "x": 7, "y": 13, "v": 0 },
+        { "op": "stat", "x": 16, "y": 0 }
+      ]
+    },
+
+    "researchLab": {
+      "size": [18, 18],
+      "params": { "seed": 0, "wet": null },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 18, "h": 18, "color": "#6fa85a" },
+        { "op": "rect", "x": 1, "y": 2, "w": 12, "h": 8, "color": "#eef2f5" },
+        { "op": "rect", "x": 1, "y": 2, "w": 12, "h": 1, "color": "#b8c4cc" },
+        { "op": "rect", "x": 6, "y": 1, "w": 4, "h": 3, "color": "#a9d2ee" },
+        { "op": "each", "as": "x", "in": [3, 5, 9, 11], "ops": [
+          { "op": "win", "x": ["var", "x"], "y": 5 }] },
+        { "op": "rect", "x": 9, "y": 7, "w": 2, "h": 2, "color": "#3a3d44" },
+        { "op": "rect", "x": 14, "y": 1, "w": 1, "h": 6, "color": "#8a8f96" },
+        { "op": "pixel", "x": 14, "y": 0, "color": "#ff4848" },
+        { "op": "rect", "x": 2, "y": 12, "w": 9, "h": 4, "color": "#6f727a" },
+        { "op": "park", "x": 3, "y": 13, "v": 0 },
+        { "op": "park", "x": 6, "y": 13, "v": 0 },
+        { "op": "stat", "x": 16, "y": 0 }
+      ]
+    },
+
+    "woodPlant": {
+      "size": [27, 18],
+      "params": { "seed": 0, "wet": null },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 27, "h": 18, "color": "#9a8a6a" },
+        { "op": "rect", "x": 1, "y": 1, "w": 16, "h": 9, "color": "#c8a878" },
+        { "op": "rect", "x": 1, "y": 1, "w": 16, "h": 2, "color": "#7a5a3a" },
+        { "op": "each", "as": "x", "in": [3, 6, 9, 12], "ops": [
+          { "op": "win", "x": ["var", "x"], "y": 5 }] },
+        { "op": "rect", "x": 19, "y": 1, "w": 3, "h": 8, "color": "#7a5a3a" },
+        { "op": "rect", "x": 19, "y": 1, "w": 3, "h": 1, "color": "#3a3a3a" },
+        { "op": "each", "as": "k", "in": [0, 1, 2, 3], "ops": [
+          { "op": "rect", "x": ["+", ["*", ["var", "k"], 4], 1], "y": 12, "w": 3, "h": 3, "color": "#8a5a32" },
+          { "op": "pixel", "x": ["+", ["*", ["var", "k"], 4], 1], "y": 12, "color": "#c8a06a" }] },
+        { "op": "rect", "x": 21, "y": 12, "w": 5, "h": 4, "color": "#b89a6a" },
+        { "op": "stat", "x": 25, "y": 0 }
+      ]
+    },
+
+    "coalPlant": {
+      "size": [27, 18],
+      "params": { "seed": 0, "wet": null },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 27, "h": 18, "color": "#8a8a86" },
+        { "op": "rect", "x": 1, "y": 1, "w": 14, "h": 9, "color": "#5a5d64" },
+        { "op": "rect", "x": 1, "y": 1, "w": 14, "h": 1, "color": "#3a3d44" },
+        { "op": "each", "as": "x", "in": [3, 7, 11], "ops": [
+          { "op": "win", "x": ["var", "x"], "y": 4, "color": "#ffd27a" }] },
+        { "op": "rect", "x": 16, "y": 2, "w": 4, "h": 8, "color": "#b8b5aa" },
+        { "op": "rect", "x": 15, "y": 1, "w": 6, "h": 1, "color": "#d8d5ca" },
+        { "op": "rect", "x": 22, "y": 3, "w": 4, "h": 7, "color": "#b8b5aa" },
+        { "op": "rect", "x": 21, "y": 2, "w": 6, "h": 1, "color": "#d8d5ca" },
+        { "op": "rect", "x": 2, "y": 12, "w": 8, "h": 4, "color": "#2e2e2e" },
+        { "op": "each", "as": "x", "in": [5, 8], "ops": [
+          { "op": "rect", "x": ["var", "x"], "y": 11, "w": 1, "h": 1, "color": "#e8eef8" }] },
+        { "op": "stat", "x": 25, "y": 0 }
+      ]
+    },
+
+    "gasPlant": {
+      "size": [27, 18],
+      "params": { "seed": 0, "wet": null },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 27, "h": 18, "color": "#a8a8a2" },
+        { "op": "rect", "x": 1, "y": 1, "w": 12, "h": 8, "color": "#d8dde2" },
+        { "op": "rect", "x": 1, "y": 1, "w": 12, "h": 1, "color": "#aab4bc" },
+        { "op": "each", "as": "x", "in": [3, 7, 10], "ops": [
+          { "op": "win", "x": ["var", "x"], "y": 4 }] },
+        { "op": "rect", "x": 15, "y": 2, "w": 5, "h": 5, "color": "#eef2f5" },
+        { "op": "rect", "x": 15, "y": 2, "w": 5, "h": 1, "color": "#c8d0d8" },
+        { "op": "rect", "x": 21, "y": 4, "w": 4, "h": 4, "color": "#eef2f5" },
+        { "op": "line", "x1": 13, "y1": 7, "x2": 16, "y2": 8, "color": "#8a9aa8" },
+        { "op": "line", "x1": 20, "y1": 7, "x2": 22, "y2": 9, "color": "#8a9aa8" },
+        { "op": "rect", "x": 18, "y": 11, "w": 1, "h": 5, "color": "#5a5a5a" },
+        { "op": "pixel", "x": 18, "y": 10, "color": "#ff8a1e" },
+        { "op": "pixel", "x": 18, "y": 9, "color": "#ffd24a" },
+        { "op": "stat", "x": 25, "y": 0 }
+      ]
+    },
+
+    "hydroPlant": {
+      "size": [27, 27],
+      "params": { "seed": 0, "wet": null },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 27, "h": 27, "color": "#6fa85a" },
+        { "op": "rect", "x": 1, "y": 2, "w": 25, "h": 16, "color": "#c8c8c4" },
+        { "op": "rect", "x": 1, "y": 2, "w": 25, "h": 2, "color": "#9a9a96" },
+        { "op": "each", "as": "x", "in": [4, 8, 12, 16, 20, 24], "ops": [
+          { "op": "rect", "x": ["var", "x"], "y": 5, "w": 2, "h": 9, "color": "#a8a8a4" }] },
+        { "op": "rect", "x": 1, "y": 18, "w": 25, "h": 8, "color": "#3f82c8" },
+        { "op": "each", "as": "k", "in": [0, 1, 2, 3, 4, 5], "ops": [
+          { "op": "rect", "x": ["+", ["*", ["var", "k"], 4], 2], "y": 20, "w": 2, "h": 1, "color": "#8fc0e8" }] },
+        { "op": "rect", "x": 3, "y": 2, "w": 4, "h": 3, "color": "#e0b030" },
+        { "op": "win", "x": 4, "y": 3 },
+        { "op": "win", "x": 18, "y": 6 },
+        { "op": "win", "x": 21, "y": 6 },
+        { "op": "stat", "x": 25, "y": 0 }
+      ]
+    },
+
+    "solarPlant": {
+      "size": [27, 18],
+      "params": { "seed": 0, "wet": null },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 27, "h": 18, "color": "#8aa85a" },
+        { "op": "each", "as": "y", "in": [1, 5, 9, 13], "ops": [
+          { "op": "each", "as": "x", "in": [1, 8, 15, 22], "ops": [
+            { "op": "rect", "x": ["var", "x"], "y": ["var", "y"], "w": 6, "h": 3, "color": "#26456f" },
+            { "op": "rect", "x": ["var", "x"], "y": ["var", "y"], "w": 6, "h": 1, "color": "#6fa0d0" }] }] },
+        { "op": "rect", "x": 25, "y": 1, "w": 1, "h": 3, "color": "#8a8f96" },
+        { "op": "rect", "x": 24, "y": 12, "w": 3, "h": 4, "color": "#b8c0c8" },
+        { "op": "stat", "x": 25, "y": 0 }
+      ]
+    },
+
+    "nuclearPlant": {
+      "size": [27, 27],
+      "params": { "seed": 0, "wet": null },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 27, "h": 27, "color": "#8aa85a" },
+        { "op": "rect", "x": 1, "y": 1, "w": 25, "h": 25, "color": "#b0b0ac" },
+        { "op": "rect", "x": 2, "y": 13, "w": 10, "h": 10, "color": "#d8dde2" },
+        { "op": "rect", "x": 3, "y": 14, "w": 8, "h": 3, "color": "#c8d0d8" },
+        { "op": "rect", "x": 5, "y": 17, "w": 4, "h": 2, "color": "#3a6a8a" },
+        { "op": "rect", "x": 14, "y": 3, "w": 4, "h": 11, "color": "#c8c8c4" },
+        { "op": "rect", "x": 13, "y": 2, "w": 6, "h": 1, "color": "#e0e0dc" },
+        { "op": "rect", "x": 20, "y": 5, "w": 5, "h": 12, "color": "#c8c8c4" },
+        { "op": "rect", "x": 19, "y": 4, "w": 7, "h": 1, "color": "#e0e0dc" },
+        { "op": "pixel", "x": 15, "y": 1, "color": "#ffffff" },
+        { "op": "pixel", "x": 22, "y": 3, "color": "#ffffff" },
+        { "op": "rect", "x": 14, "y": 16, "w": 4, "h": 4, "color": "#8a8f96" },
+        { "op": "rect", "x": 15, "y": 17, "w": 2, "h": 2, "color": "#e0b030" },
+        { "op": "stat", "x": 25, "y": 0 }
+      ]
+    },
+
+    "port": {
+      "size": [36, 27],
+      "params": { "seed": 0, "wet": null },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 36, "h": 27, "color": "#a8a8a0" },
+        { "op": "rect", "x": 0, "y": 22, "w": 36, "h": 5, "color": "#8c8c84" },
+        { "op": "rect", "x": 0, "y": 25, "w": 36, "h": 2, "color": "#3f82c8" },
+        { "op": "each", "as": "x", "in": [3, 7, 11, 15, 19, 23, 27, 31], "ops": [
+          { "op": "pixel", "x": ["var", "x"], "y": 26, "color": "#8fc0e8" }] },
+        { "op": "rect", "x": 1, "y": 1, "w": 10, "h": 6, "color": "#c8ccd2" },
+        { "op": "rect", "x": 1, "y": 1, "w": 10, "h": 1, "color": "#9aa0a8" },
+        { "op": "each", "as": "x", "in": [3, 6, 9], "ops": [
+          { "op": "win", "x": ["var", "x"], "y": 3 }] },
+        { "op": "each", "as": "k", "in": [0, 1, 2, 3], "ops": [
+          { "op": "rect", "x": ["+", ["*", ["var", "k"], 4], 2], "y": 9, "w": 3, "h": 4,
+            "color": ["pick", ["#c0392b", "#2f6fd0", "#27ae60", "#e67e22"], ["/", ["mod", ["var", "k"], 4], 4]] }] },
+        { "op": "each", "as": "k", "in": [0, 1, 2, 3], "ops": [
+          { "op": "rect", "x": ["+", ["*", ["var", "k"], 4], 20], "y": 9, "w": 3, "h": 4,
+            "color": ["pick", ["#2f6fd0", "#c0392b", "#e67e22", "#27ae60"], ["/", ["mod", ["var", "k"], 4], 4]] }] },
+        { "op": "rect", "x": 14, "y": 9, "w": 2, "h": 12, "color": "#e0b030" },
+        { "op": "rect", "x": 12, "y": 8, "w": 6, "h": 1, "color": "#e0b030" },
+        { "op": "rect", "x": 26, "y": 2, "w": 2, "h": 12, "color": "#e0b030" },
+        { "op": "rect", "x": 22, "y": 1, "w": 10, "h": 1, "color": "#e0b030" },
+        { "op": "rect", "x": 13, "y": 14, "w": 10, "h": 3, "color": "#6f727a" },
+        { "op": "each", "as": "x", "in": [14, 18, 22], "ops": [
+          { "op": "park", "x": ["var", "x"], "y": 15, "v": 0 }] },
+        { "op": "stat", "x": 34, "y": 0 }
+      ]
+    },
+
+    "distribution": {
+      "size": [27, 27],
+      "params": { "seed": 0, "wet": null },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 27, "h": 27, "color": "#9aa0a8" },
+        { "op": "rect", "x": 1, "y": 1, "w": 25, "h": 12, "color": "#c0c4ca" },
+        { "op": "rect", "x": 1, "y": 1, "w": 25, "h": 2, "color": "#9a9ea6" },
+        { "op": "each", "as": "x", "in": [3, 7, 11, 15, 19, 23], "ops": [
+          { "op": "rect", "x": ["var", "x"], "y": 4, "w": 3, "h": 8, "color": "#e8e8e8" },
+          { "op": "rect", "x": ["var", "x"], "y": 4, "w": 3, "h": 1, "color": "#8a8f96" }] },
+        { "op": "rect", "x": 1, "y": 15, "w": 12, "h": 5, "color": "#6f727a" },
+        { "op": "each", "as": "k", "in": [0, 1, 2], "ops": [
+          { "op": "rect", "x": 2, "y": ["+", ["*", ["var", "k"], 2], 16], "w": 10, "h": 1, "color": "#d8d8d8" }] },
+        { "op": "each", "as": "k", "in": [0, 1, 2], "ops": [
+          { "op": "rect", "x": 16, "y": ["+", ["*", ["var", "k"], 4], 14], "w": 8, "h": 3,
+            "color": ["pick", ["#2f6fd0", "#c0392b", "#27ae60"], ["/", ["mod", ["var", "k"], 3], 3]] }] },
+        { "op": "rect", "x": 20, "y": 23, "w": 5, "h": 2, "color": "#c8ccd2" },
+        { "op": "each", "as": "x", "in": [2, 6, 10], "ops": [
+          { "op": "park", "x": ["var", "x"], "y": 22, "v": 0 }] },
+        { "op": "stat", "x": 25, "y": 0 }
+      ]
+    },
+
+    "railyard": {
+      "size": [36, 27],
+      "params": { "seed": 0, "wet": null },
+      "ops": [
+        { "op": "rect", "x": 0, "y": 0, "w": 36, "h": 27, "color": "#9a968c" },
+        { "op": "rect", "x": 0, "y": 18, "w": 36, "h": 9, "color": "#7a756a" },
+        { "op": "rect", "x": 1, "y": 1, "w": 13, "h": 9, "color": "#8a5a3a" },
+        { "op": "rect", "x": 1, "y": 1, "w": 13, "h": 2, "color": "#5a3a22" },
+        { "op": "rect", "x": 3, "y": 4, "w": 9, "h": 6, "color": "#3a3d44" },
+        { "op": "win", "x": 4, "y": 5 },
+        { "op": "rect", "x": 16, "y": 1, "w": 18, "h": 3, "color": "#b0b4ba" },
+        { "op": "rect", "x": 16, "y": 1, "w": 18, "h": 1, "color": "#8a8f96" },
+        { "op": "each", "as": "x", "in": [18, 24, 30], "ops": [
+          { "op": "rect", "x": ["var", "x"], "y": 5, "w": 3, "h": 3,
+            "color": ["pick", ["#2f6fd0", "#c0392b", "#27ae60"], ["/", ["mod", ["var", "x"], 3], 3]] }] },
+        { "op": "each", "as": "y", "in": [20, 24], "ops": [
+          { "op": "rect", "x": 0, "y": ["var", "y"], "w": 36, "h": 1, "color": "#5a5a52" },
+          { "op": "rect", "x": 0, "y": ["+", ["var", "y"], 1], "w": 36, "h": 1, "color": "#3f3f38" }] },
+        { "op": "each", "as": "x", "in": [2, 8, 14, 20, 26, 32], "ops": [
+          { "op": "rect", "x": ["var", "x"], "y": 19, "w": 2, "h": 6, "color": "#6a5a42" }] },
+        { "op": "rect", "x": 18, "y": 15, "w": 6, "h": 2, "color": "#e0b030" },
+        { "op": "stat", "x": 34, "y": 0 }
+      ]
     }
   }
 }

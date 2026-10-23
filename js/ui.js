@@ -24,6 +24,11 @@ function makeIcon(id) {
       t.fillStyle = '#ff5050';
       for (let k = 1; k < 8; k++) { t.fillRect(k, k, 1, 1); t.fillRect(8 - k, k, 1, 1); }
       break;
+    case 'track': aw = ah = 9; grass(); drawTrackTile(t, 0, 0, 10, false); break;
+    case 'untrack': aw = ah = 9; grass(); drawTrackTile(t, 0, 0, 10, false);
+      t.fillStyle = '#ff5050';
+      for (let k = 1; k < 8; k++) { t.fillRect(k, k, 1, 1); t.fillRect(8 - k, k, 1, 1); }
+      break;
     case 'road': grass(); drawRoadTile(t, 0, 0, 4, 0, 0, 0, 1, 0); drawRoadTile(t, 0, 9, 3, 0, 0, 0, 1, 0); drawRoadTile(t, 9, 9, 8, 0, 0, 0, 1, 0); break;
     case 'country': grass(); drawRoadTile(t, 0, 4, 10, 0, 0, 0, 0, 0); drawRoadTile(t, 9, 4, 10, 0, 0, 0, 0, 0); break;
     case 'sidewalk': grass(); drawRoadTile(t, 0, 4, 10, 0, 0, 0, 1, 0); drawRoadTile(t, 9, 4, 10, 0, 0, 0, 1, 0);
@@ -109,9 +114,19 @@ function openCat(cat) {
   barEl.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.cat === cat));
   if (!cat) { flyEl.classList.add('hidden'); return; }
   flyEl.innerHTML = '';
+  // Tools are laid out in labelled groups, so a tab reads as sections rather
+  // than one long row: metro, walking, then freight, for example.
+  let group = null, row = null;
   for (const id in TOOLS) {
     if (TOOLS[id].cat !== cat) continue;
-    const t = TOOLS[id];
+    const t = TOOLS[id], g = t.group || '';
+    if (g !== group) {
+      group = g;
+      const wrap = document.createElement('div'); wrap.className = 'fgroup';
+      if (g) { const lbl = document.createElement('small'); lbl.textContent = g; wrap.append(lbl); }
+      row = document.createElement('div'); row.className = 'frow'; wrap.append(row);
+      flyEl.append(wrap);
+    }
     const b = document.createElement('button'); b.className = 'card'; b.dataset.tool = id;
     b.append(icon(id));
     const nm = document.createElement('span'); nm.textContent = t.name; b.append(nm);
@@ -119,7 +134,7 @@ function openCat(cat) {
     else if (t.key) { const s = document.createElement('small'); s.textContent = `[${t.key}]`; b.append(s); }
     b.onclick = () => setTool(id);
     b.onmouseenter = () => showTip(b, id); b.onmouseleave = hideTip;
-    flyEl.append(b);
+    row.append(b);
   }
   if (cat === 'districts') {
     const wrap = document.createElement('div');
@@ -138,14 +153,16 @@ function setTool(id) {
   if (id !== 'select') pasteMode = false;
   updateSelBar();
   const cat = TOOLS[id].cat;
-  // The Metro tab edits what is under the city, so opening it shows the tunnels.
-  // Switching to an ordinary tool puts the surface back, unless the player had
-  // already switched the Underground layer on by hand.
-  if (cat === 'metro') {
+  // The rail and station tools edit what is under the city, so opening them
+  // shows the tunnels. Switching to an ordinary tool puts the surface back,
+  // unless the player had already switched the Underground layer on by hand.
+  if (id === 'rail' || id === 'unrail' || id === 'metro') {
     if (!overlays.underground) { overlays.underground = true; railViewAuto = true; syncOverlayButtons(); }
   } else if (railViewAuto) {
     overlays.underground = false; railViewAuto = false; syncOverlayButtons();
   }
+  // Surface track cannot be seen — or drawn — while the city is hidden.
+  if (id === 'track' && overlays.underground) { overlays.underground = false; railViewAuto = false; syncOverlayButtons(); }
   if (cat && cat !== curCat) openCat(cat);
   markTool();
   cv.style.cursor = id === 'inspect' ? 'pointer' : 'crosshair';
@@ -274,6 +291,10 @@ function select(sel) {
     if (b.type === 'metro') html += row('Riders nearby', 'ivRiders');
     if (b.type === 'airport') html += row('Planes in the air', 'ivPlanes');
     if (b.type === 'dock') html += row('Boats on the water', 'ivBoats');
+    if (b.type === 'port') html += row('Ships at sea', 'ivShips') + row('Cargo at the quay', 'ivStock');
+    if (b.type === 'distribution' || b.type === 'railyard') html += row('Cargo waiting', 'ivStock');
+    if (typeof producerOf === 'function' && producerOf(b)) html += row('Stock in the yard', 'ivStock');
+    if (BT[b.type].cat === 'com') html += row('Goods on the shelf', 'ivStock');
     html += row('Road access', 'ivRoad') + row('Walk score', 'ivWalk') + row('Cars heading here', 'ivIncoming');
     html += row('District', 'ivDistrict');
     if (d.homes) html += row('Job mood', 'ivMoodJob') + row('Transport mood', 'ivMoodRide') + row('Birth mood', 'ivMoodBirth');
@@ -324,6 +345,8 @@ function buildRoadButtons() {
   box.append(del);
 }
 function setT(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
+const CATEXTRA = {rural: 'Agriculture', resource: 'Resource', power: 'Power', transit: 'Transit'};
+for (const k of Object.keys(CATEXTRA)) if (!CATLABEL[k]) CATLABEL[k] = CATEXTRA[k];
 function heatLabel(h) { return h < 0.15 ? 'Free flowing' : h < 0.6 ? 'Light' : h < 1.3 ? 'Busy' : h < 2.2 ? 'Heavy' : 'Jammed'; }
 const MOODWORD = {happy: 'happy', ok: 'okay', sad: 'annoyed', angry: 'furious'};
 function updateInspector() {
@@ -348,6 +371,8 @@ function updateInspector() {
     if (b.type === 'metro') { let r = 0; for (const p of peds) if (p.mode === 'metro') r++; setT('ivRiders', r); }
     if (b.type === 'airport') setT('ivPlanes', planes.filter(p => p.ap === b.id).length);
     if (b.type === 'dock') setT('ivBoats', boats.length);
+    if (b.type === 'port') setT('ivShips', ships.length);
+    setT('ivStock', Math.floor(b.stock || 0));
     const dist = districtAt(b.y * MW + b.x);
     setT('ivDistrict', dist ? dist.name : 'none');
     if (d.homes) {
@@ -437,6 +462,11 @@ function hud(dt) {
   let buses = 0, riders = 0; for (const c of cars) if (c.bus) { buses++; riders += c.riders.length; }
   setT('gTransit', `${buses} · ${riders}`);
   setT('gMetro', `${metros.length} · ${metroRiders()}`);
+  let trucks = 0; for (const c of cars) if (c.truck) trucks++;
+  setT('gCargo', `${trucks} · ${typeof cargoStats === 'object' ? cargoStats.deliveries : 0}`);
+  setT('gShips', `${ships.length} · ${ports.length}`);
+  let wagons = 0; for (const t of freight) wagons += t.consist.length;
+  setT('gFreight', `${freight.length} · ${wagons} cars`);
   const m = {car: 0, walk: 0, metro: 0, bus: 0}; for (const v of stats.modes) m[v]++;
   document.getElementById('mBus').style.width = (m.bus / (stats.modes.length || 1) * 100) + '%';
   setT('lBus', `bus ${Math.round(m.bus / (stats.modes.length || 1) * 100)}%`);

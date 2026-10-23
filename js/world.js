@@ -2,17 +2,18 @@
 // World generation
 // =====================================================================
 function clearWorld(keepClock) {
-  tile.fill(0); water.fill(0); tree.fill(0); oneway.fill(0); walkway.fill(0); bldAt.fill(0); heat.fill(0); heatAcc.fill(0); resv.fill(0); overpass.fill(0); rail.fill(0); railOn.fill(0);
+  tile.fill(0); water.fill(0); tree.fill(0); oneway.fill(0); walkway.fill(0); bldAt.fill(0); heat.fill(0); heatAcc.fill(0); resv.fill(0); overpass.fill(0); rail.fill(0); railOn.fill(0); track.fill(0); trackOn.fill(0);
   lights.clear(); buildings.clear(); carById.clear(); chunks.clear();
   districts.clear(); districtLayer.fill(0); nextDid = 1; units = []; incidents.length = 0;
   power.plants = []; power.capacity = 0; power.demand = 0;
-  agents = []; cars = []; peds = []; planes = []; boats = []; metros = []; connections = []; busWait.clear(); metroWait.clear();
+  agents = []; cars = []; peds = []; planes = []; boats = []; metros = []; ships = []; freight = []; connections = []; busWait.clear(); metroWait.clear();
+  if (typeof resetLogistics === 'function') resetLogistics();
   nextBid = 1; nextAid = 1; nextCid = 1;
   if (!keepClock) { simTime = 0; gameMin = 6.5 * 60; }
   stats = {trips: [], modes: [], frustrated: 0, stranded: 0, ti: 0, tiAcc: 0, tiN: 0, waitN: 0, hist: [], lastFrustToast: stats.lastFrustToast};
   select(null);
 }
-function finishWorld() { markAllDirty(); mapChanged(); computeDistStats(); }
+function finishWorld() { markAllDirty(); mapChanged(); computeDistStats(); if (typeof initWeather === 'function') initWeather(); }
 function lineRoad(x0, y0, x1, y1, t = 1, sw = 1) {
   const dx = Math.sign(x1 - x0), dy = Math.sign(y1 - y0); let x = x0, y = y0;
   for (;;) { const i = y * MW + x; tile[i] = t; tree[i] = 0; oneway[i] = 0; walkway[i] = t === 1 ? sw : 0; if (x === x1 && y === y1) break; x += dx; y += dy; }
@@ -115,7 +116,7 @@ function placeCoastalBuildings(rng) {
       const ang = a / 32 * Math.PI * 2 + r * 0.11;
       const x = Math.round(town.x + Math.cos(ang) * r), y = Math.round(town.y + Math.sin(ang) * r);
       const type = types[made % types.length];
-      if (!inb(x, y) || !canPlace(type, x, y)) continue;
+      if (!inb(x, y) || !canPlace(type, x, y, true)) continue;
       let best = null, bd = Infinity;
       for (const i of roadTiles) {
         const d = Math.abs(i % MW - x) + Math.abs((i / MW | 0) - y);

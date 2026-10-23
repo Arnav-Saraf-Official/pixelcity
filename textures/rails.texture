@@ -1,0 +1,75 @@
+{
+  // ===================================================================
+  // Surface freight track. One texture covers all 16 connection shapes,
+  // exactly like the road network: `m` is the connection mask (bit0 N,
+  // bit1 E, bit2 S, bit3 W). Each arm stops at the tile centre, so a
+  // curve reads as a curve and a dead end has no rail running into the
+  // grass. The ground stays visible around the ballast, so the same tile
+  // works on grass, at a level crossing over a street, or on the timber
+  // deck of a bridge.
+  // ===================================================================
+  "format": "texture/1",
+  "name": "rails",
+  "tile": 9,
+
+  "defs": {
+    "ballast": "#6b6459",
+    "sleeper": "#5a4433",
+    "steel": "#c3c9d1",
+    "joint": "#8a7a68"
+  },
+
+  "textures": {
+    "track": {
+      "size": [9, 9],
+      "params": { "m": 0 },
+      "ops": [
+        // ---- ballast, one arm per connection plus the middle ----
+        { "op": "if", "test": ["bit", ["param", "m"], 0], "then": [
+          { "op": "rect", "x": 2, "y": 0, "w": 5, "h": 5, "color": ["def", "ballast"] }] },
+        { "op": "if", "test": ["bit", ["param", "m"], 2], "then": [
+          { "op": "rect", "x": 2, "y": 4, "w": 5, "h": 5, "color": ["def", "ballast"] }] },
+        { "op": "if", "test": ["bit", ["param", "m"], 1], "then": [
+          { "op": "rect", "x": 4, "y": 2, "w": 5, "h": 5, "color": ["def", "ballast"] }] },
+        { "op": "if", "test": ["bit", ["param", "m"], 3], "then": [
+          { "op": "rect", "x": 0, "y": 2, "w": 5, "h": 5, "color": ["def", "ballast"] }] },
+        { "op": "rect", "x": 2, "y": 2, "w": 5, "h": 5, "color": ["def", "ballast"] },
+
+        // ---- sleepers: across the running direction ----
+        { "op": "if", "test": ["bit", ["param", "m"], 0], "then": [
+          { "op": "each", "as": "y", "in": [0, 3], "ops": [
+            { "op": "rect", "x": 1, "y": ["var", "y"], "w": 7, "h": 1, "color": ["def", "sleeper"] }] }] },
+        { "op": "if", "test": ["bit", ["param", "m"], 2], "then": [
+          { "op": "rect", "x": 1, "y": 6, "w": 7, "h": 1, "color": ["def", "sleeper"] }] },
+        { "op": "if", "test": ["bit", ["param", "m"], 1], "then": [
+          { "op": "each", "as": "x", "in": [3, 6], "ops": [
+            { "op": "rect", "x": ["var", "x"], "y": 1, "w": 1, "h": 7, "color": ["def", "sleeper"] }] }] },
+        { "op": "if", "test": ["bit", ["param", "m"], 3], "then": [
+          { "op": "rect", "x": 0, "y": 1, "w": 1, "h": 7, "color": ["def", "sleeper"] }] },
+
+        // a lone through-via, for the first piece of a new line
+        { "op": "if", "test": ["==", ["param", "m"], 0], "then": [
+          { "op": "each", "as": "y", "in": [1, 4, 7], "ops": [
+            { "op": "rect", "x": 1, "y": ["var", "y"], "w": 7, "h": 1, "color": ["def", "sleeper"] }] }] },
+
+        // ---- the two running rails, toward each connected side ----
+        { "op": "if", "test": ["bit", ["param", "m"], 0], "then": [
+          { "op": "rect", "x": 3, "y": 0, "w": 1, "h": 6, "color": ["def", "steel"] },
+          { "op": "rect", "x": 5, "y": 0, "w": 1, "h": 6, "color": ["def", "steel"] }] },
+        { "op": "if", "test": ["bit", ["param", "m"], 2], "then": [
+          { "op": "rect", "x": 3, "y": 3, "w": 1, "h": 6, "color": ["def", "steel"] },
+          { "op": "rect", "x": 5, "y": 3, "w": 1, "h": 6, "color": ["def", "steel"] }] },
+        { "op": "if", "test": ["bit", ["param", "m"], 1], "then": [
+          { "op": "rect", "x": 3, "y": 3, "w": 6, "h": 1, "color": ["def", "steel"] },
+          { "op": "rect", "x": 3, "y": 5, "w": 6, "h": 1, "color": ["def", "steel"] }] },
+        { "op": "if", "test": ["bit", ["param", "m"], 3], "then": [
+          { "op": "rect", "x": 0, "y": 3, "w": 6, "h": 1, "color": ["def", "steel"] },
+          { "op": "rect", "x": 0, "y": 5, "w": 6, "h": 1, "color": ["def", "steel"] }] },
+        { "op": "if", "test": ["==", ["param", "m"], 0], "then": [
+          { "op": "rect", "x": 3, "y": 0, "w": 1, "h": 9, "color": ["def", "steel"] },
+          { "op": "rect", "x": 5, "y": 0, "w": 1, "h": 9, "color": ["def", "steel"] }] },
+
+      ]
+    }
+  }
+}

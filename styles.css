@@ -69,7 +69,10 @@ body.region #side,body.region #bottom,body.region #inspector,body.region #cong,b
    needed to clear the zoom panel, which --zoomw / --bshift are measured for in
    js/ui.js. The max-width keeps it out from under those controls at any width. */
 #bottom{position:fixed;left:50%;bottom:calc(10px + var(--sb));transform:translateX(calc(-50% + var(--bshift,0px)));display:flex;flex-direction:column;align-items:center;gap:8px;max-width:calc(100vw - 28px - var(--zoomw,0px));z-index:5}
-#flyout{display:flex;gap:6px;padding:6px;overflow-x:auto;max-width:100%}
+#flyout{display:flex;gap:8px;padding:6px;overflow-x:auto;max-width:100%;align-items:flex-start}
+#flyout .fgroup{display:flex;flex-direction:column;gap:2px;flex:none}
+#flyout .fgroup>small{color:var(--dim);font-size:13px;letter-spacing:1px;padding:0 4px;text-transform:uppercase;white-space:nowrap}
+#flyout .frow{display:flex;gap:6px}
 .card{width:86px;flex:none;padding:4px 2px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:17px;line-height:1}
 .card canvas{width:54px;height:54px;image-rendering:pixelated}
 .card small{color:var(--dim);font-size:14px}

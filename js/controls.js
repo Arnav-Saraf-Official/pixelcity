@@ -5,29 +5,36 @@ const TOOLS = {
   inspect:   {name: 'Inspect', kind: 'inspect', key: 'Q', desc: 'Click buildings, roads and traffic lights to see details and tune them.'},
   select:    {name: 'Select', kind: 'select', key: 'X', desc: 'Drag a box to highlight an area. Copy (Ctrl+C), cut (Ctrl+X) or delete (Del) it, then paste (Ctrl+V) and click to place copies.'},
   bulldoze:  {name: 'Bulldoze', kind: 'rect', key: 'B', desc: 'Drag a box to clear roads, buildings and trees.'},
-  road:      {cat: 'roads', name: 'Street', kind: 'line', key: 'R', desc: 'Two-way street with sidewalks on both sides. Drag to draw.'},
-  country:   {cat: 'roads', name: 'Country Road', kind: 'line', key: 'K', desc: 'A street with gravel shoulders and no sidewalks. Nobody walks along it.'},
-  sidewalk:  {cat: 'roads', name: 'Sidewalks', kind: 'line', key: 'J', desc: 'Drag along streets to add sidewalks. Start on a street that has them to remove them instead.'},
-  oneway:    {cat: 'roads', name: 'One-Way', kind: 'line', key: 'O', desc: 'Drag in the direction traffic should flow. Click a one-way tile to rotate it.'},
-  highway:   {cat: 'roads', name: 'Highway', kind: 'line', key: 'H', desc: 'Fast road (1.7x speed). Draw two side by side for two lanes each way. Buildings can\'t connect to it.'},
-  light:     {cat: 'roads', name: 'Traffic Light', kind: 'click', key: 'L', desc: 'Click a 3- or 4-way intersection to add or remove a signal.'},
-  overpass:  {cat: 'roads', name: 'Overpass', kind: 'click', key: 'U', desc: 'Click a 4-way crossing to bridge one road over the other. Traffic flies straight through, but nobody can turn there, so build ramps.'},
-  'b:parking': {cat: 'roads'}, 'b:garage': {cat: 'roads'},
-  'b:house': {cat: 'res'}, 'b:apartment': {cat: 'res'}, 'b:tower': {cat: 'res'},
-  'b:shop': {cat: 'com'}, 'b:market': {cat: 'com'}, 'b:mall': {cat: 'com'},
-  'b:office': {cat: 'work'}, 'b:hq': {cat: 'work'}, 'b:factory': {cat: 'work'}, 'b:warehouse': {cat: 'work'}, 'b:dock': {cat: 'work'},
-  'b:farmhouse': {cat: 'rural'}, 'b:farm': {cat: 'rural'}, 'b:orchard': {cat: 'rural'}, 'b:greenhouse': {cat: 'rural'},
-  'b:fishery': {cat: 'work'}, 'b:seafoodMarket': {cat: 'com'}, 'b:seafoodPlant': {cat: 'work'},
-  'b:oilRig': {cat: 'resource'}, 'b:gasWell': {cat: 'resource'}, 'b:loggingCamp': {cat: 'resource'}, 'b:quarry': {cat: 'resource'}, 'b:mine': {cat: 'resource'},
+  road:      {cat: 'roads', group: 'Streets', name: 'Street', kind: 'line', key: 'R', desc: 'Two-way street with sidewalks on both sides. Drag to draw.'},
+  country:   {cat: 'roads', group: 'Streets', name: 'Country Road', kind: 'line', key: 'K', desc: 'A street with gravel shoulders and no sidewalks. Nobody walks along it.'},
+  sidewalk:  {cat: 'roads', group: 'Streets', name: 'Sidewalks', kind: 'line', key: 'J', desc: 'Drag along streets to add sidewalks. Start on a street that has them to remove them instead.'},
+  oneway:    {cat: 'roads', group: 'Streets', name: 'One-Way', kind: 'line', key: 'O', desc: 'Drag in the direction traffic should flow. Click a one-way tile to rotate it.'},
+  highway:   {cat: 'roads', group: 'Streets', name: 'Highway', kind: 'line', key: 'H', desc: 'Fast road (1.7x speed). Draw two side by side for two lanes each way. Buildings can\'t connect to it.'},
+  light:     {cat: 'roads', group: 'Junctions', name: 'Traffic Light', kind: 'click', key: 'L', desc: 'Click a 3- or 4-way intersection to add or remove a signal.'},
+  overpass:  {cat: 'roads', group: 'Junctions', name: 'Overpass', kind: 'click', key: 'U', desc: 'Click a 4-way crossing to bridge one road over the other. Traffic flies straight through, but nobody can turn there, so build ramps.'},
+  'b:house': {cat: 'res'}, 'b:apartment': {cat: 'res'}, 'b:tower': {cat: 'res'}, 'b:farmhouse': {cat: 'res'},
+  'b:office': {cat: 'work', group: 'Offices & industry'}, 'b:hq': {cat: 'work', group: 'Offices & industry'},
+  'b:factory': {cat: 'work', group: 'Offices & industry'}, 'b:warehouse': {cat: 'work', group: 'Offices & industry'},
+  'b:dock': {cat: 'work', group: 'Resources'}, 'b:quarry': {cat: 'work', group: 'Resources'},
+  'b:mine': {cat: 'work', group: 'Resources'}, 'b:oilRig': {cat: 'work', group: 'Resources'},
+  'b:gasWell': {cat: 'work', group: 'Resources'}, 'b:seafoodPlant': {cat: 'work', group: 'Resources'},
+  'b:shop': {cat: 'com'}, 'b:market': {cat: 'com'}, 'b:mall': {cat: 'com'}, 'b:seafoodMarket': {cat: 'com'},
+  'b:woodPlant': {cat: 'power'}, 'b:coalPlant': {cat: 'power'}, 'b:gasPlant': {cat: 'power'}, 'b:hydroPlant': {cat: 'power'}, 'b:solarPlant': {cat: 'power'}, 'b:nuclearPlant': {cat: 'power'},
+  'b:farm': {cat: 'rural'}, 'b:orchard': {cat: 'rural'}, 'b:greenhouse': {cat: 'rural'}, 'b:loggingCamp': {cat: 'rural'}, 'b:fishery': {cat: 'rural'},
   'b:school': {cat: 'civic'}, 'b:hospital': {cat: 'civic'}, 'b:airport': {cat: 'civic'},
   'b:fireStation': {cat: 'civic'}, 'b:policeStation': {cat: 'civic'}, 'b:researchLab': {cat: 'civic'},
-  'b:woodPlant': {cat: 'power'}, 'b:coalPlant': {cat: 'power'}, 'b:gasPlant': {cat: 'power'}, 'b:hydroPlant': {cat: 'power'}, 'b:solarPlant': {cat: 'power'}, 'b:nuclearPlant': {cat: 'power'},
-  path:      {cat: 'ped', name: 'Footpath', kind: 'line', key: 'F', desc: 'Pedestrian path. Makes nearby buildings walkable, so fewer people drive.'},
-  plaza:     {cat: 'ped', name: 'Plaza', kind: 'rect', desc: 'Paved pedestrian square. Drag a box. Raises the walk score of everything nearby.'},
-  'b:park': {cat: 'ped'}, 'b:busstop': {cat: 'ped'},
-  rail:      {cat: 'metro', name: 'Metro Rails', kind: 'line', key: 'T', desc: 'Drag to lay track under the city. Rails that share an edge connect on their own, so a crossing becomes a junction and a loose end becomes a reversing block. Draw from a station tile to join the line to it.'},
-  unrail:    {cat: 'metro', name: 'Lift Rails', kind: 'rect', desc: 'Drag a box to take up track. Bulldoze does the same while the Underground layer is showing.'},
-  'b:metro': {cat: 'metro'},
+  'b:metro': {cat: 'transit', group: 'Metro'},
+  rail:      {cat: 'transit', group: 'Metro', name: 'Metro Rails', kind: 'line', key: 'T', desc: 'Drag to lay track under the city. Rails that share an edge connect on their own, so a crossing becomes a junction and a loose end becomes a reversing block. Draw from a station tile to join the line to it.'},
+  unrail:    {cat: 'transit', group: 'Metro', name: 'Lift Rails', kind: 'rect', desc: 'Drag a box to take up metro track. Bulldoze does the same while the Underground layer is showing.'},
+  'b:busstop': {cat: 'transit', group: 'Walking & parking'},
+  path:      {cat: 'transit', group: 'Walking & parking', name: 'Footpath', kind: 'line', key: 'F', desc: 'Pedestrian path. Makes nearby buildings walkable, so fewer people drive.'},
+  plaza:     {cat: 'transit', group: 'Walking & parking', name: 'Plaza', kind: 'rect', desc: 'Paved pedestrian square. Drag a box. Raises the walk score of everything nearby.'},
+  'b:park': {cat: 'transit', group: 'Walking & parking'},
+  'b:parking': {cat: 'transit', group: 'Walking & parking'}, 'b:garage': {cat: 'transit', group: 'Walking & parking'},
+  track:     {cat: 'transit', group: 'Freight', name: 'Freight Track', kind: 'line', key: 'I', desc: 'Drag to lay surface rail for freight trains. Track joins track that touches it, can cross a street at grade, and bridges water. Train yards and distribution terminals have to touch it.'},
+  untrack:   {cat: 'transit', group: 'Freight', name: 'Lift Freight Track', kind: 'rect', desc: 'Drag a box to take up surface freight track.'},
+  'b:railyard': {cat: 'transit', group: 'Freight'},
+  'b:port': {cat: 'transit', group: 'Freight'}, 'b:distribution': {cat: 'transit', group: 'Freight'},
   tree:      {cat: 'nature', name: 'Trees', kind: 'brush', desc: 'Paint trees on empty grass.'},
   water:     {cat: 'nature', name: 'Water', kind: 'rect', desc: 'Drag a box to flood land. Roads over water become bridges.'},
   land:      {cat: 'nature', name: 'Land', kind: 'rect', desc: 'Drag a box to fill in water.'},
@@ -44,9 +51,9 @@ for (const id in TOOLS) if (id.startsWith('b:')) {
   Object.assign(TOOLS[id], {name: d.name, kind: 'build', desc: d.desc, stats: parts.join(' · ')});
 }
 const CATS = [
-  {id: 'roads', name: 'Roads'}, {id: 'res', name: 'Homes'}, {id: 'com', name: 'Shops'}, {id: 'work', name: 'Work'},
-  {id: 'rural', name: 'Rural'}, {id: 'resource', name: 'Resources'}, {id: 'civic', name: 'Civic'}, {id: 'power', name: 'Power'},
-  {id: 'ped', name: 'Walk & Transit'}, {id: 'metro', name: 'Metro'}, {id: 'districts', name: 'Districts'}, {id: 'nature', name: 'Nature'},
+  {id: 'roads', name: 'Roads'}, {id: 'res', name: 'Housing'}, {id: 'work', name: 'Work'}, {id: 'com', name: 'Shops'},
+  {id: 'power', name: 'Power'}, {id: 'rural', name: 'Agriculture'}, {id: 'civic', name: 'Civic'},
+  {id: 'transit', name: 'Transit'}, {id: 'districts', name: 'Districts'}, {id: 'nature', name: 'Nature'},
 ];
 let curTool = 'inspect', curCat = null;
 let hoverT = {x: -1, y: -1}, drag = null, pan = null, spaceDown = false;
@@ -93,6 +100,18 @@ function commitLine(tool, sx, sy, ex, ey) {
     mapChanged();
     return;
   }
+  if (tool === 'track') {
+    // Surface freight track may cross a street at grade, and bridges water; it
+    // only refuses a tile a building stands on.
+    let n = 0, blocked = 0;
+    for (const i of tiles) {
+      if (bldAt[i]) { blocked++; continue; }
+      if (!trackOn[i]) { trackOn[i] = 1; tree[i] = 0; n++; }
+    }
+    if (!n) { toast(blocked ? 'Buildings are in the way of that line.' : 'There is already freight track along that line.'); return; }
+    markTiles(tiles); mapChanged();
+    return;
+  }
   let changed = false;
   tiles.forEach((i, k) => {
     if (bldAt[i]) return;
@@ -113,7 +132,7 @@ function commitRect(tool, sx, sy, ex, ey) {
       for (const i of tiles) railOn[i] = 0;
     } else {
       const kill = new Set();
-      for (const i of tiles) { if (bldAt[i]) kill.add(bldAt[i]); tile[i] = 0; oneway[i] = 0; walkway[i] = 0; tree[i] = 0; overpass[i] = 0; lights.delete(i); }
+      for (const i of tiles) { if (bldAt[i]) kill.add(bldAt[i]); tile[i] = 0; oneway[i] = 0; walkway[i] = 0; tree[i] = 0; overpass[i] = 0; trackOn[i] = 0; lights.delete(i); }
       for (const id of kill) { const b = B(id); if (b) removeBuilding(b); }
     }
   } else if (tool === 'plaza') {
@@ -124,6 +143,8 @@ function commitRect(tool, sx, sy, ex, ey) {
     for (const i of tiles) if (!bldAt[i] || !BT[B(bldAt[i]).type].water) water[i] = 0;
   } else if (tool === 'unrail') {
     for (const i of tiles) railOn[i] = 0;
+  } else if (tool === 'untrack') {
+    for (const i of tiles) trackOn[i] = 0;
   } else if (tool === 'district') {
     let d = districts.get(activeDistrict);
     if (!d) {
@@ -165,14 +186,9 @@ function updateDistrictUI() {
 }
 function tryBuild(t) {
   const type = curTool.slice(2), a = anchorFor(type, t);
-  if (!canPlace(type, a.x, a.y)) {
-    if (!drag) {
-      if (BT[type].water) toast('Docks go on a shore: part on land, part on water.');
-      else if (BT[type].shore) toast('This one has to sit on a shoreline.');
-      else if (BT[type].rock) toast('That needs rocky ground.');
-      else if (BT[type].jungle) toast('That needs jungle.');
-      else if (POWER_REQ[type] && !powerReqMet(type)) toast('Needs ' + powerGap(type) + ' first.');
-    }
+  const why = whyNot(type, a.x, a.y);
+  if (why) {
+    if (!drag) toast(why);
     return false;
   }
   const b = placeBuilding(type, a.x, a.y);
@@ -336,16 +352,16 @@ function drawPreview(f) {
   }
   if (drag && tool.kind === 'line') {
     const {tiles} = lineTiles(drag.sx, drag.sy, drag.ex, drag.ey);
-    const col = curTool === 'rail' ? 'rgba(69,201,141,.55)'
+    const col = curTool === 'rail' ? 'rgba(69,201,141,.55)' : curTool === 'track' ? 'rgba(170,140,100,.6)'
       : curTool === 'highway' ? 'rgba(120,130,150,.6)' : curTool === 'path' ? 'rgba(230,210,160,.6)' : curTool === 'country' ? 'rgba(170,150,110,.6)' : curTool === 'sidewalk' ? 'rgba(220,225,235,.55)' : 'rgba(200,210,230,.55)';
     for (const i of tiles) { f.fillStyle = bldAt[i] ? 'rgba(255,70,70,.5)' : col; f.fillRect((i % MW) * T, (i / MW | 0) * T, T, T); }
     return;
   }
   if (drag && tool.kind === 'rect') {
     const x0 = Math.min(drag.sx, drag.ex), y0 = Math.min(drag.sy, drag.ey), x1 = Math.max(drag.sx, drag.ex), y1 = Math.max(drag.sy, drag.ey);
-    const col = curTool === 'bulldoze' || curTool === 'unrail' ? 'rgba(255,70,70,.35)' : curTool === 'water' ? 'rgba(60,130,220,.5)' : curTool === 'plaza' ? 'rgba(230,220,190,.55)' : 'rgba(120,200,90,.5)';
+    const col = curTool === 'bulldoze' || curTool === 'unrail' || curTool === 'untrack' ? 'rgba(255,70,70,.35)' : curTool === 'water' ? 'rgba(60,130,220,.5)' : curTool === 'plaza' ? 'rgba(230,220,190,.55)' : 'rgba(120,200,90,.5)';
     f.fillStyle = col; f.fillRect(x0 * T, y0 * T, (x1 - x0 + 1) * T, (y1 - y0 + 1) * T);
-    outline(x0 * T, y0 * T, (x1 - x0 + 1) * T, (y1 - y0 + 1) * T, curTool === 'bulldoze' || curTool === 'unrail' ? '#ff5050' : '#ffffff');
+    outline(x0 * T, y0 * T, (x1 - x0 + 1) * T, (y1 - y0 + 1) * T, curTool === 'bulldoze' || curTool === 'unrail' || curTool === 'untrack' ? '#ff5050' : '#ffffff');
     return;
   }
   if (!inb(hoverT.x, hoverT.y)) return;
@@ -470,6 +486,29 @@ addEventListener('keydown', e => {
 });
 addEventListener('keyup', e => { const k = e.key.toLowerCase(); if (k === ' ') spaceDown = false; keys.delete(k); });
 addEventListener('blur', () => keys.clear());
+// Push-scrolling: with the pointer in the last pixel at the edge of the window,
+// the map slides that way. The speed is in screen pixels per second, so the
+// ground moves at the same rate on screen whatever the zoom; in world units
+// that means dividing by the zoom. It also keeps working while you drag out a
+// road or a box, because the drag endpoint follows the cursor every frame.
+function panEdge(dt) {
+  if (regionView || !mouse.in || pan) return;
+  let dx = 0, dy = 0;
+  if (mouse.x <= 0) dx = -1; else if (mouse.x >= innerWidth - 1) dx = 1;
+  if (mouse.y <= 0) dy = -1; else if (mouse.y >= innerHeight - 1) dy = 1;
+  if (!dx && !dy) return;
+  const move = 520 * dt / cam.z;
+  cam.x += dx * move; cam.y += dy * move;
+  clampCam();
+  const t = screenToTile(mouse.x, mouse.y);
+  const moved = t.x !== hoverT.x || t.y !== hoverT.y;
+  hoverT = t;
+  if (drag) {
+    if (drag.paint && moved) {
+      if (TOOLS[curTool].kind === 'build') tryBuild(t); else brushTree(t);
+    } else if (!drag.paint) { drag.ex = t.x; drag.ey = t.y; }
+  }
+}
 function panKeys(dt) {
   if (regionView) return;
   const s = 420 * dt / cam.z;

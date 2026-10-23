@@ -276,7 +276,7 @@ function tryLaneChange(c) {
 function stepCar(c, dt) {
   if (c.ghost > 0) c.ghost -= dt;
   const p = c.path, a0 = p[c.i], b = p[c.i + 1];
-  const maxSp = ((tile[b] === 2 && tile[a0] === 2) ? 38 : 22) * weatherSpeed();
+  const maxSp = ((tile[b] === 2 && tile[a0] === 2) ? 38 : 22) * weatherSpeedAt(c.x / T, c.y / T);
   c.max = maxSp;
   let target = maxSp;
   if (c.ghost <= 0) {
@@ -321,6 +321,7 @@ function endCar(c) { c.dead = true; releaseAll(c); carById.delete(c.id); if (c.a
 function capOf(b) { return BT[b.type].cap; }
 function destTileOf(c) { if (c.through) return c.destTile; const D = B(c.dest); return D ? D.road : -1; }
 function arriveCar(c) {
+  if (c.truck) { deliverTruck(c); return; }
   if (c.through) { endCar(c); return; }
   if (c.bus) { busArrive(c); return; }
   const a = c.agent, here = c.path[c.path.length - 1];
@@ -387,11 +388,11 @@ function pathOK(c) {
 }
 function rerouteCar(c) {
   const cur = c.path[c.i], a = c.agent;
-  if (c.through || c.bus) {
+  if (c.through || c.bus || c.truck) {
     const goal = destTileOf(c);
     const np = isRoad(cur) && goal >= 0 && isRoad(goal) ? findPath(cur, goal, 'car') : null;
     releaseAll(c);
-    if (!np || np.length < 2) { if (c.bus) busArrive(c); else endCar(c); return; }
+    if (!np || np.length < 2) { if (c.bus) busArrive(c); else if (c.truck) deliverTruck(c); else endCar(c); return; }
     const oldD = c.d; c.path = np; c.i = 0; if (dirOf(np[0], np[1]) !== oldD) c.t = 0; carGeom(c);
     return;
   }
@@ -471,7 +472,11 @@ function reconsiderJob(a) {
 }
 function leisure(a, from) {
   const usePark = destPark.length && Math.random() < 0.3;
-  const dst = nearestPick(usePark ? destPark : destCom, from, b => b.id !== from.id && reach(from, b), 4, 1.7);
+  // Shops with goods on the shelf are the attractive ones; if nothing has been
+  // delivered anywhere yet, people still go out.
+  let shops = destCom;
+  if (!usePark && destCom.some(b => (b.stock || 0) > 0)) shops = destCom.filter(b => (b.stock || 0) > 0);
+  const dst = nearestPick(usePark ? destPark : shops, from, b => b.id !== from.id && reach(from, b), 4, 1.7);
   if (dst) return go(a, dst.id, 'leisure');
   return false;
 }
@@ -568,6 +573,7 @@ function hourTick() {
     if (b.type === 'mine') resources.stone += 6;
   }
   updateMoods();
+  if (typeof logisticsHour === 'function') logisticsHour();
   if (changed) markDirty(changed[0], changed[1], changed[2] + 22, changed[3] + 22);
 }
 function minuteTick() {
@@ -770,6 +776,7 @@ function simStep(dt) {
   for (const c of cars) if (!c.dead) stepCar(c, dt);
   for (const p of peds) if (!p.dead) stepPed(p, dt);
   stepPlanes(dt); stepBoats(dt); stepBusStops(dt); stepMetros(dt); stepMetroWait(); stepIncidents(dt);
+  stepWeather(dt); if (typeof stepLogistics === 'function') stepLogistics(dt);
   if (cars.some(c => c.dead)) cars = cars.filter(c => !c.dead);
   if (agentsDirty) { agentsDirty = false; agents = agents.filter(a => !a.dead); recount(); }
   if (peds.some(p => p.dead)) peds = peds.filter(p => !p.dead);

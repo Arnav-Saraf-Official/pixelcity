@@ -202,7 +202,7 @@ function diffEnc(arr, gen, skip) { let s = '', last = 0; for (let i = 0; i < N; 
 function serialize() {
   const gw = new Uint8Array(N), gt = new Uint8Array(N); genTerrainInto(worldSeed, gw, gt);
   return {v: 5, seed: worldSeed, t: Math.round(gameMin),
-    tile: rle(tile), oneway: rle(oneway), overpass: rle(overpass), walkway: rle(walkway), rail: rle(railOn),
+    tile: rle(tile), oneway: rle(oneway), overpass: rle(overpass), walkway: rle(walkway), rail: rle(railOn), track: rle(trackOn),
     water: diffEnc(water, gw), tree: diffEnc(tree, gt, i => tile[i] || bldAt[i]),
     lights: [...lights].map(([i, L]) => [i, L.ns, L.ew, Math.round(L.off)]),
     b: [...buildings.values()].map(b => [b.type, b.x, b.y, b.seed >>> 0]),
@@ -242,19 +242,21 @@ function loadData(d) {
   if (!isInt(d.seed, 0, 1e9)) throw new Error(BAD);
   for (const k of ['tile', 'oneway', 'overpass', 'walkway', 'water', 'tree']) if (typeof d[k] !== 'string' || d[k].length > 5e6) throw new Error(BAD);
   if (!Array.isArray(d.b) || d.b.length > 40000 || !Array.isArray(d.lights) || d.lights.length > 40000) throw new Error(BAD);
-  // rail was added after the first v5 saves, so it may be missing: an old region
-  // simply has no tunnels until you draw some
+  // rail and track were added after the first v5 saves, so they may be missing:
+  // an old region simply has no tunnels or tracks until you draw some
   if (d.rail !== undefined && (typeof d.rail !== 'string' || d.rail.length > 5e6)) throw new Error(BAD);
-  const nt = new Uint8Array(N), no = new Uint8Array(N), nov = new Uint8Array(N), nw = new Uint8Array(N), nwa = new Uint8Array(N), ntr = new Uint8Array(N), nra = new Uint8Array(N);
+  if (d.track !== undefined && (typeof d.track !== 'string' || d.track.length > 5e6)) throw new Error(BAD);
+  const nt = new Uint8Array(N), no = new Uint8Array(N), nov = new Uint8Array(N), nw = new Uint8Array(N), nwa = new Uint8Array(N), ntr = new Uint8Array(N), nra = new Uint8Array(N), ntk = new Uint8Array(N);
   unrleInto(d.tile, nt, 4); unrleInto(d.oneway, no, 4); unrleInto(d.overpass, nov, 1); unrleInto(d.walkway, nw, 1);
   if (typeof d.rail === 'string') unrleInto(d.rail, nra, 1);
+  if (typeof d.track === 'string') unrleInto(d.track, ntk, 1);
   genTerrainInto(d.seed, nwa, ntr); applyDiff(d.water, nwa, 1); applyDiff(d.tree, ntr, 4);
   for (const e of d.b) if (!Array.isArray(e) || !hasType(e[0]) || !isInt(e[1], 0, MW - 1) || !isInt(e[2], 0, MH - 1) || !isInt(e[3], 0, 4294967295)) throw new Error(BAD);
   for (const e of d.lights) if (!Array.isArray(e) || !isInt(e[0], 0, N - 1) || !isInt(e[1], 3, 25) || !isInt(e[2], 3, 25) || !isInt(e[3], 0, 60)) throw new Error(BAD);
   // the save is valid: replace the region
   clearWorld();
   worldSeed = d.seed;
-  tile.set(nt); oneway.set(no); overpass.set(nov); walkway.set(nw); water.set(nwa); tree.set(ntr); railOn.set(nra);
+  tile.set(nt); oneway.set(no); overpass.set(nov); walkway.set(nw); water.set(nwa); tree.set(ntr); railOn.set(nra); trackOn.set(ntk);
   for (let i = 0; i < N; i++) if (tile[i]) tree[i] = 0;
   for (const [type, x, y, seed] of d.b) if (canPlace(type, x, y) || canPlaceLoose(type, x, y)) placeBuilding(type, x, y, seed);
   for (const [i, ns, ew, off] of d.lights) lights.set(i, {ns, ew, off});
