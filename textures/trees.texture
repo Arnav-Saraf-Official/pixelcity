@@ -1,17 +1,16 @@
 {
   // ===================================================================
-  // Trees. One texture, four variants: `v` picks which sides the canopy
-  // leans to (bits 0 and 1) and whether the leaves are the dark palette.
+  // Trees use eight palettes so canopies remain distinct over rich jungle soil.
   // ===================================================================
   "format": "texture/1",
   "name": "trees",
   "tile": 9,
 
   "defs": {
-    "leafLight": "#2f7d34",
-    "leafDark": "#2b6e3a",
-    "leafLightHi": "#4fa84f",
-    "leafDarkHi": "#3f8d4a",
+    "leaf": ["#4b9d36", "#1f6d36", "#3d8b78", "#7e9e38", "#bd7b38", "#6a578f", "#d7e0e6", "#9a4f45"],
+    "highlight": ["#8bcf48", "#56a84a", "#76c8b0", "#c5d56b", "#e8b55f", "#a891c2", "#ffffff", "#df8270"],
+    "palette": ["#205323", "#165244", "#75862b", "#9b512b", "#563b78", "#dce5ea", "#aa3a3a", "#c07122"],
+    "rim": ["#5db74b", "#4ca98b", "#a4b944", "#d6844a", "#9973b3", "#ffffff", "#dd7168", "#e7a545"],
     "trunk": "#6b4a2b",
     "shadow": "#14321459"
   },
@@ -23,8 +22,10 @@
         "v": 1,
         "dx": ["if", ["bit", ["param", "v"], 0], 1, -1],
         "dy": ["if", ["bit", ["param", "v"], 1], 1, 0],
-        "leaf": ["if", [">", ["param", "v"], 2], ["def", "leafDark"], ["def", "leafLight"]],
-        "hi": ["if", [">", ["param", "v"], 2], ["def", "leafDarkHi"], ["def", "leafLightHi"]]
+        "leaf": ["at", ["def", "leaf"], ["mod", ["-", ["param", "v"], 1], 8]],
+        "hi": ["at", ["def", "highlight"], ["mod", ["-", ["param", "v"], 1], 8]],
+        "alternate": ["at", ["def", "palette"], ["mod", ["-", ["param", "v"], 1], 8]],
+        "edge": ["at", ["def", "rim"], ["mod", ["-", ["param", "v"], 1], 8]]
       },
       "ops": [
         { "op": "rect", "x": ["+", 3, ["param", "dx"]], "y": ["+", 6, ["param", "dy"]],
@@ -34,12 +35,18 @@
           "w": 1, "h": 2, "color": ["def", "trunk"] },
 
         { "op": "rect", "x": ["+", 2, ["param", "dx"]], "y": ["+", 2, ["param", "dy"]],
-          "w": 5, "h": 3, "color": ["param", "leaf"] },
+          "w": 5, "h": 3, "color": ["if", ["<", ["param", "v"], 6], ["param", "leaf"], ["param", "alternate"]] },
         { "op": "rect", "x": ["+", 3, ["param", "dx"]], "y": ["+", 1, ["param", "dy"]],
-          "w": 3, "h": 5, "color": ["param", "leaf"] },
+          "w": 3, "h": 5, "color": ["if", ["<", ["param", "v"], 6], ["param", "leaf"], ["param", "alternate"]] },
+        { "op": "pixel", "x": ["+", 2, ["param", "dx"]], "y": ["+", 3, ["param", "dy"]], "color": ["param", "edge"] },
+        { "op": "pixel", "x": ["+", 6, ["param", "dx"]], "y": ["+", 3, ["param", "dy"]], "color": ["param", "edge"] },
 
         { "op": "rect", "x": ["+", 3, ["param", "dx"]], "y": ["+", 2, ["param", "dy"]],
-          "w": 2, "h": 1, "color": ["param", "hi"] }
+          "w": 2, "h": 1, "color": ["param", "hi"] },
+        { "op": "if", "test": [">", ["param", "v"], 4], "then": [
+          { "op": "pixel", "x": ["+", 2, ["param", "dx"]], "y": ["+", 3, ["param", "dy"]], "color": ["param", "hi"] },
+          { "op": "pixel", "x": ["+", 6, ["param", "dx"]], "y": ["+", 4, ["param", "dy"]], "color": ["param", "hi"] }
+        ] }
       ]
     }
   }

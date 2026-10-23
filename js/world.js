@@ -2,7 +2,7 @@
 // World generation
 // =====================================================================
 function clearWorld(keepClock) {
-  tile.fill(0); water.fill(0); tree.fill(0); oneway.fill(0); walkway.fill(0); bldAt.fill(0); heat.fill(0); heatAcc.fill(0); resv.fill(0); overpass.fill(0); rail.fill(0); railOn.fill(0); track.fill(0); trackOn.fill(0);
+  tile.fill(0); water.fill(0); tree.fill(0); platform.fill(0); oneway.fill(0); walkway.fill(0); bldAt.fill(0); heat.fill(0); heatAcc.fill(0); resv.fill(0); overpass.fill(0); rail.fill(0); railOn.fill(0); track.fill(0); trackOn.fill(0);
   lights.clear(); buildings.clear(); carById.clear(); chunks.clear();
   districts.clear(); districtLayer.fill(0); nextDid = 1; units = []; incidents.length = 0;
   power.plants = []; power.capacity = 0; power.demand = 0;
@@ -138,6 +138,7 @@ function placeCoastalBuildings(rng) {
 }
 function genRegion(demo, seed = demo ? 12345 : Math.floor(Math.random() * 1e6)) {
   clearWorld();
+  for (const key of Object.keys(resources)) resources[key] = 0;
   worldSeed = seed;
   genTerrainInto(worldSeed, water, tree);
   if (demo) buildStarterTown();
@@ -160,7 +161,7 @@ function clearDistrict(m) {
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
     const i = y * MW + x;
     if (bldAt[i]) kill.add(bldAt[i]);
-    tile[i] = 0; oneway[i] = 0; walkway[i] = 0; overpass[i] = 0; lights.delete(i);
+    tile[i] = 0; platform[i] = 0; oneway[i] = 0; walkway[i] = 0; overpass[i] = 0; lights.delete(i);
   }
   for (const id of kill) { const b = B(id); if (b) removeBuilding(b); }
   const gw = new Uint8Array(N), gt = new Uint8Array(N); genTerrainInto(worldSeed, gw, gt);

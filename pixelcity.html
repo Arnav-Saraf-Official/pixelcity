@@ -23,6 +23,7 @@
     <div class="chip"><b>Weather</b><span id="sWx">Sunny</span></div>
     <div class="chip"><b>Power</b><span id="sPow">0/0</span></div>
   </div>
+  <div id="materials" class="material-row" aria-label="Generated material inventory"></div>
   <div class="grow"></div>
   <div class="seg" id="overlays">
     <button data-o="heat" title="Congestion map (V)">Congestion</button>
@@ -35,11 +36,13 @@
     <button data-o="weather" class="on" title="Weather (W)">Weather</button>
     <button data-o="power" disabled title="The electricity grid is scaffolding only">Electricity</button>
   </div>
+  <button id="taxBtn" title="Set future sales and income tax policy">Tax</button>
   <button id="menuBtn" title="Menu">☰</button>
 </div>
 
 <div id="menu" class="panel hidden">
   <button data-m="save">Save &amp; share…</button>
+  <button data-m="file">Save as file (.save)</button>
   <button data-m="newWorld">New world…</button>
   <button data-m="worlds">Load / manage worlds…</button>
   <button data-m="start">Main menu</button>
@@ -121,8 +124,8 @@
   </section>
   <section>
     <h4>SAVE FILE</h4>
-    <p class="note">Carry a region to another device as a small file, or send it to a friend.</p>
-    <div class="btns"><button id="sFileSave">Download save file</button><label class="filebtn">Open save file<input type="file" id="sFileOpen" accept=".ptc,.txt"></label></div>
+    <p class="note">Carry a region to another device as a small <code>.save</code> file, or send it to a friend.</p>
+    <div class="btns"><button id="sFileSave">Download .save file</button><label class="filebtn">Open .save file<input type="file" id="sFileOpen" accept=".save,.ptc,.txt"></label></div>
   </section>
   <section>
     <h4>SHORT SHARE CODE</h4>
@@ -232,14 +235,34 @@
           <label for="worldSeedInput">World seed</label>
           <div class="seed-field"><input type="number" id="worldSeedInput" min="0" max="1000000000" step="1" inputmode="numeric"><button id="randomWorldSeed" type="button" title="Generate a new random seed">↻</button></div>
           <p class="field-hint">A seed is the recipe for your landscape. Reuse it to recreate the same world.</p>
+          <label for="worldDifficulty">Difficulty</label>
+          <select id="worldDifficulty"><option value="ideal">Ideal</option><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option><option value="insane">Insane</option></select>
+          <label for="worldPlacement">Building requirements</label>
+          <select id="worldPlacement"><option value="requireEverything" selected>Require everything</option><option value="lenientRoads">Roads can be missing</option></select>
+          <p class="field-hint">Road leniency never skips shoreline, resource, rail, train-yard, or research requirements.</p>
           <p id="worldSetupError" class="form-error" role="alert"></p>
           <button id="createWorldBtn" class="menu-primary create-world-button">Create world <span aria-hidden="true">→</span></button>
+          <div class="setup-import">
+            <p class="eyebrow">OR BRING ONE WITH YOU</p>
+            <p class="field-hint">Open a <code>.save</code> file, or paste a save code, and it becomes a new world in your list.</p>
+            <label class="filebtn">Open a .save file<input type="file" id="setupSaveFile" accept=".save,.ptc,.txt"></label>
+            <textarea id="setupSaveText" rows="3" placeholder="Paste a save code or the text inside a .save file" spellcheck="false"></textarea>
+            <button id="setupPasteOpen" class="menu-secondary" type="button">Open pasted world</button>
+            <p id="setupImportStatus" class="field-hint" role="status" aria-live="polite"></p>
+          </div>
         </aside>
       </div>
     </main>
     <footer class="page-footer"><span>Sandbox is ready when you are.</span><span>Survival mode is still in development.</span></footer>
   </div>
 </section>
+
+<div id="taxDlg" class="panel dlg hidden" role="dialog" aria-labelledby="taxTitle">
+  <div class="dlgHead"><h3 id="taxTitle">Tax policy</h3><button id="taxClose" title="Close">✕</button></div>
+  <p class="note">Saved as policy foundations; collection will be connected to the future economy system.</p>
+  <label for="taxSales">Sales tax <span id="taxSalesValue">0%</span></label><input id="taxSales" type="range" min="0" max="30" step="1" value="0">
+  <label for="taxIncome">Income tax <span id="taxIncomeValue">0%</span></label><input id="taxIncome" type="range" min="0" max="50" step="1" value="0">
+</div>
 
 <section id="worldListDlg" class="menu-page hidden" aria-labelledby="worldsTitle">
   <div class="page-shell">

@@ -15,13 +15,95 @@ const PRODUCER = {
   greenhouse:  {good: 'produce', rate: 3, cap: 50},
   fishery:     {good: 'fish',    rate: 5, cap: 70},
   seafoodPlant:{good: 'fish',    rate: 4, cap: 70},
-  quarry:      {good: 'stone',   rate: 8, cap: 100},
-  mine:        {good: 'ore',     rate: 8, cap: 100},
+  quarry:      {good: 'stone',   rate: 8, cap: 100, byproducts: {concrete: 1}},
+  mine:        {good: 'ore',     rate: 8, cap: 100, byproducts: {coal: 3, steel: 1}},
   loggingCamp: {good: 'timber',  rate: 6, cap: 80},
   oilRig:      {good: 'oil',     rate: 6, cap: 80},
   gasWell:     {good: 'gas',     rate: 6, cap: 80},
 };
-const GOOD_NAME = {produce: 'Produce', fish: 'Fish', stone: 'Stone', ore: 'Ore', timber: 'Timber', oil: 'Oil', gas: 'Gas', goods: 'Goods'};
+const GOOD_NAME = {produce: 'Food', fish: 'Seafood', stone: 'Stone', ore: 'Ore', timber: 'Logs', oil: 'Oil', gas: 'Gas', coal: 'Coal', concrete: 'Concrete', steel: 'Steel', goods: 'Goods'};
+const GOOD_LABEL = {produce: 'FOOD', fish: 'FISH', stone: 'STON', ore: 'ORE', timber: 'WOOD', oil: 'OIL', gas: 'GAS', coal: 'COAL', concrete: 'CONC', steel: 'STEL', goods: 'GOOD'};
+const GOOD_KEYS = Object.keys(GOOD_LABEL);
+const WAREHOUSE_CAP = 3000;
+const warehouseTotal = b => Object.values(b.inventory || {}).reduce((sum, n) => sum + n, 0);
+const stockGood = b => producerOf(b)?.good || 'goods';
+const producerStock = (b, good) => {
+  const p = producerOf(b);
+  return !p ? (good === 'goods' ? b.stock || 0 : 0) : good === p.good ? b.stock || 0 : (b.byproducts && b.byproducts[good]) || 0;
+};
+const inventoryOf = b => {
+  if (b.type === 'warehouse') return b.inventory || Object.create(null);
+  const p = producerOf(b);
+  return p ? Object.assign({[p.good]: b.stock || 0}, b.byproducts || {}) : {[stockGood(b)]: b.stock || 0};
+};
+function warehouseRoom(b) { return Math.max(0, WAREHOUSE_CAP - warehouseTotal(b)); }
+function storeInWarehouse(b, good, amount) {
+  if (!b || b.type !== 'warehouse' || amount <= 0) return 0;
+  b.inventory ||= Object.create(null);
+  const n = Math.min(amount, warehouseRoom(b));
+  b.inventory[good] = Math.max(0, (b.inventory[good] || 0) + n);
+  return n;
+}
+function takeFromWarehouse(b, good, amount) {
+  if (!b || b.type !== 'warehouse') return 0;
+  const n = Math.min(amount, Math.floor((b.inventory && b.inventory[good]) || 0));
+  b.inventory[good] -= n;
+  return n;
+}
+function formatQuantity(value) {
+  const n = Math.max(0, value || 0);
+  if (n >= 1e6) return (n / 1e6).toFixed(2).replace(/0+$/, '').replace(/\.$/, '') + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(2).replace(/0+$/, '').replace(/\.$/, '') + 'K';
+  return String(Math.floor(n));
+}
+function materialTotals() {
+  const totals = Object.fromEntries(GOOD_KEYS.map(g => [g, 0]));
+  for (const b of buildings.values()) {
+    const inv = inventoryOf(b);
+    for (const good of GOOD_KEYS) totals[good] += Math.max(0, inv[good] || 0);
+  }
+  for (const good of GOOD_KEYS) if (!['produce', 'fish'].includes(good)) totals[good] += Math.max(0, resources[good] || 0);
+  return totals;
+}
+function updateMaterialHUD() {
+  const el = document.getElementById('materials');
+  if (!el) return;
+  const totals = materialTotals();
+  el.replaceChildren();
+  for (const good of GOOD_KEYS) {
+    const value = totals[good];
+    if (value <= 0) continue;
+    const chip = document.createElement('span');
+    chip.className = 'material-chip';
+    chip.title = `${GOOD_NAME[good] || good}: ${Math.floor(value)} units`;
+    chip.textContent = `${GOOD_LABEL[good] || good.slice(0, 4).toUpperCase()} ${formatQuantity(value)}`;
+    el.append(chip);
+  }
+  el.classList.toggle('hidden', !el.childElementCount);
+}
+function platformCost(type) {
+  const d = BT[type], amount = d.platformCost || d.platform;
+  if (d.platform === 1) return {stone: amount, concrete: amount};
+  if (d.platform === 2) return {stone: amount, steel: amount};
+  if (d.platform === 3) return {stone: amount};
+  return {};
+}
+function materialNeed(cost) { return Object.entries(cost).map(([g, n]) => `${n} ${GOOD_NAME[g] || g}`).join(' and '); }
+function canAffordPlatform(type) { const need = platformCost(type), have = materialTotals(); return Object.entries(need).every(([g, n]) => have[g] >= n); }
+function spendMaterials(cost) {
+  if (!Object.entries(cost).every(([g, n]) => materialTotals()[g] >= n)) return false;
+  for (const [good, amount] of Object.entries(cost)) {
+    let left = amount;
+    const sources = [...buildings.values()].filter(b => b.type === 'warehouse').sort((a, b) => ((b.inventory && b.inventory[good]) || 0) - ((a.inventory && a.inventory[good]) || 0));
+    for (const b of sources) { const n = takeFromWarehouse(b, good, left); left -= n; if (!left) break; }
+    for (const b of buildings.values()) if (left && b.type !== 'warehouse') {
+      const n = Math.min(left, producerStock(b, good));
+      if (n) { takeProducerStock(b, good, n); left -= n; }
+    }
+    if (left) { const n = Math.min(left, resources[good] || 0); resources[good] -= n; left -= n; }
+  }
+  return true;
+}
 const TRUCK_CAP = 20;
 const SHOP_STOCK_CAP = 60;
 const HUB_STOCK_CAP = 160;
@@ -29,9 +111,32 @@ const cargoStats = {deliveries: 0, shipped: 0, moved: 0, trainRuns: 0};
 let truckTimer = 0, shipTimer = 0;
 let logisticsReady = false;
 
-const stockLimit = b => (b.type === 'port' || b.type === 'distribution' || b.type === 'railyard') ? HUB_STOCK_CAP
+const stockLimit = b => b.type === 'warehouse' ? WAREHOUSE_CAP
+  : (b.type === 'port' || b.type === 'distribution' || b.type === 'railyard') ? HUB_STOCK_CAP
   : BT[b.type].cat === 'com' ? SHOP_STOCK_CAP : ((PRODUCER[b.type] && PRODUCER[b.type].cap) || 40);
 const producerOf = b => PRODUCER[b.type] || null;
+function takeProducerStock(b, good, amount) {
+  const p = producerOf(b);
+  if (!p) return 0;
+  const have = producerStock(b, good), n = Math.min(have, amount);
+  if (good === p.good) b.stock = have - n;
+  else { b.byproducts ||= Object.create(null); b.byproducts[good] = have - n; }
+  return n;
+}
+function hasAccessibleSupply(shop) {    const shopRoad = roadTileOf(shop);
+  if (shopRoad < 0) return false;
+  for (const source of buildings.values()) {
+    const sourceRoad = roadTileOf(source);
+    if (source === shop || sourceRoad < 0 || compR[sourceRoad] !== compR[shopRoad]) continue;
+    if (source.type === 'warehouse') {
+      if (GOOD_KEYS.some(g => acceptsGood(shop, g) && (source.inventory?.[g] || 0) > 0)) return true;
+    } else if (producerOf(source)) {
+      const p = producerOf(source);
+      if ([p.good, ...Object.keys(p.byproducts || {})].some(g => acceptsGood(shop, g))) return true;
+    } else if (source.stock > 0 && acceptsGood(shop, 'goods')) return true;
+  }
+  return false;
+}
 
 function resetLogistics() {
   ships.length = 0;
@@ -54,8 +159,15 @@ function acceptsGood(b, good) {
 
 function syncLogistics() {
   for (const b of buildings.values()) {
-    if (b.stock === undefined) b.stock = producerOf(b) ? 8 : BT[b.type].cat === 'com' ? 24 : 0;
+    if (producerOf(b)) b.byproducts ||= Object.create(null);
+    if (b.type === 'warehouse') {
+      b.inventory ||= Object.create(null);
+      if (b.stock > 0 && warehouseTotal(b) === 0) b.inventory.goods = Math.min(WAREHOUSE_CAP, b.stock);
+      b.stock = warehouseTotal(b);
+    } else if (b.stock === undefined) b.stock = producerOf(b) ? 8 : BT[b.type].cat === 'com' ? 24 : 0;
     if (b.truckCd === undefined) b.truckCd = 0;
+    if (producerOf(b)) b.efficiency = industryEfficiency(b.type, b.x, b.y);
+    if (BT[b.type].efficiencyBase && !Number.isFinite(b.efficiency)) b.efficiency = industryEfficiency(b.type, b.x, b.y);
   }
   logisticsReady = true;
   syncFreight();
@@ -110,14 +222,14 @@ function roadTileOf(b) {
   if (b.road >= 0 && tile[b.road] === 1) return b.road;
   return perimeter(b.x, b.y, b.w, b.h).find(i => tile[i] === 1) ?? -1;
 }
-function findCustomer(p, good) {
+function findCustomer(p, good, excludeWarehouses = false) {
   const from = roadTileOf(p);
   if (from < 0) return null;
   const comp = compR[from];
   let best = null, bd = Infinity, bestPri = 99;
   for (const b of buildings.values()) {
-    if (b === p || !acceptsGood(b, good)) continue;
-    if (b.stock >= stockLimit(b)) continue;
+    if (b === p || excludeWarehouses && b.type === 'warehouse' || !acceptsGood(b, good)) continue;
+    if ((b.type === 'warehouse' ? warehouseTotal(b) : b.stock) >= stockLimit(b)) continue;
     const r = roadTileOf(b);
     if (r < 0 || compR[r] !== comp) continue;
     const d = distB(p, b);
@@ -133,26 +245,42 @@ function findCustomer(p, good) {
 }
 function sendTruck(from, to, good, amount, color) {
   if (!from || !to || amount <= 0) return false;
+  const room = to.type === 'warehouse' ? warehouseRoom(to) : stockLimit(to) - Math.max(0, to.stock || 0);
+  amount = Math.min(amount, room, from.type === 'warehouse' ? (from.inventory && from.inventory[good]) || 0 : producerOf(from) ? producerStock(from, good) : good === 'goods' ? from.stock || 0 : 0);
+  if (amount <= 0) return false;
   const a = roadTileOf(from), b = roadTileOf(to);
   if (a < 0 || b < 0 || compR[a] !== compR[b]) return false;
   const path = a === b ? [a] : findPath(a, b, 'car');
   if (!path || path.length < 1) return false;
-  from.stock = Math.max(0, from.stock - amount);
+  if (from.type === 'warehouse') {
+    if (takeFromWarehouse(from, good, amount) < amount) return false;
+  } else if (producerOf(from)) {
+    if (takeProducerStock(from, good, amount) < amount) return false;
+  } else from.stock = Math.max(0, from.stock - amount);
   if (path.length < 2) {
-    to.stock = Math.min(stockLimit(to), to.stock + amount);
+    if (to.type === 'warehouse') storeInWarehouse(to, good, amount);
+    else to.stock = Math.min(stockLimit(to), to.stock + amount);
     cargoStats.deliveries++; cargoStats.moved += amount;
     return true;
   }
   const c = newCar({truck: true, cargo: {good, amount}, dest: to.id, intent: to.id, path,
     color: color || '#ddd6c2', max: 18});
   carGeom(c);
-  if (!spawnCarAt(c)) { from.stock += amount; return false; }
+  if (!spawnCarAt(c)) {
+    if (from.type === 'warehouse') storeInWarehouse(from, good, amount);
+    else if (producerOf(from)) {
+      if (good === producerOf(from).good) from.stock += amount;
+      else { from.byproducts ||= Object.create(null); from.byproducts[good] = (from.byproducts[good] || 0) + amount; }
+    } else from.stock += amount;
+    return false;
+  }
   return true;
 }
 function deliverTruck(c) {
   const D = B(c.dest);
   if (D && c.cargo) {
-    D.stock = Math.min(stockLimit(D), (D.stock || 0) + c.cargo.amount);
+    if (D.type === 'warehouse') storeInWarehouse(D, c.cargo.good, c.cargo.amount);
+    else D.stock = Math.min(stockLimit(D), (D.stock || 0) + c.cargo.amount);
     cargoStats.deliveries++; cargoStats.moved += c.cargo.amount;
   }
   endCar(c);
@@ -161,15 +289,47 @@ function dispatchTrucks() {
   let trucks = 0;
   for (const c of cars) if (c.truck) trucks++;
   if (trucks >= 70) return;
-  // producers send their own goods first
   for (const b of buildings.values()) {
-    if (b.road < 0 || b.truckCd > 0) continue;
     const p = producerOf(b);
-    if (!p || b.stock < 10) continue;
-    const to = findCustomer(b, p.good);
-    if (!to) continue;
-    const amount = Math.min(TRUCK_CAP, Math.floor(b.stock));
-    if (sendTruck(b, to, p.good, amount)) { b.truckCd = 5 + Math.random() * 4; if (++trucks >= 70) return; }
+    if (!p || b.truckCd > 0) continue;
+    const goods = [p.good, ...Object.keys(p.byproducts || {})];
+    for (const good of goods) {
+      if (producerStock(b, good) < 10) continue;
+      const to = findCustomer(b, good);
+      if (!to) continue;
+      const amount = Math.min(TRUCK_CAP, Math.floor(producerStock(b, good)));
+      if (sendTruck(b, to, good, amount)) { b.truckCd = 5 + Math.random() * 4; if (++trucks >= 70) return; }
+    }
+  }
+  // Warehouses move stock to the least supplied peer; each shipment keeps its
+  // item type so trains/ships/trucks never turn mixed cargo into generic goods.
+  for (const source of buildings.values()) {
+    if (source.type !== 'warehouse' || source.truckCd > 0 || warehouseTotal(source) < 10) continue;
+    let sentToShop = false;
+    for (const good of GOOD_KEYS) {
+      const available = Math.floor((source.inventory && source.inventory[good]) || 0);
+      if (available < 1) continue;
+      const customer = findCustomer(source, good, true);
+      if (!customer) continue;
+      const amount = Math.min(TRUCK_CAP, available);
+      if (sendTruck(source, customer, good, amount, '#d1c5a8')) {
+        source.truckCd = 6; sentToShop = true; if (++trucks >= 70) return; break;
+      }
+    }
+    if (sentToShop) continue;
+    let target = null, gap = 0;
+    for (const dest of buildings.values()) {
+      if (dest === source || dest.type !== 'warehouse' || roadTileOf(dest) < 0 || compR[roadTileOf(dest)] !== compR[roadTileOf(source)]) continue;
+      const d = warehouseTotal(source) - warehouseTotal(dest);
+      if (d > gap) { gap = d; target = dest; }
+    }
+    if (!target) continue;
+    for (const good of GOOD_KEYS) {
+      const n = Math.min(TRUCK_CAP, Math.floor(((source.inventory && source.inventory[good]) || 0) / 2));
+      if (n && sendTruck(source, target, good, n, '#d1c5a8')) {
+        source.truckCd = 6; if (++trucks >= 70) return;
+      }
+    }
   }
   // terminals and ports send sorted goods on to the shops
   for (const b of buildings.values()) {
@@ -249,11 +409,18 @@ function launchShip(port) {
     path = to >= 0 ? waterPath(from, to) : null;
   }
   if (!path || path.length < 4) return false;
-  const amount = Math.min(60, Math.floor(port.stock));
-  if (amount < 8) return false;
-  port.stock -= amount;
+  let cargo = {good: 'goods', amount: Math.min(60, Math.floor(port.stock))};
+  if (port.type === 'warehouse') {
+    const good = GOOD_KEYS.find(g => (port.inventory && port.inventory[g]) >= 8);
+    if (!good) return false;
+    cargo = {good, amount: Math.min(60, Math.floor(port.inventory[good]))};
+    takeFromWarehouse(port, good, cargo.amount);
+  } else {
+    if (cargo.amount < 8) return false;
+    port.stock -= cargo.amount;
+  }
   ships.push({path, i: 0, t: 0, x: 0, y: 0, d: 2, speed: 5 + Math.random() * 2,
-    cargo: {good: 'goods', amount}, destPort: destPort ? destPort.id : 0,
+    cargo, destPort: destPort ? destPort.id : 0,
     color: pick(['#f4f5f7', '#d8e4f0', '#e8d8b8'], Math.random()), dead: false});
   return true;
 }
@@ -269,7 +436,8 @@ function stepShips(dt) {
     if (s.i >= s.path.length - 2) {
       // arrived: unload at the other port, or the cargo leaves the region
       const P = B(s.destPort);
-      if (P) P.stock = Math.min(stockLimit(P), (P.stock || 0) + s.cargo.amount);
+      if (P && P.type === 'warehouse') storeInWarehouse(P, s.cargo.good, s.cargo.amount);
+      else if (P) P.stock = Math.min(stockLimit(P), (P.stock || 0) + s.cargo.amount);
       else cargoStats.shipped += s.cargo.amount;
       if (P) cargoStats.moved += s.cargo.amount;
       s.dead = true;
@@ -357,25 +525,38 @@ function loadFreight(t) {
   if (!y) return;
   // oil and gas only reach a yard if the rig is within five blocks, which is
   // the placement rule; the same radius gathers the other goods too.
+  const hold = t.goods ||= Object.create(null);
   for (const b of buildings.values()) {
     if (b === y) continue;
     const p = producerOf(b);
-    if (!p || b.stock <= 0) continue;
-    if (!nearYard(b, y)) continue;
-    const kind = p.good === 'oil' ? 'liquid' : p.good === 'gas' ? 'gas' : 'material';
-    const room = freightCap(t, kind) - t.cargo[kind];
-    const n = Math.min(room, Math.floor(b.stock));
-    if (n <= 0) continue;
-    t.cargo[kind] += n; b.stock -= n;
+    if (!p || !nearYard(b, y)) continue;
+    for (const good of [p.good, ...Object.keys(p.byproducts || {})]) {
+      const kind = good === 'oil' ? 'liquid' : good === 'gas' ? 'gas' : 'material';
+      const room = freightCap(t, kind) - t.cargo[kind];
+      const n = Math.min(room, Math.floor(producerStock(b, good)));
+      if (n <= 0) continue;
+      hold[good] = (hold[good] || 0) + takeProducerStock(b, good, n);
+      t.cargo[kind] += n;
+    }
   }
-  // a rail-served terminal hands its sorted stock to the train
+  // Warehouses load item-bearing freight by type so material stocks move between hubs.
+  let materialRoom = freightCap(t, 'material') - t.cargo.material;
   for (const b of buildings.values()) {
-    if (b.type !== 'distribution' || b === y || b.stock <= 0) continue;
-    if (!nearYard(b, y)) continue;
-    const room = freightCap(t, 'material') - t.cargo.material;
-    const n = Math.min(room, Math.floor(b.stock));
-    if (n <= 0) continue;
-    t.cargo.material += n; b.stock -= n;
+    if (b === y || !nearYard(b, y) || b.type !== 'warehouse') continue;
+    for (const good of GOOD_KEYS) {
+      const n = Math.min(materialRoom, Math.floor((b.inventory && b.inventory[good]) || 0));
+      if (!n) continue;
+      const moved = takeFromWarehouse(b, good, n); hold[good] = (hold[good] || 0) + moved; materialRoom -= moved;
+      t.cargo.material += moved;
+      if (!materialRoom) break;
+    }
+    if (!materialRoom) break;
+  }
+  // A rail-served terminal continues to carry legacy undifferentiated goods.
+  for (const b of buildings.values()) {
+    if (b.type !== 'distribution' || b === y || b.stock <= 0 || !nearYard(b, y)) continue;
+    const n = Math.min(freightCap(t, 'material') - t.cargo.material, Math.floor(b.stock));
+    if (n > 0) { t.cargo.material += n; b.stock -= n; t.goods.goods = (t.goods.goods || 0) + n; }
   }
 }
 function unloadFreight(t) {
@@ -383,16 +564,22 @@ function unloadFreight(t) {
   if (!total) return;
   const y = B(t.at);
   if (!y) return;
-  let best = null, bd = Infinity;
-  for (const b of buildings.values()) {
-    if (b.type !== 'distribution' && b.type !== 'port' && b.type !== 'railyard') continue;
-    const d = Math.abs(b.cx - y.cx) + Math.abs(b.cy - y.cy);
-    if (d < bd) { bd = d; best = b; }
+  const destinations = [...buildings.values()].filter(b => b.type === 'warehouse' && warehouseRoom(b) > 0).sort((a, b) => Math.abs(a.cx - y.cx) + Math.abs(a.cy - y.cy) - (Math.abs(b.cx - y.cx) + Math.abs(b.cy - y.cy)));
+  const hold = t.goods || {};
+  let moved = 0;
+  for (const good of GOOD_KEYS) {
+    let left = hold[good] || 0;
+    for (const dest of destinations) {
+      if (!left) break;
+      const n = storeInWarehouse(dest, good, left); left -= n; moved += n;
+    }
+    if (left) {
+      if (good === 'goods') resources.goods = (resources.goods || 0) + left;
+      else resources[good] = (resources[good] || 0) + left;
+    }
   }
-  const target = best && bd < 14 ? best : y;
-  target.stock = Math.min(stockLimit(target), (target.stock || 0) + total);
-  t.cargo.material = 0; t.cargo.liquid = 0; t.cargo.gas = 0;
-  cargoStats.moved += total;
+  t.cargo.material = 0; t.cargo.liquid = 0; t.cargo.gas = 0; t.goods = Object.create(null);
+  cargoStats.moved += moved;
 }
 // A metro station within one tile of the line gets a platform stop for the
 // freight train, so its passenger cars are good for something.
@@ -504,8 +691,41 @@ function stepFreight(dt) {
 // ---------------------------------------------------------------------
 function logisticsHour() {
   for (const b of buildings.values()) {
+    if (BT[b.type].efficiencyBase) b.efficiency = industryEfficiency(b.type, b.x, b.y);
     const p = producerOf(b);
-    if (p) { b.stock = Math.min(p.cap, (b.stock || 0) + p.rate); continue; }
+    if (p) {
+      const eff = b.efficiency;
+      b.efficiency = eff;
+      if (b.type === 'loggingCamp') {
+        const jungle = biome[b.y * MW + b.x] === 2;
+        const orchard = nearType(b, 'orchard', 10), greenhouse = nearType(b, 'greenhouse', 10);
+        const sustainable = jungle && orchard && greenhouse;
+        let cut = sustainable ? p.rate * eff : 0;
+        if (!sustainable && jungle) {
+          let cutCount = 0;
+          const radius = 11;
+          for (let y = Math.max(0, Math.floor(b.cy - radius)); y <= Math.min(MH - 1, Math.ceil(b.cy + radius)); y++)
+            for (let x = Math.max(0, Math.floor(b.cx - radius)); x <= Math.min(MW - 1, Math.ceil(b.cx + radius)); x++) {
+              const i = y * MW + x;
+              if (tree[i] && !bldAt[i] && biome[i] === 2 && Math.random() < 0.08) { tree[i] = 0; cutCount++; markDirty(x, y, x, y); }
+            }
+          cut = cutCount * eff;
+        } else if (!jungle && (orchard || greenhouse)) cut = p.rate * eff * 0.55;
+        b.stock = Math.min(p.cap, (b.stock || 0) + cut);
+    } else {
+      const resource = b.type === 'oilRig' ? 'oil' : b.type === 'gasWell' ? 'gas' : null;
+      const remaining = resource ? Math.max(0, resources[resource] || 0) : Infinity;
+      const made = Math.min(p.rate * eff, remaining);
+      b.stock = Math.min(p.cap, (b.stock || 0) + made);
+      if (resource) resources[resource] = Math.max(0, remaining - made);
+      if (p.byproducts) for (const [good, rate] of Object.entries(p.byproducts)) b.byproducts[good] = Math.min(100, (b.byproducts[good] || 0) + rate * eff);
+    }
+      continue;
+    }
+    if (b.type === 'warehouse') {
+      b.stock = warehouseTotal(b);
+      continue;
+    }
     if (BT[b.type].cat === 'com') {
       const use = 1 + BT[b.type].cap / 8;
       b.stock = Math.max(0, (b.stock || 0) - use);
@@ -517,6 +737,27 @@ function stepLogistics(dt) {
   if (!logisticsReady) syncLogistics();
   truckTimer += dt;
   if (truckTimer >= 1.4) { truckTimer = 0; dispatchTrucks(); }
+  // Warehouses always move stock toward a less-full peer. Roads/trucks handle
+  // nearby links; a train at a track-served yard can also transfer old stocks.
+  for (const y of yards) {
+    const yard = yardTrack(y);
+    if (yard < 0) continue;
+    const train = freight.find(t => t.at === y.id && t.state === 'dwell' && t.wait <= 0);
+    if (!train) continue;
+    const partner = B(train.target), otherTrack = yardTrack(partner);
+    const target = [...buildings.values()].filter(b => b.type === 'warehouse' && b.id !== y.id && warehouseRoom(b) > 0 &&
+      (b.id === partner.id || otherTrack >= 0 && trackPath(otherTrack, yardTrack(b)))).sort((a, b) => warehouseTotal(a) - warehouseTotal(b))[0];
+    if (!target) continue;
+    let room = freightCap(train, 'material') - train.cargo.material;
+    for (const good of GOOD_KEYS) {
+      if (room <= 0) break;
+      const n = Math.min(room, Math.floor(((y.inventory && y.inventory[good]) || 0) / 2), warehouseRoom(target));
+      if (!n) continue;
+      const moved = takeFromWarehouse(y, good, n);
+      target.inventory[good] = (target.inventory[good] || 0) + moved;
+      cargoStats.moved += moved; room -= moved;
+    }
+  }
   // terminals beside a port pass their cargo straight to the quay
   for (const h of hubs) {
     if (h.stock <= 0) continue;

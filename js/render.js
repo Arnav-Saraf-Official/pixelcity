@@ -253,8 +253,8 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
       f.fillStyle = '#ffffff'; for (const [px, py] of [[1, 1], [2, 1], [1, 2], [3, 2], [1, 3], [2, 3], [1, 4]]) f.fillRect(x + px, y + py, 1, 1);
       f.fillStyle = '#ff3b3b'; for (let k = 0; k < 6; k++) f.fillRect(x + Math.round(k * 0.8), y + 5 - k, 1, 1);
     }
-    const needsRoad = d.cat === 'lot' ? b.road < 0 : (b.type === 'park' || b.type === 'metro') ? b.walk < 0 && b.road < 0 : (b.road < 0 && b.walk < 0);
-    if (needsRoad && (performance.now() / 400 | 0) % 2) {
+    const missingRoad = needsRoad(b.type) && b.road < 0;
+    if (missingRoad && (performance.now() / 400 | 0) % 2) {
       const x = b.x * T + (b.w * T >> 1) - 1, y = b.y * T + 1;
       f.fillStyle = '#ff3b3b'; f.fillRect(x, y, 2, 4); f.fillRect(x, y + 5, 2, 2);
     }
@@ -317,29 +317,48 @@ function drawWeather(f, sx0, sy0, sx1, sy1) {
     gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
     f.fillStyle = gr;
     f.fillRect(cx - R, cy - R, R * 2, R * 2);
-    if (k.wet) drawRain(f, cell, R, sx0, sy0, sx1, sy1);
+    if (k.wet && weatherSnowAt(cell.x, cell.y)) drawSnow(f, cell, R, sx0, sy0, sx1, sy1);
+    else if (k.wet) drawRain(f, cell, R, sx0, sy0, sx1, sy1);
+    else if (cell.kind === 'snow') drawSnow(f, cell, R, sx0, sy0, sx1, sy1);
   }
 }
 function drawRain(f, cell, R, sx0, sy0, sx1, sy1) {
   const t = performance.now() / 1000;
-  const cx = cell.x * T, cy = cell.y * T;
-  const heavy = cell.kind === 'storm';
-  f.strokeStyle = heavy ? 'rgba(178,205,255,.6)' : 'rgba(190,220,255,.45)';
-  f.lineWidth = 1;
-  f.beginPath();
-  const n = heavy ? 260 : 170;
+  const cx = cell.x * T, cy = cell.y * T, heavy = cell.kind === 'storm';
+  const n = heavy ? 390 : 255, speed = heavy ? 430 : 365;
   for (let k = 0; k < n; k++) {
-    const ang = hash(k, 11, cell.id) * Math.PI * 2;
-    const rr = Math.sqrt(hash(k, 12, cell.id)) * R;
-    const fall = (t * 55 + hash(k, 13, cell.id) * 900) % 180;
-    const x = cx + Math.cos(ang) * rr + fall * 0.18;
-    const y = cy + Math.sin(ang) * rr + fall * 0.55;
-    if (x < sx0 - 4 || x > sx1 + 4 || y < sy0 - 4 || y > sy1 + 4) continue;
+    const ang = hash(k, 11, cell.id) * Math.PI * 2, rr = Math.sqrt(hash(k, 12, cell.id)) * R;
+    const fall = (t * speed + hash(k, 13, cell.id) * 900) % 210;
+    const x = cx + Math.cos(ang) * rr + fall * 0.18, y = cy + Math.sin(ang) * rr + fall * 0.55;
+    if (x < sx0 - 3 || x > sx1 + 3 || y < sy0 - 3 || y > sy1 + 3) continue;
     const dx = x - cx, dy = y - cy;
     if (dx * dx + dy * dy > R * R) continue;
-    f.moveTo(x, y); f.lineTo(x - 1, y + 4);
+    const px = Math.round(x), py = Math.round(y), phase = (t * speed + hash(k, 13, cell.id) * 900) % 210;
+    const tx = Math.floor(x / T), ty = Math.floor(y / T), ti = inb(tx, ty) ? ty * MW + tx : -1;
+    if (ti >= 0 && biome[ti] === 4) {
+      f.fillStyle = 'rgba(248,252,255,.85)'; f.fillRect(px, py, 1, 1);
+    } else if (phase > 196 && ti >= 0 && !water[ti]) {
+      // A drop breaks into tiny droplets when it reaches the ground.
+      f.fillStyle = 'rgba(205,230,255,.55)';
+      f.fillRect(px - 1, py, 1, 1); f.fillRect(px, py - 1, 1, 1); f.fillRect(px + 1, py, 1, 1);
+      f.fillRect(px - 2, py + 1, 1, 1); f.fillRect(px + 2, py + 1, 1, 1);
+    } else {
+      f.fillStyle = heavy ? 'rgba(178,205,255,.7)' : 'rgba(190,220,255,.55)';
+      f.fillRect(px, py, 1, 2);
+    }
   }
-  f.stroke();
+}
+function drawSnow(f, cell, R, sx0, sy0, sx1, sy1) {
+  const t = performance.now() / 1000, cx = cell.x * T, cy = cell.y * T;
+  const n = cell.kind === 'storm' ? 170 : 120;
+  f.fillStyle = 'rgba(248,252,255,.85)';
+  for (let k = 0; k < n; k++) {
+    const ang = hash(k, 31, cell.id) * Math.PI * 2, rr = Math.sqrt(hash(k, 32, cell.id)) * R;
+    const fall = (t * 22 + hash(k, 33, cell.id) * 420) % 210;
+    const x = cx + Math.cos(ang) * rr + Math.sin(t * 0.7 + k) * 2, y = cy + Math.sin(ang) * rr + fall * 0.35;
+    const dx = x - cx, dy = y - cy;
+    if (x >= sx0 && x <= sx1 && y >= sy0 && y <= sy1 && dx * dx + dy * dy <= R * R) f.fillRect(Math.round(x), Math.round(y), 1, 1);
+  }
 }
 
 // Underground view: the city above is gone, so all that is left of the surface

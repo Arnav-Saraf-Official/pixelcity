@@ -12,6 +12,7 @@ const WEATHER_KINDS = {
   cloudy: {name: 'Cloudy',      speed: 1,    crash: 1.15, fire: 1,   wet: 0, tint: [125, 135, 150, 0.1]},
   rain:   {name: 'Rainy',       speed: 0.85, crash: 2.2,  fire: 0.6, wet: 1, tint: [60, 105, 165, 0.25]},
   storm:  {name: 'Thunderstorm',speed: 0.7,  crash: 3.2,  fire: 2.4, wet: 2, tint: [16, 26, 52, 0.32]},
+  snow:   {name: 'Snow',        speed: 0.9,  crash: 1.25, fire: 0.5, wet: 0, tint: [185, 205, 225, 0.2]},
 };
 // The weather is a field of 90-tile circles. Each cell drifts slowly around its
 // home so the edges are never static, and neighbouring circles overlap: the
@@ -25,7 +26,10 @@ function newWeatherCell(bx, by, k) {
   return {id: k, bx, by, x: bx, y: by, tx: bx, ty: by, retarget: 0, kind: 'sunny', until: gameMin + 120};
 }
 function weatherKindRoll(r) {
-  return r > 0.9 ? 'storm' : r > 0.6 ? 'rain' : r > 0.3 ? 'cloudy' : 'sunny';
+  if (r > 0.94) return 'storm';
+  if (r > 0.78) return 'rain';
+  if (r > 0.7) return 'snow';
+  return r > 0.35 ? 'cloudy' : 'sunny';
 }
 function initWeather() {
   const rng = mulberry((worldSeed ^ 0x51A7) >>> 0);
@@ -51,6 +55,10 @@ const weatherCellAt = (tx, ty) => {
   return best;
 };
 const weatherAt = (tx, ty) => weatherCellAt(tx, ty).kind;
+function weatherSnowAt(tx, ty) {
+  const cell = weatherCellAt(tx, ty), x = Math.floor(tx), y = Math.floor(ty);
+  return cell.kind === 'rain' || cell.kind === 'storm' ? (inb(x, y) && biome[y * MW + x] === 4) : false;
+}
 function cameraTile() {
   if (typeof cam === 'undefined' || typeof innerWidth === 'undefined') return {x: MW / 2, y: MH / 2};
   return {x: (cam.x + innerWidth / 2 / cam.z) / T, y: (cam.y + innerHeight / 2 / cam.z) / T};
@@ -177,17 +185,30 @@ function policeCount() {
   for (const b of buildings.values()) if (b.type === 'policeStation') n++;
   return n;
 }
+let crashProgress = 0, crashDay = -1, crashesToday = 0;
 function crashChance() {
-  // patrols take the edge off bad weather
-  return 0.00035 * weatherNow().crash * Math.max(0.35, 1 - policeCount() * 0.06);
+  // Patrols take the edge off bad weather; difficulty sets a daily target baseline.
+  const daily = {ideal: 0, easy: 0.2, normal: 0.65, hard: 1.4, insane: 3}[worldSettings.difficulty] ?? 0.65;
+  return daily * weatherNow().crash * Math.max(0.35, 1 - policeCount() * 0.06) / 1440;
 }
 function maybeCrash() {
+  if (worldSettings.difficulty === 'ideal') { crashProgress = 0; crashesToday = 0; return; }
+  const day = Math.floor(gameMin / 1440);
+  if (day !== crashDay) { crashDay = day; crashesToday = 0; }
   if (cars.length < 4) return;
-  if (Math.random() > crashChance() * Math.min(40, cars.length)) return;
-  const c = cars[(Math.random() * cars.length) | 0];
-  if (!c || c.dead) return;
-  const t = tileAt(c.x, c.y);
-  if (t < 0 || !isRoad(t)) return;
+  // Accumulate the baseline; Insane also enforces three daily incidents whenever there is traffic.
+  crashProgress += crashChance() * Math.min(1, cars.length / 8);
+  const elapsed = gameMin - day * 1440;
+  if (worldSettings.difficulty === 'insane' && crashesToday < 3 && elapsed >= (crashesToday + 1) * 480) crashProgress = Math.max(crashProgress, 1);
+  if (crashProgress < 1) return;
+  const eligible = cars.filter(c => {
+    if (!c || c.dead) return false;
+    const i = tileAt(c.x, c.y);
+    return i >= 0 && isRoad(i);
+  });
+  if (!eligible.length) return;
+  crashProgress -= 1; crashesToday++;
+  const c = eligible[(Math.random() * eligible.length) | 0];
   c.dead = true;
   raiseIncident('crash', c.x / T, c.y / T);   // incidents live in tile space
   stats.crashes = (stats.crashes || 0) + 1;

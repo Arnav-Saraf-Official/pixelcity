@@ -11,7 +11,8 @@ function invalidate(x0, y0, x1, y1) {
 function markDirty(ax, ay, bx, by) {
   const x0 = Math.max(0, Math.min(ax, bx) - 1), y0 = Math.max(0, Math.min(ay, by) - 1);
   const x1 = Math.min(MW - 1, Math.max(ax, bx) + 1), y1 = Math.min(MH - 1, Math.max(ay, by) + 1);
-  invalidate(x0, y0, x1, y1); updateMini(x0, y0, x1, y1);
+  invalidate(x0, y0, x1, y1);
+  updateMini(Math.max(0, x0 - 3), Math.max(0, y0 - 3), Math.min(MW - 1, x1 + 3), Math.min(MH - 1, y1 + 3));
 }
 function markAllDirty() { chunks.clear(); updateMini(0, 0, MW - 1, MH - 1); }
 const markTiles = tiles => { if (!tiles.length) return; let x0 = MW, y0 = MH, x1 = 0, y1 = 0; for (const i of tiles) { const x = i % MW, y = i / MW | 0; x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); } markDirty(x0, y0, x1, y1); };
@@ -29,7 +30,7 @@ function getChunk(cx, cy) {
 // base, dark speck, light speck, flower, flower — per biome
 const BIOME_PAL = {
   1: [88, 156, 68, 78, 144, 60, 104, 172, 80, 236, 224, 120, 240, 140, 170],
-  2: [46, 112, 54, 38, 98, 46, 60, 132, 64, 214, 210, 96, 200, 120, 180],
+  2: [91, 69, 43, 75, 55, 34, 113, 84, 52, 126, 95, 60, 148, 112, 72],
   3: [214, 190, 122, 198, 172, 104, 228, 206, 144, 240, 232, 180, 226, 176, 120],
   4: [226, 233, 242, 210, 220, 234, 240, 246, 252, 196, 214, 236, 232, 238, 248],
   5: [126, 122, 116, 110, 106, 100, 142, 138, 132, 168, 164, 158, 96, 92, 88],
@@ -84,6 +85,12 @@ function buildChunk(cx, cy) {
     }
   }
   c.putImageData(img, 0, 0);
+  // Translucent frost grains from the terrain texture keep snow legible without
+  // hiding the biome-edge blend underneath it.
+  for (let ty = ty0; ty < ty0 + CHH; ty++) for (let tx = tx0; tx < tx0 + CW; tx++) {
+    const i = ty * MW + tx;
+    if (!water[i] && biome[i] === 4) TEX.draw(c, 'terrain', 'snow_grass', tx * T - tx0 * T, ty * T - ty0 * T, {seed: i});
+  }
   c.translate(-tx0 * T, -ty0 * T);
   for (let ty = ty0; ty < ty0 + CHH; ty++) for (let tx = tx0; tx < tx0 + CW; tx++) drawTile(c, ty * MW + tx);
   for (const b of buildings.values()) {
@@ -94,6 +101,7 @@ function buildChunk(cx, cy) {
 }
 function drawTile(c, i) {
   const x0 = (i % MW) * T, y0 = (i / MW | 0) * T, t = tile[i];
+  if (platform[i]) drawPlatform(c, x0, y0, platform[i]);
   if (overpass[i]) { drawRoadTile(c, x0, y0, 5, t === 2, water[i], 0, walkway[i], 0); drawDeck(c, x0, y0, t === 2); }
   else if (t === 1 || t === 2) drawRoadTile(c, x0, y0, cmask[i], t === 2, water[i], oneway[i], walkway[i], autoOw[i], laneEdges(i));
   else if (t === 3) drawPathTile(c, x0, y0, walkMask(i), water[i]);
@@ -112,10 +120,37 @@ function miniColor(i) {
   const t = tile[i];
   if (t === 1) return water[i] ? [190, 170, 140] : walkway[i] ? MINIC[1] : [176, 160, 120];
   if (t) return MINIC[t];
+  if (platform[i]) return platform[i] === 1 ? [143, 146, 151] : platform[i] === 2 ? [83, 91, 101] : [112, 88, 59];
   if (water[i]) return [46, 108, 180];
   if (tree[i]) return [47, 120, 52];
-  const pal = BIOME_PAL[biome[i]];
-  return pal ? [pal[0], pal[1], pal[2]] : MINIC[0];
+  const bi = biome[i], pal = BIOME_PAL[bi];
+  if (!pal) return MINIC[0];
+  let col = [pal[0], pal[1], pal[2]];
+  // The region overview is one pixel per tile, so dither a short blend band
+  // across biome borders rather than exposing the raw biome array's hard edge.
+  let other = -1, edgeDistance = 99;
+  const x = i % MW, y = (i / MW) | 0;
+  for (let radius = 1; radius <= 3 && other < 0; radius++) {
+    for (let dy = -radius; dy <= radius; dy++) {
+      const dx = radius - Math.abs(dy);
+      const x1 = x - dx, x2 = x + dx, ny = y + dy;
+      if (ny < 0 || ny >= MH) continue;
+      for (const nx of dx ? [x1, x2] : [x1]) {
+        if (nx < 0 || nx >= MW) continue;
+        const j = ny * MW + nx;
+        if (!water[j] && biome[j] !== bi) { other = biome[j]; edgeDistance = radius; break; }
+      }
+      if (other >= 0) break;
+    }
+  }
+  if (other >= 0) {
+    const q = BIOME_PAL[other];
+    // One overview pixel cannot show a continuous fade. Spatial dithering gives
+    // the same gradual cross-biome mix over three tile rows/columns instead.
+    const neighborShare = 0.5 * (4 - edgeDistance) / 3;
+    if (q && hash(x, y, worldSeed ^ 0x5bd1e995) < neighborShare) col = [q[0], q[1], q[2]];
+  }
+  return col;
 }
 function updateMini(x0, y0, x1, y1) {
   const d = miniImg.data;
@@ -206,6 +241,24 @@ function findPath(s, g, mode, maxCost = Infinity) {
 // Every building has an access rule. Streets (not highways) carry cars and
 // trucks up to the door; parks and metro stations are reached on foot instead.
 function roadAdjacent(x, y, w, h) { return perimeter(x, y, w, h).some(i => tile[i] === 1 && !overpass[i]); }
+function adjacentEfficiency(type, x, y, w, h) {
+  const i = y * MW + x;
+  if (type === 'oilRig') return oilField[i];
+  if (type === 'gasWell') return gasField[i];
+  if (type === 'quarry' || type === 'mine') return biome[i] === 5 ? vnoise(x / 18, y / 18, worldSeed + 61) * 5 : 0.25;
+  if (type === 'fishery' || type === 'seafoodPlant') return shoreAdjacent(x, y, w, h) ? 1 : 0.35;
+  return 1;
+}
+function industryEfficiency(type, x, y, d = BT[type]) {
+  let e = adjacentEfficiency(type, x, y, d.w, d.h) * (d.efficiencyBase || 1);
+  const site = {cx:x + d.w / 2, cy:y + d.h / 2};
+  if (type === 'loggingCamp') {
+    if (biome[y * MW + x] === 2) e *= 1.25;
+    if (nearType(site, 'orchard', 10)) e *= 1.2;
+    if (nearType(site, 'greenhouse', 10)) e *= 1.2;
+  }
+  return clamp(e, 0.1, 10);
+}
 function trackAdjacent(x, y, w, h) { return perimeter(x, y, w, h).some(i => trackOn[i]); }
 function hubAdjacent(x, y, w, h) {
   for (const i of perimeter(x, y, w, h)) {
@@ -236,18 +289,18 @@ function whyNot(type, x, y, ignoreRoad) {
   let wet = 0;
   for (let yy = y; yy < y + d.h; yy++) for (let xx = x; xx < x + d.w; xx++) {
     const i = yy * MW + xx;
-    if (tile[i] || bldAt[i] || trackOn[i]) return 'That spot is already taken.';
+    if (tile[i] || bldAt[i] || trackOn[i] || platform[i]) return 'That spot is already taken.';
     if (water[i]) { if (!d.water) return 'Buildings cannot sit on water.'; wet++; }
   }
   if (d.water && (wet === 0 || wet === d.w * d.h)) return 'A dock goes on the shoreline: part on land, part on water.';
   if (POWER_REQ[type] && !powerReqMet(type)) return 'Needs ' + powerGap(type) + ' first.';
   if (d.shore && !shoreAdjacent(x, y, d.w, d.h)) return 'This one has to sit on a shoreline.';
   if (d.rock && biome[y * MW + x] !== 5) return 'That needs rocky ground.';
-  if (d.jungle && biome[y * MW + x] !== 2) return 'That needs jungle.';
+  if (d.logging && biome[y * MW + x] !== 2 && !nearType({cx:x + d.w / 2, cy:y + d.h / 2}, 'greenhouse', 10) && !nearType({cx:x + d.w / 2, cy:y + d.h / 2}, 'orchard', 10)) return 'Logging needs jungle, or an orchard/greenhouse within 10 tiles.';
   if (d.rig && !railyardNear(x, y, d.w, d.h)) return 'Oil and gas need a train yard within 5 blocks.';
   if (d.rail && !trackAdjacent(x, y, d.w, d.h)) return 'A train yard needs a freight track running alongside it.';
   if (d.hub && !hubAdjacent(x, y, d.w, d.h)) return 'A distribution terminal needs a port or freight track next to it.';
-  if (!ignoreRoad && needsRoad(type) && !roadAdjacent(x, y, d.w, d.h)) return 'It needs a street next to it.';
+  if (!ignoreRoad && worldSettings.placement !== 'lenientRoads' && needsRoad(type) && !roadAdjacent(x, y, d.w, d.h)) return 'It needs a street next to it.';
   return '';
 }
 function canPlace(type, x, y, ignoreRoad) { return whyNot(type, x, y, ignoreRoad) === ''; }
@@ -318,7 +371,8 @@ function perimeter(x, y, w, h) {
 function touchesStreet(type, x, y) { const d = BT[type]; return perimeter(x, y, d.w, d.h).some(i => tile[i] === 1); }
 function placeBuilding(type, x, y, seed) {
   const d = BT[type];
-  const b = {id: nextBid++, type, x, y, w: d.w, h: d.h, seed: seed ?? (Math.random() * 1e9 | 0),
+  if (d.platform) throw new Error('Platform tiles are stored in the terrain layer, not as buildings.');
+  const b = {id: nextBid++, type, x, y, w: d.w, h: d.h, seed: seed ?? (Math.random() * 1e9 | 0), inventory: type === 'warehouse' ? Object.create(null) : undefined, efficiency: d.efficiencyBase ? industryEfficiency(type, x, y, d) : undefined,
     cars: 0, people: 0, residents: 0, workers: 0, asleep: 0, mood: 0.75,
     moodJob: 0.7, moodTransport: 0.7, moodOverall: 0.7, moodRepro: 0.55, road: -1, walk: -1, ws: 0, queue: [], spawnCd: 0, art: null,
     cx: x + d.w / 2, cy: y + d.h / 2};
@@ -329,7 +383,7 @@ function placeBuilding(type, x, y, seed) {
 }
 function computeAccess(b) {
   const per = perimeter(b.x, b.y, b.w, b.h);
-  if (!(b.road >= 0 && tile[b.road] === 1 && !overpass[b.road] && per.includes(b.road))) b.road = per.find(i => tile[i] === 1 && !overpass[i]) ?? -1;
+  b.road = per.find(i => tile[i] === 1 && !overpass[i]) ?? -1;
   if (b.type === 'park' || b.type === 'metro') b.walk = b.y * MW + b.x;
   else b.walk = per.find(i => isWalk(i)) ?? -1;
   let ws = 0;
@@ -470,7 +524,7 @@ function mapChanged() {
 }
 // Attribute merging: five like buildings that touch each other need only one
 // road between them; farms and orchards merge in twenties.
-const mergeLimit = type => (type === 'farm' || type === 'orchard' || type === 'farmhouse' || type === 'greenhouse') ? 20 : 5;
+const mergeLimit = type => (type === 'farm' || type === 'orchard' || type === 'farmhouse' || type === 'greenhouse') ? 30 : 5;
 function mergeAccess() {
   const seen = new Set();
   for (const b of buildings.values()) b.roadShared = false;
@@ -490,9 +544,26 @@ function mergeAccess() {
         queue.push(o);
       }
     }
-    if (cluster.length < mergeLimit(start.type)) continue;
-    const donor = start;   // every building in the cluster can use its road
-    for (const o of cluster) if (o.road < 0) { o.road = donor.road; o.roadShared = true; }
+  const threshold = mergeLimit(start.type);
+  if (cluster.length < threshold) continue;
+  const roads = [...new Set(cluster.map(o => o.road).filter(i => i >= 0))];
+  const donor = roads[0] ?? -1;
+  // Clusters of ordinary homes/shops may share one frontage; dense workplaces
+  // such as high-rises need additional driveways and nearby parking to maintain
+  // service. Rural plots scale up to thirty connected parcels.
+  const demand = cluster.reduce((sum, b) => sum + BT[b.type].homes + BT[b.type].jobs, 0);
+  const needed = threshold === 30 ? 1 : Math.max(1, Math.ceil(cluster.length / 5), Math.ceil(demand / 120));
+  let parkingOK = true;
+  if (start.type === 'tower' || start.type === 'hq' || start.type === 'apartment' || start.type === 'mall') {
+    const parkedCapacity = cluster.reduce((sum, b) => sum + BT[b.type].cap, 0);
+    const extraLots = [...buildings.values()].filter(b => BT[b.type].cat === 'lot' && cluster.some(o => distB(o, b) <= 8)).reduce((sum, b) => sum + BT[b.type].cap, 0);
+    parkingOK = parkedCapacity + extraLots >= cluster.reduce((sum, b) => sum + Math.ceil((BT[b.type].homes + BT[b.type].jobs) * 0.25), 0);
+  }
+  for (const o of cluster) {
+    o.roadShared = false;
+    if (roads.includes(o.road)) continue;
+    if (parkingOK && roads.length >= needed && donor >= 0) { o.road = donor; o.roadShared = true; }
+  }
   }
 }
 function removeBuilding(b) {

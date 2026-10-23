@@ -3,6 +3,7 @@
 // =====================================================================
 let gameActive = false;
 let setupMode = 'sandbox', setupMapType = 'pregenerated', setupReturn = 'current';
+let setupDifficulty = 'normal', setupPlacement = 'requireEverything';
 let worldListReturn = 'start', helpFromStart = false;
 
 const startScreenEl = document.getElementById('startScreen');
@@ -15,7 +16,7 @@ function updateStartScreen() {
   const recent = worldSlots.slice().sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 3);
   const current = worldSlots.find(slot => slot.id === activeWorldId) || recent[0];
   continueWorldBtn.classList.toggle('hidden', !current);
-  continueWorldBtn.textContent = current ? `Continue · ${current.name}` : 'Continue';
+  continueWorldBtn.replaceChildren(document.createTextNode(current ? `Continue · ${current.name} ` : 'Continue '));
   const continueArrow = document.createElement('span');
   continueArrow.setAttribute('aria-hidden', 'true');
   continueArrow.textContent = '→';
@@ -100,6 +101,11 @@ function openWorldSetup() {
   document.getElementById('worldName').value = '';
   document.getElementById('worldSeedInput').value = String(randomWorldSeed());
   document.getElementById('worldSetupError').textContent = '';
+  document.getElementById('setupSaveText').value = '';
+  document.getElementById('setupImportStatus').textContent = '';
+  setupDifficulty = 'normal'; setupPlacement = 'requireEverything';
+  document.getElementById('worldDifficulty').value = setupDifficulty;
+  document.getElementById('worldPlacement').value = setupPlacement;
   worldSetupEl.classList.remove('hidden');
   document.getElementById('worldName').focus();
 }
@@ -141,6 +147,7 @@ function createSelectedWorld() {
     return;
   }
   try {
+    worldSettings = {difficulty: setupDifficulty, placement: setupPlacement, taxSales: 0, taxIncome: 0};
     generateNewWorld(setupMapType, seed);
   } catch (e) {
     try { loadData(previousWorld); } catch (restoreError) { console.error('Could not restore the previous world.', restoreError); }
@@ -163,6 +170,62 @@ function createSelectedWorld() {
   startScreenEl.classList.add('hidden');
   menuEl.classList.add('hidden');
   document.body.classList.remove('menu-screen');
+}
+// A world opened from a .save file or a pasted code becomes a normal slot, so
+// later saves, autosaves and the world list all work the same way.
+function enterLoadedWorld() {
+  gameActive = true;
+  menuPreview.stop();
+  setSpeed(1);
+  worldSetupEl.classList.add('hidden');
+  worldListEl.classList.add('hidden');
+  startScreenEl.classList.add('hidden');
+  menuEl.classList.add('hidden');
+  document.body.classList.remove('menu-screen');
+}
+async function importWorldFromText(text, label) {
+  const statusEl = document.getElementById('setupImportStatus');
+  const trimmed = String(text || '').trim();
+  document.getElementById('worldSetupError').textContent = '';
+  if (!trimmed) { statusEl.textContent = 'Choose a .save file or paste a save code first.'; return false; }
+  if (worldSlots.length >= MAX_WORLD_SLOTS) {
+    statusEl.textContent = `You can keep up to ${MAX_WORLD_SLOTS} worlds. Delete one before importing another.`;
+    return false;
+  }
+  if (gameActive && !saveLocal(true)) {
+    statusEl.textContent = 'Your current world could not be saved. Free up browser storage before importing.';
+    return false;
+  }
+  let data;
+  try { data = await unpackText(trimmed); }
+  catch (e) { statusEl.textContent = e.message; return false; }
+  const previousWorld = serialize(), previousActiveId = activeWorldId;
+  try { loadData(data); }
+  catch (e) {
+    try { loadData(previousWorld); } catch (restoreError) { console.error('Could not restore the previous world.', restoreError); }
+    activeWorldId = previousActiveId;
+    statusEl.textContent = `Couldn't open that save: ${e.message}`;
+    return false;
+  }
+  const typed = document.getElementById('worldName').value.trim();
+  const fallback = String(label || '').replace(/\.(save|ptc|txt)$/i, '').trim().slice(0, 32) || 'Imported world';
+  const slot = createWorldSlot(typed || fallback, 'sandbox', 'imported');
+  if (!slot) {
+    try { loadData(previousWorld); } catch (restoreError) { console.error('Could not restore the previous world.', restoreError); }
+    activeWorldId = previousActiveId;
+    statusEl.textContent = 'That save loaded, but it could not be added to your world list.';
+    return false;
+  }
+  statusEl.textContent = '';
+  enterLoadedWorld();
+  return true;
+}
+async function importWorldFromFile(file) {
+  const statusEl = document.getElementById('setupImportStatus');
+  if (!file) return false;
+  if (file.size > 4e6) { statusEl.textContent = 'That file is too large to be a PixelCity save.'; return false; }
+  try { return await importWorldFromText(await file.text(), file.name); }
+  catch (e) { statusEl.textContent = e.message; return false; }
 }
 function openWorldList(from = 'start') {
   worldListReturn = from;
@@ -269,6 +332,8 @@ document.getElementById('startLoadWorld').onclick = () => openWorldList('start')
 document.getElementById('startHelp').onclick = showHelpFromStart;
 document.getElementById('setupBack').onclick = closeWorldSetup;
 document.getElementById('createWorldBtn').onclick = createSelectedWorld;
+document.getElementById('worldDifficulty').onchange = e => { setupDifficulty = DIFFICULTIES.includes(e.target.value) ? e.target.value : 'normal'; };
+document.getElementById('worldPlacement').onchange = e => { setupPlacement = PLACEMENT_POLICIES.includes(e.target.value) ? e.target.value : 'requireEverything'; };
 document.getElementById('randomWorldSeed').onclick = () => {
   document.getElementById('worldSeedInput').value = String(randomWorldSeed());
 };
@@ -281,6 +346,12 @@ document.querySelectorAll('[data-map-choice]').forEach(button => button.onclick 
   setupMapType = button.dataset.mapChoice;
   selectWorldSetupChoice();
 });
+document.getElementById('setupPasteOpen').onclick = () => importWorldFromText(document.getElementById('setupSaveText').value, '');
+document.getElementById('setupSaveFile').onchange = async e => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (file) await importWorldFromFile(file);
+};
 document.getElementById('worldListBack').onclick = closeWorldList;
 document.getElementById('worldListNew').onclick = openWorldSetup;
 document.getElementById('worldListSave').onclick = () => {

@@ -201,11 +201,13 @@ function rle(a) { let s = '', i = 0; while (i < a.length) { const v = a[i]; let 
 function diffEnc(arr, gen, skip) { let s = '', last = 0; for (let i = 0; i < N; i++) { if (skip && skip(i)) continue; if (arr[i] !== gen[i]) { s += (i - last).toString(36) + ':' + arr[i] + ','; last = i; } } return s; }
 function serialize() {
   const gw = new Uint8Array(N), gt = new Uint8Array(N); genTerrainInto(worldSeed, gw, gt);
-  return {v: 5, seed: worldSeed, t: Math.round(gameMin),
-    tile: rle(tile), oneway: rle(oneway), overpass: rle(overpass), walkway: rle(walkway), rail: rle(railOn), track: rle(trackOn),
+  const savedBuildings = [...buildings.values()];
+  return {v: 5, seed: worldSeed, t: Math.round(gameMin), settings: {...worldSettings}, tax: {sales: worldSettings.taxSales || 0, income: worldSettings.taxIncome || 0}, resources: {...resources},
+    tile: rle(tile), platform: rle(platform), oneway: rle(oneway), overpass: rle(overpass), walkway: rle(walkway), rail: rle(railOn), track: rle(trackOn),
     water: diffEnc(water, gw), tree: diffEnc(tree, gt, i => tile[i] || bldAt[i]),
     lights: [...lights].map(([i, L]) => [i, L.ns, L.ew, Math.round(L.off)]),
-    b: [...buildings.values()].map(b => [b.type, b.x, b.y, b.seed >>> 0]),
+    b: savedBuildings.map(b => [b.type, b.x, b.y, b.seed >>> 0]),
+    state: savedBuildings.map((b, i) => [i, Number.isFinite(b.stock) ? b.stock : null, b.inventory || null, b.byproducts || null, b.policy || null]),
     districts: [...districts.values()].map(d => [d.id, d.name, d.color]),
     dlayer: rle(districtLayer),
     wx: [WEATHER.kind, Math.round(WEATHER.until)],
@@ -242,23 +244,61 @@ function loadData(d) {
   if (!isInt(d.seed, 0, 1e9)) throw new Error(BAD);
   for (const k of ['tile', 'oneway', 'overpass', 'walkway', 'water', 'tree']) if (typeof d[k] !== 'string' || d[k].length > 5e6) throw new Error(BAD);
   if (!Array.isArray(d.b) || d.b.length > 40000 || !Array.isArray(d.lights) || d.lights.length > 40000) throw new Error(BAD);
+  if (d.state !== undefined && (!Array.isArray(d.state) || d.state.length > d.b.length)) throw new Error(BAD);
+  if (d.resources !== undefined && (!d.resources || typeof d.resources !== 'object' || Array.isArray(d.resources) || Object.values(d.resources).some(v => !Number.isFinite(v) || v < 0 || v > 1e12))) throw new Error(BAD);
   // rail and track were added after the first v5 saves, so they may be missing:
   // an old region simply has no tunnels or tracks until you draw some
   if (d.rail !== undefined && (typeof d.rail !== 'string' || d.rail.length > 5e6)) throw new Error(BAD);
   if (d.track !== undefined && (typeof d.track !== 'string' || d.track.length > 5e6)) throw new Error(BAD);
-  const nt = new Uint8Array(N), no = new Uint8Array(N), nov = new Uint8Array(N), nw = new Uint8Array(N), nwa = new Uint8Array(N), ntr = new Uint8Array(N), nra = new Uint8Array(N), ntk = new Uint8Array(N);
-  unrleInto(d.tile, nt, 4); unrleInto(d.oneway, no, 4); unrleInto(d.overpass, nov, 1); unrleInto(d.walkway, nw, 1);
+  const nt = new Uint8Array(N), npl = new Uint8Array(N), no = new Uint8Array(N), nov = new Uint8Array(N), nw = new Uint8Array(N), nwa = new Uint8Array(N), ntr = new Uint8Array(N), nra = new Uint8Array(N), ntk = new Uint8Array(N);
+  unrleInto(d.tile, nt, 4);
+  if (d.platform !== undefined && typeof d.platform !== 'string') throw new Error(BAD);
+  if (typeof d.platform === 'string') unrleInto(d.platform, npl, 3);
+  unrleInto(d.oneway, no, 4); unrleInto(d.overpass, nov, 1); unrleInto(d.walkway, nw, 1);
   if (typeof d.rail === 'string') unrleInto(d.rail, nra, 1);
   if (typeof d.track === 'string') unrleInto(d.track, ntk, 1);
-  genTerrainInto(d.seed, nwa, ntr); applyDiff(d.water, nwa, 1); applyDiff(d.tree, ntr, 4);
+  genTerrainInto(d.seed, nwa, ntr); applyDiff(d.water, nwa, 1); applyDiff(d.tree, ntr, 8);
   for (const e of d.b) if (!Array.isArray(e) || !hasType(e[0]) || !isInt(e[1], 0, MW - 1) || !isInt(e[2], 0, MH - 1) || !isInt(e[3], 0, 4294967295)) throw new Error(BAD);
   for (const e of d.lights) if (!Array.isArray(e) || !isInt(e[0], 0, N - 1) || !isInt(e[1], 3, 25) || !isInt(e[2], 3, 25) || !isInt(e[3], 0, 60)) throw new Error(BAD);
   // the save is valid: replace the region
   clearWorld();
   worldSeed = d.seed;
-  tile.set(nt); oneway.set(no); overpass.set(nov); walkway.set(nw); water.set(nwa); tree.set(ntr); railOn.set(nra); trackOn.set(ntk);
-  for (let i = 0; i < N; i++) if (tile[i]) tree[i] = 0;
-  for (const [type, x, y, seed] of d.b) if (canPlace(type, x, y) || canPlaceLoose(type, x, y)) placeBuilding(type, x, y, seed);
+  tile.set(nt); platform.set(npl); oneway.set(no); overpass.set(nov); walkway.set(nw); water.set(nwa); tree.set(ntr); railOn.set(nra); trackOn.set(ntk);
+  for (let i = 0; i < N; i++) if (tile[i] || water[i] || platform[i]) tree[i] = 0;
+  const restoredBuildings = [];
+  for (const [type, x, y, seed] of d.b) restoredBuildings.push(canPlace(type, x, y) || canPlaceLoose(type, x, y) ? placeBuilding(type, x, y, seed) : null);
+  if (Array.isArray(d.state)) for (const entry of d.state) {
+    if (!Array.isArray(entry) || !isInt(entry[0], 0, d.b.length - 1) || entry.length !== 5) throw new Error(BAD);
+    const b = restoredBuildings[entry[0]];
+    if (!b) continue;
+    const [, stock, inventory, byproducts, policy] = entry;
+    if (stock !== null && (!Number.isFinite(stock) || stock < 0 || stock > 1e9)) throw new Error(BAD);
+    if (stock !== null) b.stock = stock;
+    if (inventory !== null) {
+      if (b.type !== 'warehouse' || !inventory || typeof inventory !== 'object' || Array.isArray(inventory)) throw new Error(BAD);
+      const clean = Object.create(null);
+      for (const [good, amount] of Object.entries(inventory)) {
+        if (!GOOD_KEYS.includes(good) || !Number.isFinite(amount) || amount < 0 || amount > WAREHOUSE_CAP) throw new Error(BAD);
+        clean[good] = amount;
+      }
+      if (Object.values(clean).reduce((sum, amount) => sum + amount, 0) > WAREHOUSE_CAP) throw new Error(BAD);
+      b.inventory = clean;
+    }
+    if (byproducts !== null) {
+      if (!producerOf(b) || !byproducts || typeof byproducts !== 'object' || Array.isArray(byproducts)) throw new Error(BAD);
+      const clean = Object.create(null);
+      for (const [good, amount] of Object.entries(byproducts)) {
+        if (!Object.hasOwn(producerOf(b).byproducts || {}, good) || !Number.isFinite(amount) || amount < 0 || amount > 100) throw new Error(BAD);
+        clean[good] = amount;
+      }
+      b.byproducts = clean;
+    }
+    if (policy !== null) {
+      if (b.type !== 'billboard' || !policy || !['driving', 'tax', 'environment', 'birth'].includes(policy.message) || !['positive', 'negative'].includes(policy.tone)) throw new Error(BAD);
+      b.policy = {message: policy.message, tone: policy.tone};
+    }
+  }
+  if (d.resources) for (const good of Object.keys(resources)) if (Number.isFinite(d.resources[good])) resources[good] = d.resources[good];
   for (const [i, ns, ew, off] of d.lights) lights.set(i, {ns, ew, off});
   if (typeof d.dlayer === 'string') {
     const nd = new Int32Array(N); unrleInto(d.dlayer, nd, 4);
@@ -270,6 +310,13 @@ function loadData(d) {
     nextDid = Math.max(nextDid, e[0] + 1);
   }
   if (Array.isArray(d.wx) && WEATHER_KINDS[d.wx[0]]) { WEATHER.kind = d.wx[0]; WEATHER.until = d.wx[1]; }
+  const settings = d.settings || {};
+  worldSettings = {
+    difficulty: DIFFICULTIES.includes(settings.difficulty) ? settings.difficulty : 'normal',
+    placement: PLACEMENT_POLICIES.includes(settings.placement) ? settings.placement : 'requireEverything',
+    taxSales: Number.isFinite(settings.taxSales) ? clamp(settings.taxSales, 0, 30) : Number.isFinite(d.tax?.sales) ? clamp(d.tax.sales, 0, 30) : 0,
+    taxIncome: Number.isFinite(settings.taxIncome) ? clamp(settings.taxIncome, 0, 50) : Number.isFinite(d.tax?.income) ? clamp(d.tax.income, 0, 50) : 0,
+  };
   gameMin = isInt(d.t, 0, 1e9) ? d.t : 6.5 * 60;
   finishWorld();
   if (Array.isArray(d.cam) && d.cam.length === 3 && d.cam.every(Number.isFinite) && ZOOMS.includes(d.cam[2])) { cam.x = d.cam[0]; cam.y = d.cam[1]; cam.z = d.cam[2]; }
@@ -380,7 +427,7 @@ function loadImportedWorld(data) {
 let dlCap = null;
 async function downloadSave() {
   const text = await packText(serialize());
-  const filename = `pixelcity-day${Math.floor(gameMin / 1440) + 1}.ptc`;
+  const filename = `pixelcity-day${Math.floor(gameMin / 1440) + 1}.save`;
   if (dlCap) {
     try { await dlCap.save({filename, data: text}); toast('Save file ready.'); } catch (e) { if (e && e.code !== 'cancelled' && e.code !== 'declined') toast('The download didn\'t start. Try again.'); }
     return;

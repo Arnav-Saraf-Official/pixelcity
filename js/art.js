@@ -48,6 +48,13 @@ function drawPlazaTile(c, x0, y0, i) {
 function drawTree(c, x0, y0, v) {
   TEX.draw(c, 'trees', 'tree', x0, y0, { v });
 }
+function drawPlatform(c, x0, y0, type) {
+  const colors = type === 1 ? ['#8f9297', '#b9bcc0'] : type === 2 ? ['#535b65', '#aab2bc'] : ['#70583b', '#9a7b50'];
+  c.fillStyle = colors[0]; c.fillRect(x0, y0, T, T);
+  for (let k = 0; k < T; k += 3) { c.fillStyle = colors[(k / 3) & 1]; c.fillRect(x0 + k, y0 + k % 2, 2, 2); }
+  c.fillStyle = type === 1 ? '#d6d9db' : type === 2 ? '#d4a849' : '#b09061';
+  c.fillRect(x0, y0, T, 1); c.fillRect(x0, y0, 1, T);
+}
 
 // ---------------------------------------------------------------------
 // Buildings
@@ -65,7 +72,7 @@ function wetMask(type, wet) {
 
 // Every building type has its own texture in buildings.texture; this table is
 // only for any future kind that has to borrow art until its sprite is drawn.
-const BUILDING_TEX = {};
+const BUILDING_TEX = {billboard: 'school'};   // placeholder art until its own sprite is drawn
 const buildingTex = type => BUILDING_TEX[type] || type;
 
 function drawBuilding(c, type, ox, oy, seed, wet) {

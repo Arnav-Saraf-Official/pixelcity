@@ -3,7 +3,7 @@
 // =====================================================================
 function newPerson(home) {
   return {id: nextAid++, home, job: 0, loc: home, carAt: home, lotFor: 0, state: 'idle',
-    stayUntil: 0, worked: -1, worker: Math.random() < 0.7, mood: 0.75, ideal: 0,
+    stayUntil: 0, worked: -1, worker: Math.random() < 0.7,    mood: worldSettings.difficulty === 'ideal' ? 1 : 0.75, ideal: 0,
     // bed and wake times follow a bell curve, so the city drifts off and wakes up gradually
     bed: clamp(22.4 + gauss() * 1.0, 20.2, 25.6), wake: clamp(6.5 + gauss() * 0.9, 4.4, 9.6),
     color: CARC[Math.floor(Math.random() * CARC.length)], shirt: SHIRT[Math.floor(Math.random() * SHIRT.length)],
@@ -26,7 +26,8 @@ function teleportHome(a) {
   if (a.state === 'idle') { if (a.loc === H.id) return; const L = B(a.loc); if (L) L.people--; }
   if (a.carAt !== H.id) { const C = B(a.carAt); if (C) C.cars--; a.carAt = H.id; H.cars++; }
   a.lotFor = 0; a.loc = H.id; a.state = 'idle'; a.car = null; a.ped = null; H.people++;
-  a.mood *= 0.7;
+  const sensitivity = {ideal: 0, easy: 0.35, normal: 0.7, hard: 1, insane: 1.5}[worldSettings.difficulty] ?? 0.7;
+  a.mood = worldSettings.difficulty === 'ideal' ? 1 : a.mood * (1 - 0.3 * sensitivity);
 }
 function arriveAgent(a, b, mode) {
   a.state = 'idle'; a.loc = b.id; a.car = null; a.ped = null; b.people++;
@@ -35,7 +36,8 @@ function arriveAgent(a, b, mode) {
   stats.modes.push(mode); if (stats.modes.length > 300) stats.modes.shift();
   // How people feel about traffic: a drive close to the free-flow time is a good drive.
   const score = mode === 'car' ? clamp(((a.ideal + 3) / dur - 0.5) / 0.4, 0, 1) : mode === 'walk' ? 0.88 : 0.82;
-  a.mood = a.mood * 0.7 + score * 0.3;
+  const sensitivity = {ideal: 0, easy: 0.35, normal: 0.7, hard: 1, insane: 1.5}[worldSettings.difficulty] ?? 0.7;
+  a.mood = a.mood * (1 - 0.3 * sensitivity) + score * (0.3 * sensitivity);
   if (b.id === a.home) a.stayUntil = 0;
   else if (b.id === a.job) a.stayUntil = gameMin + 450 + Math.random() * 90;
   else if (b.type === 'park') a.stayUntil = gameMin + 50 + Math.random() * 110;
@@ -525,10 +527,12 @@ function updateMoods() {
   const job = clamp(0.35 + 0.65 * filled, 0.05, 1);
   const transport = clamp(1 - stats.ti * 0.55 - (stats.wait || 0) * 0.08, 0.05, 1);
   const cover = Math.min(1, hospitalCount() / Math.max(1, pop / 260));
-  const overall = clamp(0.42 * job + 0.3 * transport + 0.28 * cover, 0.05, 1);
+  const overallBase = clamp(0.42 * job + 0.3 * transport + 0.28 * cover, 0.05, 1);
+  const overall = worldSettings.difficulty === 'ideal' ? 1 : overallBase;
   const repro = clamp(0.25 + 0.6 * overall + 0.15 * cover, 0.05, 1);
-  // eased, never snapped: moods should drift, and a later layer can nudge them
-  const ease = 0.22;
+  // Ideal makes residents reliably happy; other tiers react at increasing rates.
+  const ease = {ideal: 1, easy: 0.1, normal: 0.22, hard: 0.38, insane: 0.58}[worldSettings.difficulty] ?? 0.22;
+  if (worldSettings.difficulty === 'ideal') for (const a of agents) a.mood = 1;
   cityMood.job += (job - cityMood.job) * ease;
   cityMood.transport += (transport - cityMood.transport) * ease;
   cityMood.overall += (overall - cityMood.overall) * ease;
@@ -549,32 +553,10 @@ function birthFactor() {
   return clamp(0.15 + 0.85 * cityMood.repro * (0.4 + 0.6 * cover), 0, 1.4);
 }
 function hourTick() {
-  let changed = null;
-  for (const b of buildings.values()) {
-    const d = BT[b.type];
-    if (!d.res) continue;
-    const i = b.y * MW + b.x;
-    if (d.res === 'oil') resources.oil += 2 + Math.round(Math.min(3, oilField[i] || 0) * 14);
-    else if (d.res === 'gas') resources.gas += 2 + Math.round(Math.min(3, gasField[i] || 0) * 12);
-    else if (d.res === 'timber') {
-      resources.timber += 3;
-      // a camp thins the jungle around it, unless greenhouses keep replanting
-      if (nearType(b, 'greenhouse', 9)) continue;
-      for (let k = 0; k < 14; k++) {
-        const x = Math.round(b.cx + (Math.random() - 0.5) * 22), y = Math.round(b.cy + (Math.random() - 0.5) * 22);
-        if (!inb(x, y)) continue;
-        const t = y * MW + x;
-        if (tree[t] && !bldAt[t]) { tree[t] = 0; changed = changed || [x, y, x, y]; }
-      }
-    }
-  }
-  for (const b of buildings.values()) {
-    if (b.type === 'quarry') resources.stone += 4;
-    if (b.type === 'mine') resources.stone += 6;
-  }
+  // Production is accounted for by producer stock and item-specific storage;
+  // it changes numbers, not art, so no tiles need redrawing here.
   updateMoods();
   if (typeof logisticsHour === 'function') logisticsHour();
-  if (changed) markDirty(changed[0], changed[1], changed[2] + 22, changed[3] + 22);
 }
 function minuteTick() {
   const h = (gameMin / 60) % 24, day = Math.floor(gameMin / 1440);

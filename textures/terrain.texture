@@ -1,0 +1,18 @@
+{
+  "format": "texture/1",
+  "name": "terrain",
+  "tile": 9,
+  "textures": {
+    "snow_grass": {
+      "size": [9, 9],
+      "params": { "seed": 0 },
+      "ops": [
+        { "op": "repeat", "as": "k", "times": 9, "ops": [
+          { "op": "pixel", "x": ["mod", ["+", ["*", ["var", "k"], 5], ["mod", ["param", "seed"], 7]], 9],
+            "y": ["mod", ["+", ["*", ["var", "k"], 7], ["floor", ["/", ["param", "seed"], 11]]], 9],
+            "color": ["if", ["==", ["mod", ["var", "k"], 3], 0], "#ffffff48", "#b9d8f530"] }
+        ] }
+      ]
+    }
+  }
+}

@@ -18,8 +18,10 @@ button{cursor:pointer}
 button:hover{border-color:#4a5779;background:#26304a}
 button.primary{border-color:#7a6a2a;background:#2e2a16;color:var(--hi)}
 button.danger:hover{border-color:#7a3040;background:#33171d;color:var(--bad)}
+button.on{border-color:var(--hi);background:#3c3520;color:var(--hi)}
 input:focus,select:focus,textarea:focus{outline:1px solid var(--acc);outline-offset:0}
 input.invalid{border-color:#7a3040;background:#2a1418}
+.hidden{display:none!important}
 h1,h2,h3{margin:0;font-weight:600;letter-spacing:.02em}
 h1{font-size:15px}
 h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim)}
@@ -27,28 +29,38 @@ h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim)
 small{color:var(--dim)}
 code{font-size:11px;color:var(--acc);background:#101624;padding:1px 4px;border-radius:2px}
 
-header{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line);background:#101521;flex:0 0 auto;flex-wrap:wrap}
+header{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);background:#101521;flex:0 0 auto;flex-wrap:wrap}
 header .grow{flex:1}
 header .title{display:flex;align-items:baseline;gap:8px}
 header .title b{color:var(--hi);font-size:16px;letter-spacing:.04em}
 header .title span{color:var(--dim)}
-header select{min-width:150px}
+header select{min-width:140px}
 
-#app{flex:1;display:grid;grid-template-columns:230px minmax(280px,1fr) minmax(360px,480px);min-height:0}
+#app{flex:1;display:grid;grid-template-columns:230px minmax(280px,1fr) minmax(380px,500px);min-height:0}
 .pane{min-height:0;overflow:auto;padding:10px 12px;border-right:1px solid var(--line)}
 .pane:last-child{border-right:0}
 #library{background:#111624}
 #stage{display:flex;flex-direction:column}
-#inspector{background:#111624}
+#inspector{background:#111624;display:flex;flex-direction:column}
 
 .list{display:flex;flex-direction:column;gap:2px;margin-bottom:8px}
+.list .item{display:flex;align-items:center;gap:2px}
+.list .item>button:first-child{flex:1}
 .list button{text-align:left;background:transparent;border:1px solid transparent;padding:3px 6px;display:flex;justify-content:space-between;gap:6px}
 .list button:hover{background:#1a2133;border-color:#2a3450}
 .list button.on{background:#25203a;border-color:#6c5a2a;color:var(--hi)}
 .list button .meta{color:var(--dim);font-size:10px}
+.list .kill{border:1px solid transparent;color:var(--dim);padding:2px 5px}
+.list .kill:hover{color:var(--bad);border-color:#7a3040;background:#33171d}
 .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .row .grow{flex:1}
 .spacer{flex:1}
+
+.tabs{display:flex;gap:2px;margin-bottom:8px;position:sticky;top:0;background:#111624;padding-bottom:4px;z-index:2;flex:0 0 auto}
+.tabs button{flex:1;border-radius:0;border-color:transparent;border-bottom:1px solid var(--line);background:transparent;color:var(--dim);text-transform:uppercase;font-size:11px;letter-spacing:.06em;padding:5px 4px}
+.tabs button:hover{color:var(--txt);background:#1a2133}
+.tabs button.on{color:var(--hi);border-bottom-color:var(--hi);background:#1b2033}
+.tabpane{min-height:0;overflow:auto;padding-bottom:20px}
 
 #stageTitle{font-size:13px;text-transform:none;letter-spacing:0;color:var(--txt)}
 #canvasWrap{
@@ -57,19 +69,19 @@ header select{min-width:150px}
     linear-gradient(45deg,#151b29 25%,transparent 25%,transparent 75%,#151b29 75%),
     linear-gradient(45deg,#151b29 25%,transparent 25%,transparent 75%,#151b29 75%);
   background-size:16px 16px;background-position:0 0,8px 8px;
-  border:1px solid var(--line);margin-top:8px;min-height:160px;overflow:auto
+  border:1px solid var(--line);margin-top:8px;min-height:160px;max-height:46vh;overflow:auto
 }
 #preview{image-rendering:pixelated;display:block;background:transparent}
 #errors{display:flex;flex-direction:column;gap:4px;margin-top:8px}
 .err{color:#ffb3b3;background:#2a1418;border:1px solid #7a3040;padding:4px 7px;border-radius:2px;white-space:pre-wrap;font-size:11px}
 .ok{color:var(--good);font-size:11px}
-#paramForm,#texSettings,#opEditor{display:flex;flex-direction:column;gap:6px}
+#paramForm,#texSettings{display:flex;flex-direction:column;gap:6px}
 .field{display:grid;grid-template-columns:96px 1fr;gap:8px;align-items:center}
 .field>label{color:var(--dim);font-size:11px;text-align:right;overflow:hidden;text-overflow:ellipsis}
 .field input[type=text],.field input[type=number],.field select{width:100%}
 .field .hint{grid-column:2;color:var(--dim);font-size:10px}
 
-.settings{border:1px solid var(--line);background:var(--panel);padding:8px;display:flex;flex-direction:column;gap:6px}
+.settings{border:1px solid var(--line);background:var(--panel);padding:8px;display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
 .settings h2{margin-bottom:2px}
 
 .ops{display:flex;flex-direction:column;gap:5px}
@@ -85,12 +97,35 @@ header select{min-width:150px}
 .addop select{flex:1;min-width:0}
 .pairs{display:flex;flex-direction:column;gap:3px}
 .pairs .pair{display:grid;grid-template-columns:110px 1fr auto;gap:4px}
-.pngbox{display:flex;flex-direction:column;gap:3px}
+.pngbox{display:flex;flex-direction:column;gap:4px}
 .pngbox .thumb{width:44px;height:44px;image-rendering:pixelated;border:1px solid var(--edge);background:#0b0f18;object-fit:contain}
 .pngbox .row{gap:4px}
 
 #markList{display:flex;flex-wrap:wrap;gap:8px;color:var(--dim);font-size:11px}
 #markList b{color:var(--txt);font-weight:500}
+
+/* Pixel editor */
+.edTools{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);background:var(--panel);padding:7px;margin-bottom:8px}
+.toolgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:3px}
+.toolgrid button{padding:4px 2px;font-size:11px}
+.toolgrid button.on{border-color:var(--hi);background:#3c3520;color:var(--hi)}
+.colorRow{display:flex;gap:8px;align-items:center}
+.colorRow input[type=color]{width:38px;height:28px;padding:0;border:1px solid var(--edge);background:none;cursor:pointer}
+.colorRow input[type=range]{flex:1;accent-color:var(--hi);min-width:80px}
+#edSwatch{width:38px;height:28px;border:1px solid var(--edge);
+  background-image:linear-gradient(45deg,#2a3348 25%,transparent 25%,transparent 75%,#2a3348 75%),linear-gradient(45deg,#2a3348 25%,transparent 25%,transparent 75%,#2a3348 75%);
+  background-size:8px 8px;background-position:0 0,4px 4px;position:relative}
+#edSwatch i{position:absolute;inset:0;display:block}
+#edHex{width:96px}
+.recent{display:flex;flex-wrap:wrap;gap:3px}
+.recent button{width:18px;height:18px;padding:0;border:1px solid var(--edge)}
+.editorWrap{display:flex;align-items:center;justify-content:center;padding:10px;border:1px solid var(--line);overflow:auto;max-height:46vh;
+  background:
+    linear-gradient(45deg,#151b29 25%,transparent 25%,transparent 75%,#151b29 75%),
+    linear-gradient(45deg,#151b29 25%,transparent 25%,transparent 75%,#151b29 75%);
+  background-size:16px 16px;background-position:0 0,8px 8px}
+#pixelCanvas{image-rendering:pixelated;display:block;cursor:crosshair;touch-action:none}
+.hintline{color:var(--dim);font-size:10px;margin-top:6px}
 
 footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;border-top:1px solid var(--line);background:#101521}
 #status{color:var(--dim);font-size:11px}
@@ -101,12 +136,13 @@ footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;bo
 .help b{color:var(--txt);font-weight:500}
 
 @media (max-width:1100px){
-  #app{grid-template-columns:200px minmax(240px,1fr) minmax(320px,420px)}
+  #app{grid-template-columns:200px minmax(240px,1fr) minmax(340px,440px)}
 }
 @media (max-width:900px){
   body{overflow:auto}
   #app{display:flex;flex-direction:column;height:auto}
   .pane{border-right:0;border-bottom:1px solid var(--line);max-height:none}
+  #canvasWrap,#editorWrap{max-height:none}
 }
 </style>
 </head>
@@ -117,7 +153,7 @@ footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;bo
   <span class="grow"></span>
   <label class="row">Family <select id="familySelect"></select></label>
   <button id="newFamily">New family</button>
-  <button id="newSprite">Sprite from PNG…</button>
+  <button id="bakeAll" title="Replace every embedded PNG op with optimized rect ops">PNG → ops</button>
   <button id="importBtn">Import .texture…</button>
   <button id="download" class="primary">Download .texture</button>
   <button id="copy">Copy</button>
@@ -127,29 +163,27 @@ footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;bo
 
 <div id="app">
   <aside class="pane" id="library">
-    <h2>Textures</h2>
+    <h2>Sprites</h2>
     <div id="textureList" class="list"></div>
     <form id="addTexForm" class="row">
-      <input id="addTexName" class="grow" placeholder="new_texture" spellcheck="false">
+      <input id="addTexName" class="grow" placeholder="new_sprite" spellcheck="false">
       <button type="submit">Add</button>
     </form>
-
-    <h3>Family</h3>
-    <div id="familySettings" class="settings"></div>
-
-    <h3>Defs</h3>
-    <div id="defsEditor" class="pairs"></div>
-    <div class="addop"><button id="addDef">Add def</button></div>
-
+    <div class="row" style="margin-top:6px">
+      <button id="newBlankSprite" class="grow">Blank sprite</button>
+      <button id="newSprite" class="grow">From PNG…</button>
+    </div>
     <p class="help">A <b>family</b> is one <code>.texture</code> file. Put it in
       <code>textures/</code> and run <code>npm run textures</code>.</p>
+    <p class="help">PNGs are converted to compact <code>rect</code> ops, so a
+      sprite stays editable and needs no image file.</p>
   </aside>
 
   <section class="pane" id="stage">
     <div class="row">
       <h2 id="stageTitle">—</h2>
       <span class="spacer"></span>
-      <label class="row">zoom <input id="zoom" type="range" min="1" max="16" value="5" style="width:90px"></label>
+      <label class="row">zoom <input id="zoom" type="range" min="1" max="16" value="5" style="width:80px"></label>
       <label class="row"><input id="showGrid" type="checkbox" checked> grid</label>
       <label class="row"><input id="showMarks" type="checkbox" checked> marks</label>
     </div>
@@ -167,13 +201,86 @@ footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;bo
   </section>
 
   <section class="pane" id="inspector">
-    <div id="texSettings"></div>
-    <h3>Ops</h3>
-    <div id="opEditor"></div>
-    <p class="help">Values are JSON: a number, <code>"#rrggbbaa"</code>, a list,
-      or an expression such as <code>["+", ["param","x"], 1]</code>.
-      Fields named <code>as</code>, <code>texture</code>, <code>file</code> and
-      <code>fn</code> are plain strings.</p>
+    <div class="tabs" id="tabs">
+      <button data-tab="sprite" class="on">Sprite</button>
+      <button data-tab="pixels">Pixels</button>
+      <button data-tab="ops">Ops</button>
+      <button data-tab="family">Family</button>
+    </div>
+
+    <div class="tabpane" id="tab-sprite">
+      <div id="texSettings"></div>
+    </div>
+
+    <div class="tabpane hidden" id="tab-pixels">
+      <div class="edTools">
+        <div class="row">
+          <span style="color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.08em">Tools</span>
+          <span class="spacer"></span>
+          <button id="edUndo" title="Undo (Ctrl+Z)">↶</button>
+          <button id="edRedo" title="Redo (Ctrl+Y)">↷</button>
+        </div>
+        <div class="toolgrid" id="edTools">
+          <button data-tool="pencil" class="on" title="Pencil (B)">Pencil</button>
+          <button data-tool="eraser" title="Eraser (E)">Eraser</button>
+          <button data-tool="dither" title="Dither: paints a 50% checker (D)">Dither</button>
+          <button data-tool="fill" title="Fill (G)">Fill</button>
+          <button data-tool="line" title="Line (L)">Line</button>
+          <button data-tool="rect" title="Filled box (R)">Box</button>
+          <button data-tool="frame" title="Outline box (F)">Frame</button>
+          <button data-tool="pick" title="Pick a colour (I)">Pick</button>
+        </div>
+        <div class="colorRow">
+          <input type="color" id="edColor" value="#ffffff" aria-label="Colour">
+          <div id="edSwatch" title="Current colour"><i></i></div>
+          <input id="edHex" type="text" spellcheck="false" aria-label="Hex colour" value="#ffffff">
+        </div>
+        <div class="colorRow">
+          <span style="color:var(--dim);font-size:10px">ALPHA</span>
+          <input type="range" id="edAlpha" min="0" max="255" value="255" aria-label="Alpha">
+          <span id="edAlphaValue" style="color:var(--dim);min-width:26px;text-align:right">255</span>
+        </div>
+        <div class="row">
+          <span style="color:var(--dim);font-size:10px">SIZE</span>
+          <input type="range" id="edSize" min="1" max="8" value="1" style="width:70px" aria-label="Brush size">
+          <span id="edSizeValue" style="color:var(--dim)">1</span>
+          <span class="spacer"></span>
+          <button id="edAddSwatch" title="Remember this colour">+ colour</button>
+        </div>
+        <div class="recent" id="edRecent"></div>
+      </div>
+
+      <div class="row" style="margin-bottom:6px">
+        <button id="edLoad" class="grow">Load sprite</button>
+        <button id="edClear">Clear</button>
+        <button id="edApply" class="primary grow">Apply to sprite</button>
+      </div>
+      <div class="editorWrap"><canvas id="pixelCanvas" width="90" height="90"></canvas></div>
+      <div class="row" style="margin-top:6px">
+        <label class="row">W <input id="edW" type="number" min="1" max="256" value="9" style="width:56px"></label>
+        <label class="row">H <input id="edH" type="number" min="1" max="256" value="9" style="width:56px"></label>
+        <button id="edResize">Resize</button>
+        <span class="spacer"></span>
+        <label class="row">zoom <input id="edZoom" type="range" min="1" max="24" value="8" style="width:70px" aria-label="Editor zoom"></label>
+      </div>
+      <p class="hintline">Right-click paints transparent. Applying replaces this
+        sprite's ops with optimized rects in the current colour palette.</p>
+    </div>
+
+    <div class="tabpane hidden" id="tab-ops">
+      <div id="opEditor"></div>
+      <p class="help">Values are JSON: a number, <code>"#rrggbbaa"</code>, a list,
+        or an expression such as <code>["+", ["param","x"], 1]</code>.
+        Fields named <code>as</code>, <code>texture</code>, <code>file</code> and
+        <code>fn</code> are plain strings.</p>
+    </div>
+
+    <div class="tabpane hidden" id="tab-family">
+      <div id="familySettings"></div>
+      <h3>Defs</h3>
+      <div id="defsEditor" class="pairs"></div>
+      <div class="addop"><button id="addDef">Add def</button></div>
+    </div>
   </section>
 </div>
 

@@ -14,21 +14,16 @@ function makeIcon(id) {
   const grass = () => { t.fillStyle = '#5a9e45'; t.fillRect(0, 0, aw, ah); };
   if (id.startsWith('b:')) {
     const ty = id.slice(2), d = BT[ty];
-    grass();
-    const wet = d.water ? (tx => tx === d.w - 1) : null;
-    if (wet) { t.fillStyle = '#2e6cb4'; t.fillRect((d.w - 1) * T, 0, T, ah); }
-    drawBuilding(t, ty, 0, 0, 4242, wet);
+    if (d.platform) { for (let y = 0; y < d.h; y++) for (let x = 0; x < d.w; x++) drawPlatform(t, x * T, y * T, d.platform); }
+    else {
+      grass();
+      const wet = d.water ? (tx => tx === d.w - 1) : null;
+      if (wet) { t.fillStyle = '#2e6cb4'; t.fillRect((d.w - 1) * T, 0, T, ah); }
+      drawBuilding(t, ty, 0, 0, 4242, wet);
+    }
   } else switch (id) {
     case 'rail': aw = ah = 9; drawRailTile(t, 0, 0, 15, 'junction'); break;
-    case 'unrail': aw = ah = 9; drawRailTile(t, 0, 0, 5, 'rail');
-      t.fillStyle = '#ff5050';
-      for (let k = 1; k < 8; k++) { t.fillRect(k, k, 1, 1); t.fillRect(8 - k, k, 1, 1); }
-      break;
     case 'track': aw = ah = 9; grass(); drawTrackTile(t, 0, 0, 10, false); break;
-    case 'untrack': aw = ah = 9; grass(); drawTrackTile(t, 0, 0, 10, false);
-      t.fillStyle = '#ff5050';
-      for (let k = 1; k < 8; k++) { t.fillRect(k, k, 1, 1); t.fillRect(8 - k, k, 1, 1); }
-      break;
     case 'road': grass(); drawRoadTile(t, 0, 0, 4, 0, 0, 0, 1, 0); drawRoadTile(t, 0, 9, 3, 0, 0, 0, 1, 0); drawRoadTile(t, 9, 9, 8, 0, 0, 0, 1, 0); break;
     case 'country': grass(); drawRoadTile(t, 0, 4, 10, 0, 0, 0, 0, 0); drawRoadTile(t, 9, 4, 10, 0, 0, 0, 0, 0); break;
     case 'sidewalk': grass(); drawRoadTile(t, 0, 4, 10, 0, 0, 0, 1, 0); drawRoadTile(t, 9, 4, 10, 0, 0, 0, 1, 0);
@@ -136,6 +131,16 @@ function openCat(cat) {
     b.onmouseenter = () => showTip(b, id); b.onmouseleave = hideTip;
     row.append(b);
   }
+  if (cat === 'world') {
+    const info = document.createElement('small'); info.className = 'field-hint';
+    info.textContent = 'Build islands from materials produced by quarries and mines; placing platforms consumes the materials.';
+    flyEl.append(info);
+  }
+  if (cat === 'world') {
+    const info = document.createElement('small'); info.className = 'field-hint';
+    info.textContent = 'Create islands using quarry and mine products; placing a platform consumes materials.';
+    flyEl.append(info);
+  }
   if (cat === 'districts') {
     const wrap = document.createElement('div');
     wrap.id = 'districtList';
@@ -153,16 +158,6 @@ function setTool(id) {
   if (id !== 'select') pasteMode = false;
   updateSelBar();
   const cat = TOOLS[id].cat;
-  // The rail and station tools edit what is under the city, so opening them
-  // shows the tunnels. Switching to an ordinary tool puts the surface back,
-  // unless the player had already switched the Underground layer on by hand.
-  if (id === 'rail' || id === 'unrail' || id === 'metro') {
-    if (!overlays.underground) { overlays.underground = true; railViewAuto = true; syncOverlayButtons(); }
-  } else if (railViewAuto) {
-    overlays.underground = false; railViewAuto = false; syncOverlayButtons();
-  }
-  // Surface track cannot be seen — or drawn — while the city is hidden.
-  if (id === 'track' && overlays.underground) { overlays.underground = false; railViewAuto = false; syncOverlayButtons(); }
   if (cat && cat !== curCat) openCat(cat);
   markTool();
   cv.style.cursor = id === 'inspect' ? 'pointer' : 'crosshair';
@@ -218,6 +213,17 @@ function updateHotspots() {
 document.querySelectorAll('#overlays button').forEach(b => b.onclick = () => toggleOverlay(b.dataset.o));
 const menuEl = document.getElementById('menu');
 document.getElementById('menuBtn').onclick = () => menuEl.classList.toggle('hidden');
+const taxDlg = document.getElementById('taxDlg');
+document.getElementById('taxBtn').onclick = () => {
+  document.getElementById('taxSales').value = worldSettings.taxSales || 0;
+  document.getElementById('taxIncome').value = worldSettings.taxIncome || 0;
+  document.getElementById('taxSalesValue').textContent = `${worldSettings.taxSales || 0}%`;
+  document.getElementById('taxIncomeValue').textContent = `${worldSettings.taxIncome || 0}%`;
+  taxDlg.classList.remove('hidden');
+};
+document.getElementById('taxClose').onclick = () => taxDlg.classList.add('hidden');
+document.getElementById('taxSales').oninput = e => { worldSettings.taxSales = +e.target.value; document.getElementById('taxSalesValue').textContent = `${e.target.value}%`; };
+document.getElementById('taxIncome').oninput = e => { worldSettings.taxIncome = +e.target.value; document.getElementById('taxIncomeValue').textContent = `${e.target.value}%`; };
 // The page can't use confirm() everywhere it runs, so it asks in its own dialog.
 let confirmFn = null;
 function askConfirm(msg, fn) { document.getElementById('confirmMsg').textContent = msg; confirmFn = fn; confirmEl.classList.remove('hidden'); document.getElementById('confirmNo').focus(); }
@@ -227,6 +233,7 @@ menuEl.querySelectorAll('button').forEach(b => b.onclick = () => {
   menuEl.classList.add('hidden');
   const m = b.dataset.m;
   if (m === 'save') openSaveDlg();
+  else if (m === 'file') downloadSave();
   else if (m === 'newWorld') openWorldSetup();
   else if (m === 'worlds') openWorldList('game');
   else if (m === 'start') returnToStartScreen();
@@ -287,6 +294,9 @@ function select(sel) {
     if (d.homes) html += row('Residents', 'ivRes') + row('Home right now', 'ivHome') + row('Asleep', 'ivSleep') + row('Happy with traffic', 'ivMood');
     if (d.jobs) html += row('Workers', 'ivJobs') + row('People inside', 'ivPeople');
     if (b.type === 'park') html += row('Visitors', 'ivPeople');
+    if (d.efficiencyBase) html += row('Industry efficiency', 'ivEfficiency');
+    if (b.type === 'billboard') html += `<label for="billboardPolicy">Policy advertisement</label><select id="billboardPolicy"><option value="driving">Driving</option><option value="tax">Tax</option><option value="environment">Environment</option><option value="birth">Birth rate</option></select><label for="billboardTone">Public response</label><select id="billboardTone"><option value="positive">Positive</option><option value="negative">Negative</option></select><p class="note">Policy effects on mood are a future system.</p>`;
+    if (b.type === 'warehouse') html += row('Mixed inventory', 'ivInventory');
     if (d.cap) html += row('Cars parked', 'ivCars') + `<div class="bar"><i id="ivBar"></i></div>`;
     if (b.type === 'metro') html += row('Riders nearby', 'ivRiders');
     if (b.type === 'airport') html += row('Planes in the air', 'ivPlanes');
@@ -326,6 +336,13 @@ function select(sel) {
     document.getElementById('iRmLight').onclick = () => { lights.delete(sel.i); select({kind: 'road', i: sel.i}); };
   }
   if (sel.kind === 'road') buildRoadButtons();
+  if (sel.kind === 'bld' && B(sel.id).type === 'billboard') {
+    const b = B(sel.id); b.policy ||= {message: 'driving', tone: 'positive'};
+    const msg = document.getElementById('billboardPolicy'), tone = document.getElementById('billboardTone');
+    msg.value = b.policy.message; tone.value = b.policy.tone;
+    msg.onchange = () => { b.policy.message = msg.value; };
+    tone.onchange = () => { b.policy.tone = tone.value; };
+  }
   updateInspector();
 }
 function buildRoadButtons() {
@@ -351,6 +368,7 @@ function heatLabel(h) { return h < 0.15 ? 'Free flowing' : h < 0.6 ? 'Light' : h
 const MOODWORD = {happy: 'happy', ok: 'okay', sad: 'annoyed', angry: 'furious'};
 function updateInspector() {
   if (!selection) return;
+  if (document.getElementById('taxDlg') && !document.getElementById('taxDlg').classList.contains('hidden')) return;
   const s = selection;
   if (s.kind === 'bld') {
     const b = B(s.id); if (!b) { select(null); return; }
@@ -373,6 +391,11 @@ function updateInspector() {
     if (b.type === 'dock') setT('ivBoats', boats.length);
     if (b.type === 'port') setT('ivShips', ships.length);
     setT('ivStock', Math.floor(b.stock || 0));
+    if (d.efficiencyBase) setT('ivEfficiency', `${Math.round((b.efficiency || industryEfficiency(b.type, b.x, b.y)) * 100)}%`);
+    if (b.type === 'warehouse') {
+      const items = Object.entries(b.inventory || {}).filter(([, n]) => n > 0).map(([good, n]) => `${GOOD_LABEL[good] || good.slice(0, 4).toUpperCase()} ${formatQuantity(n)}`);
+      setT('ivInventory', `${formatQuantity(warehouseTotal(b))}/${WAREHOUSE_CAP}${items.length ? ' · ' + items.join(' · ') : ''}`);
+    }
     const dist = districtAt(b.y * MW + b.x);
     setT('ivDistrict', dist ? dist.name : 'none');
     if (d.homes) {
@@ -413,6 +436,7 @@ function hud(dt) {
   if (overlays.heat && areaTimer > 0.5) { areaTimer = 0; computeArea(); }
   if (hudTimer < 0.25) return;
   hudTimer = 0;
+  updateMaterialHUD();
   const topB = document.getElementById('top').getBoundingClientRect().bottom + 10;
   document.getElementById('side').style.top = topB + 'px';
   if (innerWidth > 760) inspEl.style.top = topB + 'px';
@@ -458,6 +482,8 @@ function hud(dt) {
   setT('gSleep', sleep);
   setT('gMoodCity', `job ${Math.round(cityMood.job * 100)} · ride ${Math.round(cityMood.transport * 100)} · birth ${Math.round(cityMood.repro * 100)}`);
   setT('gIncidents', `${incidents.filter(i => i.state !== 'done').length} · ${units.filter(u => u.state !== 'idle').length} out`);
+  const sales = document.getElementById('taxSales'), income = document.getElementById('taxIncome');
+  if (sales && document.getElementById('taxDlg').classList.contains('hidden')) { sales.value = worldSettings.taxSales || 0; income.value = worldSettings.taxIncome || 0; }
   setT('gAir', `${planes.length} · ${boats.length}`);
   let buses = 0, riders = 0; for (const c of cars) if (c.bus) { buses++; riders += c.riders.length; }
   setT('gTransit', `${buses} · ${riders}`);

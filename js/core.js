@@ -14,11 +14,16 @@ const DISTRICTS = ['North-West', 'North', 'North-East', 'West', 'Downtown', 'Eas
 
 const tile = new Uint8Array(N);     // 0 grass, 1 street, 2 highway, 3 footpath, 4 plaza
 const water = new Uint8Array(N);
-const tree = new Uint8Array(N);     // 0 none, 1..4 variant
+const tree = new Uint8Array(N);     // 0 none, 1..8 canopy variants
+const platform = new Uint8Array(N); // player-built island surface: 1 concrete, 2 steel, 3 dirt
 const biome = new Uint8Array(N);    // 0 water, 1 plains, 2 jungle, 3 desert, 4 snow, 5 rock
 const oilField = new Float32Array(N);   // 0..1, x5-10 under rock
 const gasField = new Float32Array(N);   // 0..1, x5-10 under rock
-const resources = {oil: 0, gas: 0, timber: 0, stone: 0};
+const resources = {oil: 0, gas: 0, timber: 0, stone: 0, ore: 0, coal: 0, concrete: 0, steel: 0, produce: 0, fish: 0, goods: 0};
+const DIFFICULTIES = ['ideal', 'easy', 'normal', 'hard', 'insane'];
+const PLACEMENT_POLICIES = ['requireEverything', 'lenientRoads'];
+let worldSettings = {difficulty: 'normal', placement: 'requireEverything', taxSales: 0, taxIncome: 0};
+const RESOURCE_NAMES = {produce:'Food', fish:'Fish', stone:'Stone', ore:'Ore', timber:'Wood', oil:'Oil', gas:'Gas', coal:'Coal', concrete:'Concrete', steel:'Steel'};
 // Electricity scaffolding: plants, requirements and a grid that is measured but
 // deliberately not wired up yet. Nothing in the simulation draws from it.
 const power = {plants: [], capacity: 0, demand: 0, served: 0, enabled: false};
@@ -79,10 +84,10 @@ const BT = {
   office:   {name:'Office',         cat:'work', w:2,h:2,  homes:0,  cap:12, jobs:16, desc:'More workers than parking spaces.'},
   hq:       {name:'Skyscraper',     cat:'work', w:3,h:3,  homes:0,  cap:24, jobs:48, desc:'Tons of jobs, very little parking. Needs transit.'},
   factory:  {name:'Factory',        cat:'work', w:3,h:2,  homes:0,  cap:14, jobs:20, desc:'Industrial jobs with a loading yard.'},
-  warehouse:{name:'Warehouse',      cat:'work', w:3,h:2,  homes:0,  cap:8,  jobs:10, desc:'Logistics jobs with loading bays.'},
+  warehouse:{name:'Warehouse',      cat:'work', w:3,h:2,  homes:0,  cap:8,  jobs:10, storage:3000, desc:'Stores up to 3,000 units of mixed cargo. Trucks, freight trains and ships move goods between warehouses.'},
   dock:     {name:'Dock',           cat:'work', w:3,h:2,  homes:0,  cap:6,  jobs:12, water:true, label:'Waterfront', desc:'Place it on a shore so part of it sits on water. Boats come and go.'},
-  farm:     {name:'Crop Farm',      cat:'work', w:4,h:3,  homes:0,  cap:4,  jobs:6,  label:'Farm', desc:'Fields, a barn and a silo. Few jobs and very little traffic.'},
-  orchard:  {name:'Orchard',        cat:'work', w:3,h:3,  homes:0,  cap:3,  jobs:4,  label:'Farm', desc:'Rows of fruit trees.'},
+  farm:     {name:'Crop Farm',      cat:'work', w:4,h:3,  homes:0,  cap:4,  jobs:6,  efficiencyBase:1, label:'Farm', desc:'Fields, a barn and a silo. Few jobs and very little traffic.'},
+  orchard:  {name:'Orchard',        cat:'work', w:3,h:3,  homes:0,  cap:3,  jobs:4,  efficiencyBase:0.8, label:'Farm', desc:'Rows of fruit trees.'},
   school:   {name:'School',         cat:'civic',w:3,h:2,  homes:0,  cap:8,  jobs:14, desc:'Teachers drive in every morning.'},
   hospital: {name:'Hospital',       cat:'civic',w:3,h:3,  homes:0,  cap:16, jobs:30, desc:'Lots of staff and a helipad on the roof.'},
   airport:  {name:'Airport',        cat:'civic',w:10,h:5, homes:0,  cap:40, jobs:60, label:'Transport', desc:'Planes take off and land here and fly across the whole region.'},
@@ -91,15 +96,15 @@ const BT = {
   busstop:  {name:'Bus Stop',       cat:'ped',  w:1,h:1,  homes:0,  cap:0,  jobs:0,  desc:'Yellow buses pick up riders and carry them to other stops on the streets. One bus replaces up to 12 cars.'},
   parking:  {name:'Parking Lot',    cat:'lot',  w:2,h:2,  homes:0,  cap:12, jobs:0,  desc:'Overflow parking for anything within 8 tiles.'},
   garage:   {name:'Parking Garage', cat:'lot',  w:2,h:2,  homes:0,  cap:30, jobs:0,  desc:'Multi-level overflow parking.'},
-  fishery:  {name:'Fishery',        cat:'work', w:2,h:2,  homes:0,  cap:3,  jobs:8,  shore:true, label:'Coastal', desc:'Boats land their catch here. Must sit on a shoreline.'},
+  fishery:  {name:'Fishery',        cat:'work', w:2,h:2,  homes:0,  cap:3,  jobs:8,  shore:true, efficiencyBase:1, label:'Coastal', desc:'Boats land their catch here. Must sit on a shoreline.'},
   seafoodMarket:{name:'Seafood Market', cat:'com', w:2,h:2, homes:0, cap:9, jobs:5, shore:true, label:'Coastal', desc:'Sells the local catch. Must sit on a shoreline.'},
-  seafoodPlant:{name:'Seafood Plant', cat:'work', w:3,h:2, homes:0, cap:4, jobs:14, shore:true, label:'Coastal', desc:'Processes and packs fish. Must sit on a shoreline.'},
-  oilRig:   {name:'Oil Rig',        cat:'work', w:2,h:2,  homes:0,  cap:3,  jobs:10, res:'oil', rig:true, label:'Resource', desc:'Drills an oil field. Must be within 5 blocks of a train yard; rocky ground holds 5-10x more oil.'},
-  gasWell:  {name:'Gas Well',       cat:'work', w:2,h:2,  homes:0,  cap:3,  jobs:8,  res:'gas', rig:true, label:'Resource', desc:'Taps a gas field. Must be within 5 blocks of a train yard; rocky ground holds 5-10x more gas.'},
-  loggingCamp:{name:'Logging Camp', cat:'work', w:3,h:2,  homes:0,  cap:3,  jobs:9,  jungle:true, res:'timber', label:'Resource', desc:'Fells trees in the jungle. Its cut slowly thins the forest unless a greenhouse is near.'},
-  greenhouse:{name:'Greenhouse',     cat:'rural',w:2,h:2,  homes:0,  cap:2,  jobs:5,  label:'Farm', desc:'Grows saplings. Slows the forest loss caused by logging camps nearby.'},
-  quarry:   {name:'Quarry',         cat:'work', w:3,h:2,  homes:0,  cap:3,  jobs:12, rock:true, label:'Industry', desc:'Cuts stone and ore out of rocky ground. Feeds the higher power plants.'},
-  mine:     {name:'Mine',           cat:'work', w:3,h:2,  homes:0,  cap:3,  jobs:14, rock:true, label:'Industry', desc:'Deep mine for coal and uranium. Feeds the higher power plants.'},
+  seafoodPlant:{name:'Seafood Plant', cat:'work', w:3,h:2, homes:0, cap:4, jobs:14, shore:true, efficiencyBase:0.8, label:'Coastal', desc:'Processes and packs fish. Must sit on a shoreline.'},
+  oilRig:   {name:'Oil Rig',        cat:'work', w:2,h:2,  homes:0,  cap:3,  jobs:10, res:'oil', rig:true, efficiencyBase:1, label:'Resource', desc:'Drills an oil field. Must be within 5 blocks of a train yard; rocky ground yields more.'},
+  gasWell:  {name:'Gas Well',       cat:'work', w:2,h:2,  homes:0,  cap:3,  jobs:8,  res:'gas', rig:true, efficiencyBase:1, label:'Resource', desc:'Taps a gas field. Must be within 5 blocks of a train yard; rocky ground yields more.'},
+  loggingCamp:{name:'Logging Camp', cat:'work', w:3,h:2,  homes:0,  cap:3,  jobs:9, logging:true, res:'timber', efficiencyBase:1, label:'Resource', desc:'Place in jungle, or near an orchard or greenhouse. Nearby jungle trees are exhaustible; jungle with both orchard and greenhouse sustains an infinite timber supply.'},
+  greenhouse:{name:'Greenhouse',     cat:'rural',w:2,h:2,  homes:0,  cap:2,  jobs:5,  efficiencyBase:0.65, label:'Farm', desc:'Grows food and saplings. Slows forest loss caused by nearby logging camps.'},
+  quarry:   {name:'Quarry',         cat:'work', w:3,h:2,  homes:0,  cap:3,  jobs:12, rock:true, efficiencyBase:1, label:'Industry', desc:'Cuts stone and ore out of rocky ground. Feeds the higher power plants.'},
+  mine:     {name:'Mine',           cat:'work', w:3,h:2,  homes:0,  cap:3,  jobs:14, rock:true, efficiencyBase:1, label:'Industry', desc:'Deep mine for coal and uranium. Feeds the higher power plants.'},
   fireStation:{name:'Fire Station', cat:'civic',w:3,h:2,  homes:0,  cap:6,  jobs:10, station:'fire', label:'Emergency', desc:'Sends fire trucks to fires. Faster response when it is close to what burns.'},
   policeStation:{name:'Police Station',cat:'civic',w:2,h:2, homes:0, cap:6, jobs:12, station:'police', label:'Emergency', desc:'Patrols the streets and cuts down on crashes and arson nearby.'},
   researchLab:{name:'Research Lab', cat:'civic',w:2,h:2,  homes:0,  cap:6,  jobs:20, label:'Industry', desc:'Does the research that higher-tier power plants and industry need.'},
@@ -112,8 +117,15 @@ const BT = {
   port:     {name:'Cargo Port',     cat:'work', w:4,h:3,  homes:0,  cap:6,  jobs:26, shore:true, label:'Logistics', desc:'A deep-water quay. Cargo ships carry goods to other ports and islands, while trucks bring cargo in from your industries.'},
   distribution:{name:'Distribution Terminal', cat:'work', w:3,h:3, homes:0, cap:8, jobs:18, hub:true, label:'Logistics', desc:'Sorts cargo from trucks onto trains and ships. Must be next to a port or freight track, with a street for the trucks.'},
   railyard: {name:'Train Yard',     cat:'work', w:4,h:3,  homes:0,  cap:8,  jobs:22, rail:true, label:'Logistics', desc:'Freight trains load and unload here. It needs a freight track alongside and a street for the trucks. Oil rigs and gas wells have to be within 5 blocks of a yard.'},
+  platformConcrete:{name:'Concrete Platform', cat:'world', w:1,h:1, homes:0, cap:0, jobs:0, platform:1, desc:'Raises one water tile into a permanent concrete island tile. Costs 1 stone and 1 concrete.'},
+  platformSteel:{name:'Steel Platform', cat:'world', w:1,h:1, homes:0, cap:0, jobs:0, platform:2, desc:'Raises one water tile into a strong steel island tile. Costs 2 stone and 2 steel.'},
+  platformDirt:{name:'Dirt Platform', cat:'world', w:1,h:1, homes:0, cap:0, jobs:0, platform:3, desc:'Fills one water tile with earth. Costs 3 stone.'},
+  platformConcrete2:{name:'Concrete Platform (2×2)', cat:'world', w:2,h:2, homes:0, cap:0, jobs:0, platform:1, platformCost:4, desc:'Build a compact concrete island patch on 4 water tiles. Costs 4 stone and 4 concrete.'},
+  platformSteel2:{name:'Steel Platform (2×2)', cat:'world', w:2,h:2, homes:0, cap:0, jobs:0, platform:2, platformCost:8, desc:'Build a compact steel island patch on 4 water tiles. Costs 8 stone and 8 steel.'},
+  platformDirt2:{name:'Dirt Platform (2×2)', cat:'world', w:2,h:2, homes:0, cap:0, jobs:0, platform:3, platformCost:12, desc:'Fill a compact 2×2 water patch with earth. Costs 12 stone.'},
+  billboard:{name:'Billboard', cat:'civic', w:2,h:1, homes:0, cap:0, jobs:1, desc:'Advertise a policy. Nearby residents may agree or push back; set the message in its inspector.'},
 };
-const CATLABEL = {res: 'Residential', com: 'Commercial', work: 'Workplace', civic: 'Civic', lot: 'Parking', ped: 'Walk & transit'};
+const CATLABEL = {res: 'Residential', com: 'Commercial', work: 'Workplace', civic: 'Civic', lot: 'Parking', ped: 'Walk & transit', world: 'World'};
 const hasType = t => typeof t === 'string' && Object.prototype.hasOwnProperty.call(BT, t);
 
 const buildings = new Map();
@@ -173,7 +185,7 @@ const NULLC = {fillStyle: '', fillRect() {}};  // lets building art be measured 
 // Land is a mainland plus 2-4 islands, with a noisy coastline. Biomes come from
 // latitude (snow grows toward the north), moisture and a rock field.
 function genTerrainInto(seed, wArr, tArr) {
-  wArr.fill(0); tArr.fill(0); biome.fill(0);
+  wArr.fill(0); tArr.fill(0); biome.fill(0); oilField.fill(0); gasField.fill(0);
   const islandCount = 3 + (seed % 2);              // 3 or 4 islands: a little more land than before
   const cxM = MW * 0.5, cyM = MH * 0.5, rxM = MW * 0.33, ryM = MH * 0.36;
   // the mainland alone first, so islands can be placed in open water
@@ -237,7 +249,30 @@ function genTerrainInto(seed, wArr, tArr) {
     else if (moist < 0.33) b = 3;
     biome[i] = b;
     const dens = b === 2 ? 0.55 : b === 1 ? 0.16 : b === 5 ? 0.06 : 0;
-    if (dens && hash(x, y, seed + 3) < dens) tArr[i] = 1 + Math.floor(hash(x, y, seed + 4) * 4);
+    if (dens && hash(x, y, seed + 3) < dens) tArr[i] = 1 + Math.floor(hash(x, y, seed + 4) * 8);
+  }
+  // Add deterministic inland ponds and short stream reaches. They only cut a
+  // small channel into land, leaving each landmass connected around the water.
+  const lakeCount = 4 + (seed % 3);
+  for (let lake = 0; lake < lakeCount; lake++) {
+    let cx = -1, cy = -1;
+    for (let attempt = 0; attempt < 300; attempt++) {
+      const x = 50 + Math.floor(hash(attempt, lake, seed + 71) * (MW - 100));
+      const y = 50 + Math.floor(hash(attempt, lake + 13, seed + 72) * (MH - 100));
+      if (!wArr[y * MW + x]) { cx = x; cy = y; break; }
+    }
+    if (cx < 0) continue;
+    const radius = 4 + Math.floor(hash(cx, cy, seed + 73) * 3);
+    for (let dy = -radius; dy <= radius; dy++) for (let dx = -radius; dx <= radius; dx++) {
+      const x = cx + dx, y = cy + dy;
+      if (inb(x, y) && dx * dx + dy * dy <= radius * radius) { const i = y * MW + x; wArr[i] = 1; biome[i] = 0; tArr[i] = 0; }
+    }
+    let sy = cy - 36, sx = cx - 20;
+    for (let step = 0; step < 40; step++) {
+      const x = sx + step, y = sy + Math.round(Math.sin(step * 0.25 + lake) * 4);
+      if (!inb(x, y) || wArr[y * MW + x]) continue;
+      const i = y * MW + x; wArr[i] = 1; biome[i] = 0; tArr[i] = 0;
+    }
   }
   // Two majority passes remove single-tile specks, so each biome is one broad
   // patch instead of a checkerboard.
@@ -258,7 +293,7 @@ function genTerrainInto(seed, wArr, tArr) {
   for (let i = 0; i < N; i++) {
     if (wArr[i]) continue;
     const b = biome[i], dens = b === 2 ? 0.55 : b === 1 ? 0.16 : b === 5 ? 0.06 : 0;
-    if (dens && hash(i % MW, i / MW | 0, seed + 3) < dens) tArr[i] = 1 + Math.floor(hash(i % MW, i / MW | 0, seed + 4) * 4);
+    if (dens && hash(i % MW, i / MW | 0, seed + 3) < dens) tArr[i] = 1 + Math.floor(hash(i % MW, i / MW | 0, seed + 4) * 8);
   }
   // Resource fields: perlin-ish noise, far richer under rock.
   for (let i = 0; i < N; i++) {
