@@ -165,8 +165,9 @@ menuEl.querySelectorAll('button').forEach(b => b.onclick = () => {
   menuEl.classList.add('hidden');
   const m = b.dataset.m;
   if (m === 'save') openSaveDlg();
-  else if (m === 'demo') askConfirm('Replace your whole region with a fresh demo region?', genDemo);
-  else if (m === 'empty') askConfirm('Start over with an empty region?', genEmpty);
+  else if (m === 'newWorld') openWorldSetup();
+  else if (m === 'worlds') openWorldList('game');
+  else if (m === 'start') returnToStartScreen();
   else if (m === 'clearmap') { const d = camDistrict(); askConfirm(`Clear everything built in the ${DISTRICTS[d]} district?`, () => clearDistrict(d)); }
   else if (m === 'help') helpEl.classList.remove('hidden');
 });

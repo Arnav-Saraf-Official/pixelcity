@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const inputPath = resolve(root, 'pixelcity.html');
-const outputPath = resolve(root, process.argv[2] || 'dist/pixelcity.html');
+const outputPath = resolve(root, process.argv[2] || 'dist/index.html');
 let html = await readFile(inputPath, 'utf8');
 
 const stylesheetPattern = /<link rel="stylesheet" href="((?!https?:\/\/|\/\/)[^"]+)">/g;

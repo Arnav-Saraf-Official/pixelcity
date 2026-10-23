@@ -360,6 +360,7 @@ cv.addEventListener('wheel', e => { e.preventDefault(); zoomStep(e.deltaY < 0 ? 
 const keys = new Set();
 addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (document.body.classList.contains('menu-screen')) return;
   const k = e.key.toLowerCase();
   if (k === ' ') { spaceDown = true; e.preventDefault(); return; }
   if (e.ctrlKey || e.metaKey) {

@@ -29,7 +29,7 @@ function findSpot(type, x0, y0, x1, y1, seed) {
   return null;
 }
 function buildDowntown(ox, oy) {
-  const rng = mulberry(99);
+  const rng = mulberry((worldSeed ^ 99) >>> 0);
   const at = (x, y) => (y + oy) * MW + x + ox;
   const road = (x0, y0, x1, y1, t = 1) => lineRoad(x0 + ox, y0 + oy, x1 + ox, y1 + oy, t);
   const xs = [16, 26, 36, 46, 56, 66], ys = [18, 26, 34, 42, 50, 58];
@@ -70,11 +70,11 @@ function buildDowntown(ox, oy) {
   fill(80, 23, 87, 49, ['house', 'house', 'house', 'house', 'shop']);
   fill(89, 23, 99, 49, ['house', 'house', 'house', 'house', 'apartment', 'market']);
   findSpot('dock', ox + 60, oy + 35, ox + 93, oy + 36, 13);
-  for (const [x, y] of [[36, 26], [46, 26], [36, 34], [46, 34], [36, 42], [46, 42], [56, 34], [26, 34]]) lights.set(at(x, y), {ns: 8, ew: 8, off: Math.random() * 10});
+  for (const [x, y] of [[36, 26], [46, 26], [36, 34], [46, 34], [36, 42], [46, 42], [56, 34], [26, 34]]) lights.set(at(x, y), {ns: 8, ew: 8, off: rng() * 10});
 }
 // A commuter suburb in the East district, linked to downtown by the highway.
 function buildSuburb(ox, oy) {
-  const rng = mulberry(7);
+  const rng = mulberry((worldSeed ^ 7) >>> 0);
   const xs = [30, 40, 50, 60], ys = [55, 63, 71, 79];
   lineRoad(ox + 30, oy + 46, ox + 30, oy + 79); lineRoad(ox + 60, oy + 46, ox + 60, oy + 79);
   for (const x of [40, 50]) lineRoad(ox + x, oy + 55, ox + x, oy + 79);
@@ -93,7 +93,7 @@ function buildSuburb(ox, oy) {
 }
 // Farms and an airport in the West district, on country roads off the highway.
 function buildCountryside() {
-  const rng = mulberry(21);
+  const rng = mulberry((worldSeed ^ 21) >>> 0);
   lineRoad(40, 180, 232, 180, 1, 0); lineRoad(232, 181, 232, 194, 1, 0);
   lineRoad(232, 196, 232, 220); lineRoad(118, 220, 231, 220);
   fillArea(40, 170, 228, 179, ['farmhouse', 'farm', 'orchard', 'farm', 'farmhouse'], rng);
@@ -104,7 +104,7 @@ function buildCountryside() {
 }
 // A lakeside village in the South district with a marina.
 function buildLakeside() {
-  const rng = mulberry(33);
+  const rng = mulberry((worldSeed ^ 33) >>> 0);
   const ly = Math.floor(DH * 2.5 - 15 * 1.25);
   let y = ly; while (y > ly - 10 && [...Array(30).keys()].some(k => water[y * MW + 254 + k])) y--;
   lineRoad(252, y, 300, y);
@@ -112,9 +112,70 @@ function buildLakeside() {
   findSpot('dock', 253, y + 1, 300, y + 2, 41);
   fillArea(253, y + 1, 300, y + 1, ['house', 'house'], rng);
 }
-function genRegion(demo) {
+function buildNeighborhood(x0, y0, width, height, seed, style) {
+  const rng = mulberry(seed >>> 0);
+  const grid = (start, extent, minGap, variation) => {
+    const values = [start];
+    while (values[values.length - 1] < start + extent) {
+      const next = Math.min(start + extent, values[values.length - 1] + minGap + Math.floor(rng() * variation));
+      if (next === values[values.length - 1]) break;
+      values.push(next);
+    }
+    return values;
+  };
+  const xs = grid(x0, width, 10, 5), ys = grid(y0, height, 9, 5);
+  const arterialX = Math.floor(xs.length / 2), arterialY = Math.floor(ys.length / 2);
+  for (let yi = 0; yi < ys.length; yi++) {
+    lineRoad(xs[0], ys[yi], xs[xs.length - 1], ys[yi], yi === arterialY ? 2 : 1);
+  }
+  for (let xi = 0; xi < xs.length; xi++) {
+    lineRoad(xs[xi], ys[0], xs[xi], ys[ys.length - 1], xi === arterialX ? 2 : 1);
+  }
+
+  const palettes = {
+    residential: ['house', 'house', 'house', 'apartment', 'house', 'shop'],
+    mixed: ['house', 'apartment', 'shop', 'shop', 'market', 'office', 'house'],
+    commercial: ['shop', 'office', 'market', 'apartment', 'mall', 'parking', 'shop'],
+    industrial: ['factory', 'warehouse', 'warehouse', 'shop', 'office'],
+  };
+  for (let xi = 0; xi < xs.length - 1; xi++) {
+    for (let yi = 0; yi < ys.length - 1; yi++) {
+      const bx0 = xs[xi] + 1, by0 = ys[yi] + 1;
+      const bx1 = xs[xi + 1] - 1, by1 = ys[yi + 1] - 1;
+      if (bx1 < bx0 || by1 < by0) continue;
+      const nearCenter = Math.abs(xi - arterialX) <= 1 && Math.abs(yi - arterialY) <= 1;
+      const palette = style === 'residential' && nearCenter ? palettes.mixed
+        : style === 'mixed' && (xi + yi) % 4 === 0 ? palettes.commercial
+          : style === 'mixed' && yi === ys.length - 2 ? palettes.industrial
+            : palettes[style];
+      if (rng() < (style === 'residential' ? 0.12 : 0.08)) {
+        findSpot('park', bx0, by0, bx1, by1, (rng() * 1e9) | 0);
+      }
+      if (rng() < 0.16) findSpot('busstop', bx0, by0, bx1, by1, (rng() * 1e9) | 0);
+      if (rng() < 0.5) continue;
+      fillArea(bx0, by0, bx1, by1, palette, rng);
+    }
+  }
+  const civic = style === 'residential' ? 'school' : style === 'industrial' ? 'parking' : 'hospital';
+  findSpot(civic, xs[arterialX] - 5, ys[arterialY] + 1, xs[arterialX] + 4, ys[arterialY + 1] - 1, (rng() * 1e9) | 0);
+  return {x: xs[arterialX], y: ys[arterialY]};
+}
+function buildGeneratedCity() {
+  const quarters = [
+    {x: 18, y: 20, w: 205, h: 118, style: 'residential', salt: 101},
+    {x: 365, y: 18, w: 215, h: 120, style: 'mixed', salt: 211},
+    {x: 18, y: 278, w: 205, h: 145, style: 'mixed', salt: 307},
+    {x: 365, y: 278, w: 215, h: 145, style: 'residential', salt: 401},
+  ];
+  for (const q of quarters) {
+    const road = buildNeighborhood(q.x, q.y, q.w, q.h, (worldSeed ^ q.salt) >>> 0, q.style);
+    if (road.x < 251) lineRoad(road.x, road.y, 251, road.y);
+    else lineRoad(251, road.y, road.x, road.y);
+  }
+}
+function genRegion(demo, seed = demo ? 12345 : Math.floor(Math.random() * 1e6)) {
   clearWorld();
-  worldSeed = demo ? 12345 : Math.floor(Math.random() * 1e6);
+  worldSeed = seed;
   genTerrainInto(worldSeed, water, tree);
   if (demo) {
     // two regional highways cross the whole region; the west and east stretches have two lanes each way
@@ -125,11 +186,17 @@ function genRegion(demo) {
     buildSuburb(400, 150);
     buildCountryside();
     buildLakeside();
+    buildGeneratedCity();
   }
   finishWorld();
 }
 function genDemo() { genRegion(true); centerOn((185 + 37) * MW + 245 + 42, 3); }
 function genEmpty() { genRegion(false); fitDistrict(4); toast('Fresh land. Draw a road to get started!'); }
+function generateNewWorld(mapType, seed) {
+  genRegion(mapType === 'pregenerated', seed);
+  if (mapType === 'pregenerated') centerOn((185 + 37) * MW + 245 + 42, 3);
+  else fitDistrict(4);
+}
 function clearDistrict(m) {
   const x0 = (m % RW) * DW, y0 = (m / RW | 0) * DH, x1 = x0 + DW - 1, y1 = y0 + DH - 1;
   const kill = new Set();

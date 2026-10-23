@@ -1,6 +1,201 @@
 // =====================================================================
 // Saving: this browser, save files, and share codes
 // =====================================================================
+const WORLD_INDEX_KEY = SAVE_KEY + '.worlds.v1';
+const ACTIVE_WORLD_KEY = SAVE_KEY + '.activeWorld';
+const MAX_WORLD_SLOTS = 12;
+let worldSlots = [], activeWorldId = null, autosaveWarningShown = false;
+const slotStorageKey = id => SAVE_KEY + '.world.' + id;
+const validSlotId = id => /^[a-f0-9]{16}$/.test(id);
+function cleanWorldSlots(value) {
+  if (!value || value.v !== 1 || !Array.isArray(value.slots)) throw new Error('World list data is damaged.');
+  const seen = new Set(), slots = [];
+  for (const entry of value.slots) {
+    if (!entry || !validSlotId(entry.id) || seen.has(entry.id)) continue;
+    const name = typeof entry.name === 'string' ? entry.name.trim().slice(0, 32) : '';
+    if (!name) continue;
+    seen.add(entry.id);
+    slots.push({
+      id: entry.id,
+      name,
+      mode: entry.mode === 'survival' ? 'survival' : 'sandbox',
+      mapType: ['pregenerated', 'empty', 'imported'].includes(entry.mapType) ? entry.mapType : 'imported',
+      seed: Number.isInteger(entry.seed) && entry.seed >= 0 && entry.seed <= 1e9 ? entry.seed : 0,
+      createdAt: Number.isFinite(entry.createdAt) ? entry.createdAt : Date.now(),
+      updatedAt: Number.isFinite(entry.updatedAt) ? entry.updatedAt : 0,
+    });
+    if (slots.length >= MAX_WORLD_SLOTS) break;
+  }
+  return slots;
+}
+function persistWorldSlots(slots) {
+  localStorage.setItem(WORLD_INDEX_KEY, JSON.stringify({v: 1, slots}));
+}
+function recoverWorldSlots() {
+  const prefix = SAVE_KEY + '.world.', recovered = [];
+  for (let i = 0; i < localStorage.length && recovered.length < MAX_WORLD_SLOTS; i++) {
+    const key = localStorage.key(i);
+    if (!key || !key.startsWith(prefix)) continue;
+    const id = key.slice(prefix.length);
+    if (!validSlotId(id)) continue;
+    try {
+      const data = JSON.parse(localStorage.getItem(key));
+      if (!data || data.v !== 5 || !Number.isInteger(data.seed) || data.seed < 0 || data.seed > 1e9) continue;
+      const now = Date.now();
+      recovered.push({id, name: `Recovered world ${recovered.length + 1}`, mode: 'sandbox', mapType: 'imported', seed: data.seed, createdAt: now, updatedAt: 0});
+    } catch (e) {
+      console.warn(`Skipping unreadable saved world ${id}.`, e);
+    }
+  }
+  return recovered;
+}
+function newWorldSlotId() {
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+function initWorldSlots() {
+  try {
+    const raw = localStorage.getItem(WORLD_INDEX_KEY);
+    if (raw) {
+      try { worldSlots = cleanWorldSlots(JSON.parse(raw)); }
+      catch (e) {
+        worldSlots = recoverWorldSlots();
+        persistWorldSlots(worldSlots);
+        toast(`World list was damaged; recovered ${worldSlots.length} saved world${worldSlots.length === 1 ? '' : 's'}.`);
+      }
+    } else worldSlots = [];
+    activeWorldId = localStorage.getItem(ACTIVE_WORLD_KEY);
+    if (!worldSlots.some(slot => slot.id === activeWorldId)) {
+      activeWorldId = worldSlots.slice().sort((a, b) => b.updatedAt - a.updatedAt)[0]?.id || null;
+    }
+    if (!worldSlots.length) migrateLegacyWorld();
+    if (activeWorldId) localStorage.setItem(ACTIVE_WORLD_KEY, activeWorldId);
+  } catch (e) {
+    worldSlots = [];
+    activeWorldId = null;
+    toast(`Couldn't read saved worlds: ${e.message}`);
+  }
+  return worldSlots;
+}
+function migrateLegacyWorld() {
+  for (const key of [SAVE_KEY, LEGACY_SAVE_KEY]) {
+    let raw;
+    try { raw = localStorage.getItem(key); }
+    catch (e) { toast('Could not read the old local save.'); return; }
+    if (!raw) continue;
+    try {
+      const data = JSON.parse(raw);
+      loadData(data);
+      const id = newWorldSlotId(), now = Date.now();
+      const slot = {id, name: 'Recovered city', mode: 'sandbox', mapType: 'imported', seed: data.seed, createdAt: now, updatedAt: now};
+      const previousActive = localStorage.getItem(ACTIVE_WORLD_KEY);
+      try {
+        localStorage.setItem(slotStorageKey(id), JSON.stringify(serialize()));
+        persistWorldSlots([slot]);
+        localStorage.setItem(ACTIVE_WORLD_KEY, id);
+      } catch (e) {
+        try {
+          localStorage.removeItem(slotStorageKey(id));
+          persistWorldSlots(worldSlots);
+          if (previousActive) localStorage.setItem(ACTIVE_WORLD_KEY, previousActive);
+          else localStorage.removeItem(ACTIVE_WORLD_KEY);
+        } catch (rollbackError) { console.error('Could not roll back legacy world migration.', rollbackError); }
+        throw e;
+      }
+      worldSlots = [slot];
+      activeWorldId = id;
+      for (const oldKey of [SAVE_KEY, LEGACY_SAVE_KEY]) {
+        try { localStorage.removeItem(oldKey); }
+        catch (e) { toast(`World migrated, but the old save copy could not be removed: ${e.message}`); }
+      }
+      toast('Your existing city was moved into a world slot.');
+      return;
+    } catch (e) {
+      toast(`Couldn't migrate the old local save: ${e.message}`);
+      return;
+    }
+  }
+}
+function createWorldSlot(name, mode, mapType, data = serialize()) {
+  if (worldSlots.length >= MAX_WORLD_SLOTS) { toast(`You can keep up to ${MAX_WORLD_SLOTS} worlds in this browser.`); return null; }
+  const id = newWorldSlotId(), now = Date.now();
+  const slot = {id, name: String(name || '').trim().slice(0, 32) || 'New World', mode, mapType, seed: data.seed, createdAt: now, updatedAt: now};
+  const nextSlots = [...worldSlots, slot];
+  try {
+    localStorage.setItem(slotStorageKey(id), JSON.stringify(data));
+    persistWorldSlots(nextSlots);
+    localStorage.setItem(ACTIVE_WORLD_KEY, id);
+    worldSlots = nextSlots;
+    activeWorldId = id;
+    autosaveWarningShown = false;
+    return slot;
+  } catch (e) {
+    try { localStorage.removeItem(slotStorageKey(id)); persistWorldSlots(worldSlots); }
+    catch (rollbackError) { console.error('Could not roll back failed world creation.', rollbackError); }
+    toast(`Couldn't save the new world: ${e.message}`);
+    return null;
+  }
+}
+function openWorldSlot(id) {
+  const slot = worldSlots.find(entry => entry.id === id);
+  if (!slot) { toast('That world is no longer in the world list.'); return false; }
+  const previousWorld = serialize(), previousId = activeWorldId;
+  const previousUpdatedAt = slot.updatedAt;
+  try {
+    const raw = localStorage.getItem(slotStorageKey(id));
+    if (!raw) throw new Error('The saved world data is missing.');
+    loadData(JSON.parse(raw));
+    activeWorldId = id;
+    slot.updatedAt = Date.now();
+    localStorage.setItem(ACTIVE_WORLD_KEY, id);
+    persistWorldSlots(worldSlots);
+    autosaveWarningShown = false;
+    return true;
+  } catch (e) {
+    try { loadData(previousWorld); } catch (restoreError) { console.error('Could not restore the previous world after a failed load.', restoreError); }
+    activeWorldId = previousId;
+    slot.updatedAt = previousUpdatedAt;
+    try {
+      if (previousId) localStorage.setItem(ACTIVE_WORLD_KEY, previousId);
+      else localStorage.removeItem(ACTIVE_WORLD_KEY);
+      persistWorldSlots(worldSlots);
+    } catch (restoreError) { console.error('Could not restore the active world pointer.', restoreError); }
+    toast(`Couldn't open ${slot.name}: ${e.message}`);
+    return false;
+  }
+}
+function renameWorldSlot(id, name) {
+  const slot = worldSlots.find(entry => entry.id === id), nextName = String(name || '').trim();
+  if (!slot) return false;
+  if (!nextName || nextName.length > 32) { toast('World names must be 1–32 characters.'); return false; }
+  const previous = slot.name;
+  slot.name = nextName;
+  try { persistWorldSlots(worldSlots); return true; }
+  catch (e) { slot.name = previous; toast(`Couldn't rename that world: ${e.message}`); return false; }
+}
+function deleteWorldSlot(id) {
+  const slot = worldSlots.find(entry => entry.id === id);
+  if (!slot) return false;
+  let saved = null;
+  try {
+    saved = localStorage.getItem(slotStorageKey(id));
+    const nextSlots = worldSlots.filter(entry => entry.id !== id);
+    persistWorldSlots(nextSlots);
+    localStorage.removeItem(slotStorageKey(id));
+    if (activeWorldId === id) {
+      localStorage.removeItem(ACTIVE_WORLD_KEY);
+    }
+    worldSlots = nextSlots;
+    if (activeWorldId === id) activeWorldId = null;
+    return true;
+  } catch (e) {
+    try { if (saved !== null) localStorage.setItem(slotStorageKey(id), saved); persistWorldSlots(worldSlots); }
+    catch (rollbackError) { console.error('Could not restore deleted world data.', rollbackError); }
+    toast(`Couldn't delete that world: ${e.message}`);
+    return false;
+  }
+}
 function rle(a) { let s = '', i = 0; while (i < a.length) { const v = a[i]; let j = i + 1; while (j < a.length && a[j] === v) j++; s += String.fromCharCode(48 + v) + (j - i).toString(36) + '.'; i = j; } return s; }
 // Water and trees are stored only where they differ from what the seed generates.
 function diffEnc(arr, gen, skip) { let s = '', last = 0; for (let i = 0; i < N; i++) { if (skip && skip(i)) continue; if (arr[i] !== gen[i]) { s += (i - last).toString(36) + ':' + arr[i] + ','; last = i; } } return s; }
@@ -94,15 +289,74 @@ async function unpackText(text) {
   try { return JSON.parse(json); } catch (e) { throw new Error(BAD); }
 }
 function saveLocal(quiet) {
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(serialize())); if (!quiet) toast('Saved in this browser.'); return true; }
-  catch (e) { if (!quiet) toast('This browser blocked saving. Use a save file instead.'); return false; }
+  if (!activeWorldId) { if (!quiet) toast('Create or open a world before saving.'); return false; }
+  let slot, oldData, oldIndex, oldActive, oldSeed, oldUpdatedAt;
+  try {
+    slot = worldSlots.find(entry => entry.id === activeWorldId);
+    if (!slot) throw new Error('The active world is missing from the world list.');
+    oldData = localStorage.getItem(slotStorageKey(activeWorldId));
+    oldIndex = localStorage.getItem(WORLD_INDEX_KEY);
+    oldActive = localStorage.getItem(ACTIVE_WORLD_KEY);
+    oldSeed = slot.seed;
+    oldUpdatedAt = slot.updatedAt;
+    localStorage.setItem(slotStorageKey(activeWorldId), JSON.stringify(serialize()));
+    slot.seed = worldSeed;
+    slot.updatedAt = Date.now();
+    persistWorldSlots(worldSlots);
+    localStorage.setItem(ACTIVE_WORLD_KEY, activeWorldId);
+    autosaveWarningShown = false;
+    if (!quiet) toast('Saved in this browser.');
+    return true;
+  } catch (e) {
+    if (slot) {
+      if (oldSeed !== undefined) slot.seed = oldSeed;
+      if (oldUpdatedAt !== undefined) slot.updatedAt = oldUpdatedAt;
+    }
+    try {
+      if (oldData !== undefined) {
+        if (oldData === null) localStorage.removeItem(slotStorageKey(activeWorldId));
+        else localStorage.setItem(slotStorageKey(activeWorldId), oldData);
+      }
+      if (oldIndex !== undefined) {
+        if (oldIndex === null) localStorage.removeItem(WORLD_INDEX_KEY);
+        else localStorage.setItem(WORLD_INDEX_KEY, oldIndex);
+      }
+      if (oldActive !== undefined) {
+        if (oldActive === null) localStorage.removeItem(ACTIVE_WORLD_KEY);
+        else localStorage.setItem(ACTIVE_WORLD_KEY, oldActive);
+      }
+    } catch (rollbackError) { console.error('Could not roll back a failed world save.', rollbackError); }
+    if (!quiet || !autosaveWarningShown) toast(`Couldn't save this world in the browser: ${e.message}`);
+    autosaveWarningShown = true;
+    return false;
+  }
 }
 function loadLocal(quiet) {
-  let d = null;
-  try { d = JSON.parse(localStorage.getItem(SAVE_KEY) || localStorage.getItem(LEGACY_SAVE_KEY)); } catch (e) { d = null; }
-  if (!d) { if (!quiet) toast('No save found in this browser.'); return false; }
-  try { loadData(d); if (!quiet) toast('Loaded your last save.'); return true; }
+  if (!activeWorldId) { if (!quiet) toast('No active world is open.'); return false; }
+  try {
+    const raw = localStorage.getItem(slotStorageKey(activeWorldId));
+    if (!raw) throw new Error('The saved world data is missing.');
+    loadData(JSON.parse(raw));
+    if (!quiet) toast('Loaded this world.');
+    return true;
+  }
   catch (e) { if (!quiet) toast(e.message); return false; }
+}
+function loadImportedWorld(data) {
+  const previousWorld = serialize();
+  try {
+    loadData(data);
+    if (!saveLocal(true)) {
+      loadData(previousWorld);
+      toast('The imported world was not applied because it could not be saved to this slot.');
+      return false;
+    }
+    return true;
+  } catch (e) {
+    try { loadData(previousWorld); } catch (restoreError) { console.error('Could not restore the previous world after a failed import.', restoreError); }
+    toast(e.message);
+    return false;
+  }
 }
 let dlCap = null;
 async function downloadSave() {
@@ -121,12 +375,12 @@ document.getElementById('sFileOpen').onchange = async e => {
   const file = e.target.files && e.target.files[0]; e.target.value = '';
   if (!file) return;
   if (file.size > 4e6) { toast('That file is too large to be a PixelCity save.'); return; }
-  try { loadData(await unpackText(await file.text())); saveEl.classList.add('hidden'); activeCode = null; renderCloud(); toast('Region loaded from the save file.'); }
+  try { if (!loadImportedWorld(await unpackText(await file.text()))) return; saveEl.classList.add('hidden'); activeCode = null; renderCloud(); toast('Region loaded from the save file.'); }
   catch (err) { toast(err.message); }
 };
 // Save codes: the whole region, compressed into text you can paste anywhere. No server involved.
 async function loadSaveCode(text) {
-  try { loadData(await unpackText(text)); saveEl.classList.add('hidden'); activeCode = null; renderCloud(); toast('Region loaded from the save code.'); }
+  try { if (!loadImportedWorld(await unpackText(text))) return; saveEl.classList.add('hidden'); activeCode = null; renderCloud(); toast('Region loaded from the save code.'); }
   catch (err) { toast(err.message); }
 }
 document.getElementById('sCodeCopy').onclick = async () => {
@@ -249,7 +503,8 @@ document.getElementById('cPrev').onclick = () => {
     try {
       const snap = await cloud.db.doc(p.prev).get();
       if (!snap.exists) { toast('There is no earlier version of this code yet.'); return; }
-      loadData(await unpackText(snap.data().data)); toast('Loaded the earlier version. Update your code to keep it.');
+      if (!loadImportedWorld(await unpackText(snap.data().data))) return;
+      toast('Loaded the earlier version. Update your code to keep it.');
     } catch (e) { toast(e.message && !e.code ? e.message : cloudError(e)); }
   });
 };
@@ -262,7 +517,7 @@ async function openCode(code) {
     if (!snap.exists) { toast('No region was found for that code.'); return; }
     const doc = snap.data();
     if (!doc || typeof doc.data !== 'string') throw new Error(BAD);
-    loadData(await unpackText(doc.data));
+    if (!loadImportedWorld(await unpackText(doc.data))) return;
     activeCode = p.code;
     if (isMine(p)) rememberCode(p.code);
     renderCloud();

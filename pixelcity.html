@@ -33,8 +33,9 @@
 
 <div id="menu" class="panel hidden">
   <button data-m="save">Save &amp; share…</button>
-  <button data-m="demo">New demo region</button>
-  <button data-m="empty">New empty region</button>
+  <button data-m="newWorld">New world…</button>
+  <button data-m="worlds">Load / manage worlds…</button>
+  <button data-m="start">Main menu</button>
   <button data-m="clearmap">Clear this district</button>
   <button data-m="help">How to play</button>
 </div>
@@ -145,6 +146,115 @@
   <div class="btns"><button id="helpClose" class="on">Start building</button></div>
 </div>
 
+<div id="startScreen" class="start-screen">
+  <header class="menu-topbar">
+    <a class="menu-wordmark" href="#" aria-label="PixelCity home">PIXEL<span>CITY</span></a>
+    <span class="menu-status"><i></i> CITY SIMULATION</span>
+  </header>
+  <main class="start-layout">
+    <section class="start-copy">
+      <p class="eyebrow">YOUR CITY. YOUR RULES.</p>
+      <h1>A little world<br>of your own.</h1>
+      <p class="start-description">Lay the roads. Build the neighborhoods. Watch a city find its rhythm.</p>
+      <div class="start-actions">
+        <button id="continueWorld" class="menu-primary hidden">Continue <span aria-hidden="true">→</span></button>
+        <button id="startNewWorld" class="menu-primary">Create a world <span aria-hidden="true">→</span></button>
+        <button id="startLoadWorld" class="menu-secondary">Your worlds <span id="startWorldCount">0</span></button>
+      </div>
+      <button id="startHelp" class="menu-text-button">How to play <span aria-hidden="true">↗</span></button>
+    </section>
+    <aside class="start-aside">
+      <div class="world-preview-label">RECENTLY PLAYED</div>
+      <div class="preview-divider"></div>
+      <div id="recentWorlds" class="recent-worlds" aria-live="polite"></div>
+      <button id="startSettings" class="menu-secondary settings-button" type="button" disabled aria-disabled="true">Settings <span>IN DEVELOPMENT</span></button>
+    </aside>
+  </main>
+  <footer class="menu-footer"><span>PIXELCITY <b>·</b> SANDBOX CITY BUILDER</span><span>TAKE YOUR TIME. THE CITY WILL WAIT.</span></footer>
+</div>
+
+<section id="worldSetup" class="menu-page hidden" aria-labelledby="setupTitle">
+  <div class="page-shell">
+    <header class="page-header">
+      <button id="setupBack" class="back-button"><span aria-hidden="true">←</span> Back</button>
+      <a class="menu-wordmark" href="#" aria-label="PixelCity home">PIXEL<span>CITY</span></a>
+      <span class="page-step">01 <i>/</i> 02</span>
+    </header>
+    <main class="page-content setup-content">
+      <div class="page-intro">
+        <p class="eyebrow">A NEW BEGINNING</p>
+        <h1 id="setupTitle">Set the scene.</h1>
+        <p>Choose the kind of city you want to make. You can always build at your own pace.</p>
+      </div>
+      <div class="setup-grid">
+        <div class="setup-options">
+          <section class="setup-section">
+            <div class="section-heading"><span>01</span><h2>Choose your pace</h2></div>
+            <div class="option-grid mode-options">
+              <button type="button" class="option-card selected" aria-pressed="true" data-mode-choice="sandbox">
+                <span class="option-icon" aria-hidden="true">▦</span><b>Sandbox</b><small>Build freely. Your city, your rules.</small><span class="option-check" aria-hidden="true">✓</span>
+              </button>
+              <button type="button" class="option-card disabled-option" disabled title="Survival mode is still in development">
+                <span class="option-icon" aria-hidden="true">◷</span><b>Survival</b><small>Balance resources and grow carefully.</small><span class="coming-soon">IN DEVELOPMENT</span>
+              </button>
+            </div>
+          </section>
+          <section class="setup-section">
+            <div class="section-heading"><span>02</span><h2>Pick a landscape</h2></div>
+            <div class="option-grid map-options">
+              <button type="button" class="option-card selected" aria-pressed="true" data-map-choice="pregenerated">
+                <span class="map-swatch city-swatch" aria-hidden="true"></span><b>City starter</b><small>A living city, ready to reshape.</small><span class="option-check" aria-hidden="true">✓</span>
+              </button>
+              <button type="button" class="option-card" aria-pressed="false" data-map-choice="empty">
+                <span class="map-swatch land-swatch" aria-hidden="true"></span><b>Open land</b><small>A fresh canvas with room to grow.</small><span class="option-check" aria-hidden="true">✓</span>
+              </button>
+            </div>
+          </section>
+        </div>
+        <aside class="setup-details">
+          <p class="eyebrow">YOUR WORLD</p>
+          <label for="worldName">World name</label>
+          <input type="text" id="worldName" maxlength="32" placeholder="New World" autocomplete="off">
+          <label for="worldSeedInput">World seed</label>
+          <div class="seed-field"><input type="number" id="worldSeedInput" min="0" max="1000000000" step="1" inputmode="numeric"><button id="randomWorldSeed" type="button" title="Generate a new random seed">↻</button></div>
+          <p class="field-hint">A seed is the recipe for your landscape. Reuse it to recreate the same world.</p>
+          <p id="worldSetupError" class="form-error" role="alert"></p>
+          <button id="createWorldBtn" class="menu-primary create-world-button">Create world <span aria-hidden="true">→</span></button>
+        </aside>
+      </div>
+    </main>
+    <footer class="page-footer"><span>Sandbox is ready when you are.</span><span>Survival mode is still in development.</span></footer>
+  </div>
+</section>
+
+<section id="worldListDlg" class="menu-page hidden" aria-labelledby="worldsTitle">
+  <div class="page-shell">
+    <header class="page-header">
+      <button id="worldListBack" class="back-button"><span aria-hidden="true">←</span> Back</button>
+      <a class="menu-wordmark" href="#" aria-label="PixelCity home">PIXEL<span>CITY</span></a>
+      <span class="page-step">YOUR WORLDS</span>
+    </header>
+    <main class="page-content worlds-content">
+      <div class="worlds-heading">
+        <div class="page-intro">
+          <p class="eyebrow">YOUR LITTLE CORNER OF THE UNIVERSE</p>
+          <h1 id="worldsTitle">Worlds.</h1>
+          <p>Every city lives here, saved on this device. Pick up where you left off.</p>
+        </div>
+        <button id="worldListNew" class="menu-primary worlds-new-button">Create a world <span aria-hidden="true">+</span></button>
+      </div>
+      <div class="worlds-toolbar">
+        <span id="worldListCount"></span>
+        <span id="worldSaveStatus" role="status" aria-live="polite"></span>
+        <div class="worlds-toolbar-actions"><span>LOCAL SAVES <i></i> THIS DEVICE</span><button id="worldListSave" class="world-save-button hidden">Save current world</button></div>
+      </div>
+      <div id="worldSlots" class="world-slots"></div>
+      <p id="worldListEmpty" class="world-empty hidden">Your next city is one click away.</p>
+    </main>
+    <footer class="page-footer"><span>Up to 12 worlds on this device.</span><span>Opening a world saves your current city first.</span></footer>
+  </div>
+</section>
+
 <script src="js/core.js"></script>
 <script src="js/art.js"></script>
 <script src="js/map.js"></script>
@@ -154,4 +264,6 @@
 <script src="js/ui.js"></script>
 <script src="js/world.js"></script>
 <script src="js/save.js"></script>
+<script src="js/menuPreview.js"></script>
+<script src="js/worldMenu.js"></script>
 <script src="js/main.js"></script>
