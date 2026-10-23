@@ -24,6 +24,7 @@
     tab: 'sprite',
     test: Object.create(null),       // "family/texture" -> {param: value}
     fnTest: Object.create(null),     // "family/texture" -> {param: "(tx, ty) => true"}
+    opMenu: null,
     scale: 5,
     grid: true,
     marks: true,
@@ -68,6 +69,32 @@
     const s = $('status');
     s.textContent = msg;
     s.className = kind || '';
+  }
+  function showContextMenu(event, actions) {
+    event.preventDefault();
+    event.stopPropagation();
+    closeContextMenu();
+    const menu = h('div', {class: 'context-menu', role: 'menu'});
+    for (const action of actions) {
+      if (action.separator) {
+        menu.append(h('div', {class: 'context-separator'}));
+        continue;
+      }
+      menu.append(h('button', {
+        type: 'button', role: 'menuitem', class: action.danger ? 'danger' : '',
+        onclick: () => { closeContextMenu(); action.run(); }
+      }, action.label));
+    }
+    document.body.append(menu);
+    const bounds = menu.getBoundingClientRect();
+    menu.style.left = Math.max(4, Math.min(event.clientX, innerWidth - bounds.width - 4)) + 'px';
+    menu.style.top = Math.max(4, Math.min(event.clientY, innerHeight - bounds.height - 4)) + 'px';
+    state.opMenu = menu;
+    menu.querySelector('button')?.focus();
+  }
+  function closeContextMenu() {
+    if (state.opMenu) state.opMenu.remove();
+    state.opMenu = null;
   }
   const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
 
@@ -432,6 +459,15 @@
 
     const files = {};
     for (const fam of Object.keys(state.families)) files[fam] = clone(state.families[fam]);
+    if (ED.target) {
+      const previewOps = files[state.family].textures[state.current].ops;
+      const targetPaths = editorTargetPaths(previewOps);
+      if (!targetPaths) {
+        invalidateEditorTarget();
+      } else {
+        for (const forced of targetPaths.forcedIfs) pathValue(previewOps, forced.path).test = forced.result;
+      }
+    }
     try { errs.push(...TEX.validate(files)); }
     catch (e) { errs.push(e.message); }
 
@@ -524,7 +560,15 @@
         e.stopPropagation();
         deleteTexture(name);
       }}, '✕');
-      list.append(h('div', {class: 'item'}, open, kill));
+      const item = h('div', {class: 'item'}, open, kill);
+      item.addEventListener('contextmenu', e => showContextMenu(e, [
+        {label: 'Open sprite', run: () => selectTexture(name)},
+        {label: 'Edit pixels', run: () => { selectTexture(name); openPixelEditor(null, []); }},
+        {label: 'Duplicate sprite', run: () => { selectTexture(name); duplicateTexture(); }},
+        {separator: true},
+        {label: 'Delete sprite', danger: true, run: () => deleteTexture(name)}
+      ]));
+      list.append(item);
     }
     if (!Object.keys(doc.textures).length) list.append(h('small', null, 'No sprites yet. Add one below.'));
   }
@@ -573,7 +617,7 @@
       ),
       h('div', {class: 'row'},
         h('button', {onclick: duplicateTexture}, 'Duplicate'),
-        h('button', {onclick: () => { setTab('pixels'); edLoadSprite(); }}, 'Edit pixels'),
+        h('button', {onclick: () => openPixelEditor(null, [])}, 'Edit pixels'),
         pngs ? h('button', {onclick: async () => {
           const res = await bakeTexture(tex);
           renderOps(); renderTextureSettings(); preview();
@@ -673,7 +717,7 @@
   }
   function opsEditor(ops, refresh) {
     const box = h('div', {class: 'ops'});
-    for (let i = 0; i < ops.length; i++) box.append(opCard(ops[i], i, ops, refresh));
+    for (let i = 0; i < ops.length; i++) box.append(opCard(ops[i], i, ops, refresh, forcedIfs));
     box.append(addOpRow(ops, refresh));
     return box;
   }
@@ -682,18 +726,34 @@
     return h('div', {class: 'addop'}, sel,
       h('button', {onclick: () => { ops.push(clone(OP_DEFAULTS[sel.value])); refresh(); preview(); }}, '+ op'));
   }
-  function opCard(op, index, arr, refresh) {
+  function opCard(op, index, arr, refresh, forcedIfs = []) {
+    const thenForced = op.op === 'if' ? forcedIfs.concat({op, result: true}) : forcedIfs;
+    const elseForced = op.op === 'if' ? forcedIfs.concat({op, result: false}) : forcedIfs;
     const body = h('div', {class: 'body'});
     for (const f of OP_FIELDS[op.op] || []) body.append(opField(op, f, refresh, index, arr));
     if (op.op === 'each' || op.op === 'repeat') {
       op.ops = op.ops || [];
-      body.append(h('div', {class: 'sub-label'}, 'inside'), opsEditor(op.ops, refresh));
+      body.append(h('div', {class: 'sub-label'}, 'inside'), opsEditor(op.ops, refresh, forcedIfs));
     } else if (op.op === 'if') {
       op.then = op.then || []; op.else = op.else || [];
-      body.append(h('div', {class: 'sub-label'}, 'then'), opsEditor(op.then, refresh));
-      body.append(h('div', {class: 'sub-label'}, 'else'), opsEditor(op.else, refresh));
+      body.append(h('div', {class: 'sub-label'}, 'then'), opsEditor(op.then, refresh, thenForced));
+      body.append(h('div', {class: 'sub-label'}, 'else'), opsEditor(op.else, refresh, elseForced));
     }
-    return h('div', {class: 'op'},
+    const actions = [
+      {label: 'Duplicate op', run: () => { arr.splice(index + 1, 0, clone(op)); refresh(); preview(); }},
+      ...(index > 0 ? [{label: 'Move up', run: () => { [arr[index - 1], arr[index]] = [arr[index], arr[index - 1]]; refresh(); preview(); }}] : []),
+      ...(index < arr.length - 1 ? [{label: 'Move down', run: () => { [arr[index + 1], arr[index]] = [arr[index], arr[index + 1]]; refresh(); preview(); }}] : []),
+      ...(op.op === 'if' ? [
+        {label: 'Draw then branch', run: () => openPixelEditor(op.then, thenForced, 'then')},
+        {label: 'Draw else branch', run: () => openPixelEditor(op.else, elseForced, 'else')}
+      ] : op.op === 'each' ? [
+        {label: 'Draw inside each', run: () => openPixelEditor(op.ops, forcedIfs, 'each')}
+      ] : []),
+      ...(op.op === 'repeat' ? [] : [{label: 'Edit sprite pixels', run: () => openPixelEditor(null, [])}]),
+      {separator: true},
+      {label: 'Delete op', danger: true, run: () => { arr.splice(index, 1); refresh(); preview(); }}
+    ];
+    const card = h('div', {class: 'op'},
       h('header', null,
         h('span', {class: 'kind'}, op.op),
         h('button', {title: 'Move up', onclick: () => { if (index > 0) { [arr[index - 1], arr[index]] = [arr[index], arr[index - 1]]; refresh(); preview(); } }}, '↑'),
@@ -703,6 +763,20 @@
       ),
       body
     );
+    if (op.op === 'if') {
+      body.prepend(
+        h('div', {class: 'row branch-actions'},
+          h('button', {onclick: () => openPixelEditor(op.then, thenForced, 'then')}, 'Draw then'),
+          h('button', {onclick: () => openPixelEditor(op.else, elseForced, 'else')}, 'Draw else')
+        )
+      );
+    } else if (op.op === 'each') {
+      body.prepend(h('div', {class: 'row branch-actions'},
+        h('button', {onclick: () => openPixelEditor(op.ops, forcedIfs, 'each')}, 'Draw inside')
+      ));
+    }
+    card.addEventListener('contextmenu', e => showContextMenu(e, actions));
+    return card;
   }
   function opField(op, f, refresh, index, arr) {
     if (f === 'src') return field('png', pngControl(op, index, arr, refresh));
@@ -784,6 +858,7 @@
   // -------------------------------------------------------------------
   function selectFamily(fam) {
     if (!state.families[fam]) return;
+    edClearBuffer();
     state.family = fam;
     const names = Object.keys(state.families[fam].textures);
     state.current = names[0] || null;
@@ -791,6 +866,7 @@
   }
   function selectTexture(name) {
     if (!familyName() || !familyName().textures[name]) return;
+    edClearBuffer();
     state.current = name;
     renderAll();
   }
@@ -835,6 +911,7 @@
   function duplicateTexture() {
     const doc = familyName(), tex = texDoc();
     if (!doc || !tex) return;
+    edClearBuffer();
     let n = state.current + '_copy', k = 1;
     while (doc.textures[n]) n = state.current + '_copy' + (++k);
     doc.textures[n] = clone(tex);
@@ -867,6 +944,7 @@
     if (!doc) { status('Create a family first.', 'bad'); return; }
     let name = 'sprite', k = 1;
     while (doc.textures[name]) name = 'sprite' + (++k);
+    edClearBuffer();
     doc.textures[name] = blankTexture();
     state.current = name;
     renderAll();
@@ -903,6 +981,7 @@
         if (!doc || typeof doc !== 'object' || !doc.textures) throw new Error('no "textures" object');
         const fam = (doc.name || file.name.replace(/\.texture$/i, '') || 'imported').replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
         doc.name = fam;
+        edClearBuffer();
         state.families[fam] = doc;
         state.family = fam;
         state.current = Object.keys(doc.textures)[0] || null;
@@ -924,6 +1003,7 @@
       let name = base, k = 1;
       while (doc.textures[name]) name = base + '_' + (++k);
       const ops = imageToOps(img.data, img.w, img.h);
+      edClearBuffer();
       doc.textures[name] = {size: [img.w, img.h], params: {}, ops};
       state.current = name;
       renderAll();
@@ -938,11 +1018,89 @@
     data: null, w: 0, h: 0, base: null, baseW: 0, baseH: 0, zoom: 8, tool: 'pencil', size: 1,
     color: {r: 255, g: 255, b: 255, a: 255},
     undo: [], redo: [], recent: [],
+    target: null,
     start: null, snapshot: null, strokeErase: false,
   };
   const ED_LIMIT = 24;
 
   const edIdx = (x, y) => (y * ED.w + x) * 4;
+  function pathValue(root, path) {
+    let value = root;
+    for (const part of path) value = value[part];
+    return value;
+  }
+  function findNodePath(ops, target, path = []) {
+    if (ops === target) return path;
+    if (!Array.isArray(ops)) return null;
+    for (let i = 0; i < ops.length; i++) {
+      const op = ops[i];
+      if (op === target) return path.concat(i);
+      for (const key of ['ops', 'then', 'else']) {
+        const found = findNodePath(op[key], target, path.concat(i, key));
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+  function editorTargetPaths(ops) {
+    if (!ED.target) return null;
+    const path = findNodePath(ops, ED.target.list);
+    if (!path) return null;
+    const forcedIfs = [];
+    for (const forced of ED.target.forcedIfs) {
+      const forcedPath = findNodePath(ops, forced.op);
+      if (!forcedPath) return null;
+      forcedIfs.push({path: forcedPath, result: forced.result});
+    }
+    return {path, forcedIfs};
+  }
+  function renderForEditor() {
+    const files = {};
+    for (const fam of Object.keys(state.families)) files[fam] = clone(state.families[fam]);
+    const tex = files[state.family].textures[state.current];
+    if (ED.target) {
+      const targetPaths = editorTargetPaths(tex.ops);
+      if (!targetPaths) throw new Error('The selected op was removed. Choose a draw target again.');
+      for (const forced of targetPaths.forcedIfs) pathValue(tex.ops, forced.path).test = forced.result;
+    }
+    const problems = [], images = {};
+    for (const fam of Object.keys(files)) {
+      for (const name of Object.keys(files[fam].textures || {})) {
+        resolvePng(files[fam].textures[name].ops, fam, images, problems);
+      }
+    }
+    if (problems.length) throw new Error(problems[0]);
+    TEX.defineImages(images);
+    TEX.define(files);
+    TEX.clear();
+    return TEX.render(state.family, state.current, testParams(), 'pixel-editor' + (state.rev++));
+  }
+  function openPixelEditor(list, forcedIfs, kind) {
+    ED.target = list ? {list, forcedIfs, kind} : null;
+    updatePixelTargetLabel();
+    edLoadSprite();
+    setTab('pixels');
+  }
+  function updatePixelTargetLabel() {
+    const target = ED.target;
+    const destination = target && target.kind;
+    const label = !target ? 'Drawing into whole sprite'
+      : destination === 'each' ? 'Drawing inside each op'
+        : `Drawing into ${destination} branch`;
+    $('edTargetLabel').textContent = label;
+    $('edApplyMode').disabled = destination === 'each';
+    if ($('edApplyMode').disabled) $('edApplyMode').value = 'patch';
+  }
+  function invalidateEditorTarget() {
+    ED.target = null;
+    ED.data = null;
+    ED.base = null;
+    ED.undo = [];
+    ED.redo = [];
+    $('edApplyMode').value = 'patch';
+    updatePixelTargetLabel();
+    edRender();
+  }
   function edEnsure(w, hpx) {
     w = Math.max(1, Math.min(256, Math.round(w)));
     hpx = Math.max(1, Math.min(256, Math.round(hpx)));
@@ -961,7 +1119,7 @@
     $('edW').value = w; $('edH').value = hpx;
   }
   function edClearBuffer() {
-    ED.data = null; ED.base = null; ED.undo = []; ED.redo = [];
+    invalidateEditorTarget();
     $('edLoad').disabled = false;
   }
   function edClear() {
@@ -979,7 +1137,8 @@
   function edLoadSprite() {
     if (!state.current) { status('Select a sprite first.', 'bad'); return; }
     try {
-      const t = TEX.render(state.family, state.current, testParams(), 'edload' + (state.rev++));
+      const t = renderForEditor();
+      if (ED.target) draw(t);
       const g = t.canvas.getContext('2d');
       const img = g.getImageData(0, 0, t.canvas.width, t.canvas.height);
       ED.w = img.width; ED.h = img.height;
@@ -990,7 +1149,7 @@
       $('edW').value = ED.w; $('edH').value = ED.h;
       edFitZoom();
       edRender();
-      status(`Loaded ${state.current} (${ED.w}×${ED.h}) into the pixel editor.`, 'good');
+      status(`Loaded ${state.current} (${ED.w}×${ED.h}) into the pixel editor${ED.target ? ' for ' + ED.target.kind : ''}.`, 'good');
     } catch (e) { status('Could not load the sprite: ' + e.message, 'bad'); }
   }
   function edFitZoom() {
@@ -1190,7 +1349,8 @@
     const tex = texDoc();
     if (!tex) { status('Select a sprite first.', 'bad'); return; }
     if (!ED.data) { status('Load or clear a canvas first.', 'bad'); return; }
-    const mode = ($('edApplyMode') && $('edApplyMode').value) || 'patch';
+    const mode = ED.target && ED.target.kind === 'each'
+      ? 'patch' : (($('edApplyMode') && $('edApplyMode').value) || 'patch');
     const flat = imageToOps(ED.data, ED.w, ED.h);
     tex.size = [ED.w, ED.h];
     let applied = flat, how = 'replaced';
@@ -1198,10 +1358,28 @@
       if (!ED.base) { status('Use “Ops → pixels” first so there is a baseline to patch.', 'bad'); return; }
       const patch = patchFromBase(ED.data, ED.w, ED.h, ED.base, ED.baseW, ED.baseH);
       if (!patch.length) { status('No pixels changed, so the ops were left alone.', ''); return; }
-      tex.ops = [...(tex.ops || []), ...patch];
+      if (ED.target) {
+        if (!findNodePath(tex.ops || [], ED.target.list)) {
+          invalidateEditorTarget();
+          status('The selected op was removed. Reload the sprite before applying.', 'bad');
+          return;
+        }
+        ED.target.list.push(...patch);
+      } else {
+        tex.ops = [...(tex.ops || []), ...patch];
+      }
       applied = patch; how = 'patched';
     } else {
-      tex.ops = flat;
+      if (ED.target) {
+        if (!findNodePath(tex.ops || [], ED.target.list)) {
+          invalidateEditorTarget();
+          status('The selected op was removed. Reload the sprite before applying.', 'bad');
+          return;
+        }
+        ED.target.list.splice(0, ED.target.list.length, {op: 'clear', x: 0, y: 0, w: ED.w, h: ED.h}, ...flat);
+      } else {
+        tex.ops = flat;
+      }
     }
     ED.base = new Uint8ClampedArray(ED.data); ED.baseW = ED.w; ED.baseH = ED.h;
     renderOps(); renderTextureSettings(); renderLibrary(); preview();
@@ -1228,13 +1406,14 @@
     const input = $('addTexName');
     const name = (input.value || '').trim().replace(/[^A-Za-z0-9_]/g, '_') || 'texture';
     if (doc.textures[name]) { status('"' + name + '" already exists.', 'bad'); return; }
+    edClearBuffer();
     doc.textures[name] = blankTexture();
     state.current = name;
     input.value = '';
     renderAll();
   });
   $('newBlankSprite').addEventListener('click', addBlankSprite);
-  $('opToPixels').addEventListener('click', () => { edLoadSprite(); setTab('pixels'); });
+  $('opToPixels').addEventListener('click', () => openPixelEditor(null, []));
   $('importBtn').addEventListener('click', () => $('importFile').click());
   $('importFile').addEventListener('change', e => {
     const files = [...(e.target.files || [])];
@@ -1302,6 +1481,13 @@
 
   const pcv = $('pixelCanvas');
   pcv.addEventListener('contextmenu', e => e.preventDefault());
+  document.addEventListener('pointerdown', e => {
+    if (state.opMenu && !state.opMenu.contains(e.target)) closeContextMenu();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeContextMenu();
+  });
+  addEventListener('scroll', closeContextMenu, true);
   pcv.addEventListener('pointerdown', e => {
     if (!ED.data) { status('Click “Load sprite” or “Clear” to start a canvas.', 'bad'); return; }
     e.preventDefault();

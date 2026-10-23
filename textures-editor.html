@@ -92,9 +92,16 @@ header select{min-width:140px}
 .op>header button{padding:1px 5px;font-size:11px;line-height:1.2}
 .op .body{padding:5px;display:flex;flex-direction:column;gap:4px}
 .op .body .field{grid-template-columns:80px 1fr}
+.branch-actions{margin:0 0 3px;padding-bottom:4px;border-bottom:1px solid var(--line)}
+.branch-actions button{flex:1}
 .sub-label{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin:4px 0 2px}
 .addop{display:flex;gap:4px;align-items:center;margin-top:4px}
 .addop select{flex:1;min-width:0}
+.context-menu{position:fixed;z-index:20;min-width:160px;padding:4px;background:var(--panel);border:1px solid var(--edge);box-shadow:0 8px 24px #0009;display:flex;flex-direction:column;gap:2px}
+.context-menu button{text-align:left;border-color:transparent;background:transparent;padding:5px 9px}
+.context-menu button:hover,.context-menu button:focus{background:#26304a;border-color:#4a5779;outline:1px solid var(--acc)}
+.context-menu button.danger{color:var(--bad)}
+.context-separator{height:1px;background:var(--line);margin:3px 0}
 .pairs{display:flex;flex-direction:column;gap:3px}
 .pairs .pair{display:grid;grid-template-columns:110px 1fr auto;gap:4px}
 .pngbox{display:flex;flex-direction:column;gap:4px}
@@ -254,6 +261,7 @@ footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;bo
         <button id="edLoad" class="grow">Ops → pixels</button>
         <button id="edClear">Clear</button>
       </div>
+      <div id="edTargetLabel" class="help">Drawing into whole sprite</div>
       <div class="row" style="margin-bottom:6px">
         <select id="edApplyMode" class="grow" aria-label="How to apply pixels">
           <option value="patch">Patch ops (keeps if/repeat)</option>
@@ -269,11 +277,10 @@ footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;bo
         <span class="spacer"></span>
         <label class="row">zoom <input id="edZoom" type="range" min="1" max="24" value="8" style="width:70px" aria-label="Editor zoom"></label>
       </div>
-      <p class="hintline">Right-click paints transparent. <b>Patch</b> keeps the
-        sprite's existing ops (including <code>if</code>, <code>repeat</code> and
-        <code>each</code>) and appends only the pixels you changed, using
-        <code>clear</code> ops for erasures. <b>Replace</b> flattens everything
-        into rect ops.</p>
+      <p class="hintline">Right-click paints transparent. Use <b>Draw then</b> /
+        <b>Draw else</b> on an <code>if</code> op to edit that branch's appearance;
+        <b>Draw inside</b> edits an <code>each</code> body. Branch patches stay
+        inside their op. <code>repeat</code> is edited through its nested ops.</p>
     </div>
 
     <div class="tabpane hidden" id="tab-ops">
