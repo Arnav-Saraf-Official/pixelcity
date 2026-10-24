@@ -187,17 +187,25 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
   }
   for (const i of overpassList) { const x = i % MW, y = i / MW | 0; if (x >= vx0 && x <= vx1 && y >= vy0 && y <= vy1) drawDeck(f, x * T, y * T, tile[i] === 2); }
   for (const c of onDeck) drawCar(c);
-  // freight trains on the surface tracks: the head, then one wagon per tile behind it
+  // Freight trains: the engine moves continuously, and each wagon trails it
+  // by a fixed distance along the same path, so the whole consist moves at
+  // one speed. A wagon facing into a corner takes its orientation from the
+  // segment its own centre is on, not from the engine at the front.
+  const CAR_GAP = 1; // tiles between wagon centres
   for (const t of freight) {
     if (!t.path || t.state === 'dwell') continue;
-    const hz = t.d === 2 || t.d === 4;
     for (let k = 0; k < t.consist.length; k++) {
-      const idx = t.i - k;
-      if (idx < 0 || idx >= t.path.length - 1) continue;
+      let odo = t.i + t.t - k * CAR_GAP;
+      if (odo < 0) continue;
+      let idx = Math.floor(odo), frac = odo - idx;
+      if (idx >= t.path.length - 1) { idx = t.path.length - 2; frac = 1; }
+      if (idx < 0) continue;
       const a = t.path[idx], b = t.path[idx + 1];
       const ax = a % MW, ay = a / MW | 0, bx = b % MW, by = b / MW | 0;
-      const tt = k === 0 ? t.t : 0.5;
-      const px = (ax + (bx - ax) * tt) * T + 4.5, py = (ay + (by - ay) * tt) * T + 4.5;
+      const d = dirOf(a, b) || 2;
+      const hz = d === 2 || d === 4;
+      const px = (ax + (bx - ax) * frac) * T + 4.5;
+      const py = (ay + (by - ay) * frac) * T + 4.5;
       if (px / T < vx0 - 2 || px / T > vx1 + 2 || py / T < vy0 - 2 || py / T > vy1 + 2) continue;
       drawFreightCar(f, Math.round(px - (hz ? 3.5 : 1.5)), Math.round(py - (hz ? 1.5 : 3.5)), hz, t.consist[k]);
     }

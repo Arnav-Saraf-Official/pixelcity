@@ -1,74 +1,178 @@
+// texture/2 — designs of pixel rows, conditions in short text.
+// A condition chooses the design to paint, e.g. "m = 5" or "hw > 0 and night".
+// Edit with the Texture Studio (npm run build, then /textures).
 {
-  // ===================================================================
-  // Surface freight track. One texture covers all 16 connection shapes,
-  // exactly like the road network: `m` is the connection mask (bit0 N,
-  // bit1 E, bit2 S, bit3 W). Each arm stops at the tile centre, so a
-  // curve reads as a curve and a dead end has no rail running into the
-  // grass. The ground stays visible around the ballast, so the same tile
-  // works on grass, at a level crossing over a street, or on the timber
-  // deck of a bridge.
-  // ===================================================================
-  "format": "texture/1",
+  "format": "texture/2",
   "name": "rails",
   "tile": 9,
-
-  "defs": {
-    "ballast": "#6b6459",
-    "sleeper": "#5a4433",
-    "steel": "#c3c9d1",
-    "joint": "#8a7a68"
-  },
-
+  "defs": {"ballast":"#6b6459","sleeper":"#5a4433","steel":"#c3c9d1","joint":"#8a7a68"},
   "textures": {
     "track": {
-      "size": [9, 9],
-      "params": { "m": 0 },
-      "ops": [
-        // ---- ballast, one arm per connection plus the middle ----
-        { "op": "if", "test": ["bit", ["param", "m"], 0], "then": [
-          { "op": "rect", "x": 2, "y": 0, "w": 5, "h": 5, "color": ["def", "ballast"] }] },
-        { "op": "if", "test": ["bit", ["param", "m"], 2], "then": [
-          { "op": "rect", "x": 2, "y": 4, "w": 5, "h": 5, "color": ["def", "ballast"] }] },
-        { "op": "if", "test": ["bit", ["param", "m"], 1], "then": [
-          { "op": "rect", "x": 4, "y": 2, "w": 5, "h": 5, "color": ["def", "ballast"] }] },
-        { "op": "if", "test": ["bit", ["param", "m"], 3], "then": [
-          { "op": "rect", "x": 0, "y": 2, "w": 5, "h": 5, "color": ["def", "ballast"] }] },
-        { "op": "rect", "x": 2, "y": 2, "w": 5, "h": 5, "color": ["def", "ballast"] },
-
-        // ---- sleepers: across the running direction ----
-        { "op": "if", "test": ["bit", ["param", "m"], 0], "then": [
-          { "op": "each", "as": "y", "in": [0, 3], "ops": [
-            { "op": "rect", "x": 1, "y": ["var", "y"], "w": 7, "h": 1, "color": ["def", "sleeper"] }] }] },
-        { "op": "if", "test": ["bit", ["param", "m"], 2], "then": [
-          { "op": "rect", "x": 1, "y": 6, "w": 7, "h": 1, "color": ["def", "sleeper"] }] },
-        { "op": "if", "test": ["bit", ["param", "m"], 1], "then": [
-          { "op": "each", "as": "x", "in": [3, 6], "ops": [
-            { "op": "rect", "x": ["var", "x"], "y": 1, "w": 1, "h": 7, "color": ["def", "sleeper"] }] }] },
-        { "op": "if", "test": ["bit", ["param", "m"], 3], "then": [
-          { "op": "rect", "x": 0, "y": 1, "w": 1, "h": 7, "color": ["def", "sleeper"] }] },
-
-        // a lone through-via, for the first piece of a new line
-        { "op": "if", "test": ["==", ["param", "m"], 0], "then": [
-          { "op": "each", "as": "y", "in": [1, 4, 7], "ops": [
-            { "op": "rect", "x": 1, "y": ["var", "y"], "w": 7, "h": 1, "color": ["def", "sleeper"] }] }] },
-
-        // ---- the two running rails, toward each connected side ----
-        { "op": "if", "test": ["bit", ["param", "m"], 0], "then": [
-          { "op": "rect", "x": 3, "y": 0, "w": 1, "h": 6, "color": ["def", "steel"] },
-          { "op": "rect", "x": 5, "y": 0, "w": 1, "h": 6, "color": ["def", "steel"] }] },
-        { "op": "if", "test": ["bit", ["param", "m"], 2], "then": [
-          { "op": "rect", "x": 3, "y": 3, "w": 1, "h": 6, "color": ["def", "steel"] },
-          { "op": "rect", "x": 5, "y": 3, "w": 1, "h": 6, "color": ["def", "steel"] }] },
-        { "op": "if", "test": ["bit", ["param", "m"], 1], "then": [
-          { "op": "rect", "x": 3, "y": 3, "w": 6, "h": 1, "color": ["def", "steel"] },
-          { "op": "rect", "x": 3, "y": 5, "w": 6, "h": 1, "color": ["def", "steel"] }] },
-        { "op": "if", "test": ["bit", ["param", "m"], 3], "then": [
-          { "op": "rect", "x": 0, "y": 3, "w": 6, "h": 1, "color": ["def", "steel"] },
-          { "op": "rect", "x": 0, "y": 5, "w": 6, "h": 1, "color": ["def", "steel"] }] },
-        { "op": "if", "test": ["==", ["param", "m"], 0], "then": [
-          { "op": "rect", "x": 3, "y": 0, "w": 1, "h": 9, "color": ["def", "steel"] },
-          { "op": "rect", "x": 5, "y": 0, "w": 1, "h": 9, "color": ["def", "steel"] }] },
-
+      "size": [9,9],
+      "params": {"m":0},
+      "default": "m0",
+      "designs": {
+        "m0": {
+          "palette": [
+            "transparent",
+            {"color":["def","steel"]},
+            {"color":["def","sleeper"]},
+            {"color":["def","ballast"]}
+          ],
+          "rows": ["...1.1...",".2212122.","..31313..","..31313..",".2212122.","..31313..","..31313..",".2212122.","...1.1..."]
+        },
+        "m1": {
+          "palette": [
+            "transparent",
+            {"color":["def","sleeper"]},
+            {"color":["def","steel"]},
+            {"color":["def","ballast"]}
+          ],
+          "rows": [".1121211.","..32323..","..32323..",".1121211.","..32323..","..32323..","..33333..",".........","........."]
+        },
+        "m2": {
+          "palette": [
+            "transparent",
+            {"color":["def","sleeper"]},
+            {"color":["def","ballast"]},
+            {"color":["def","steel"]}
+          ],
+          "rows": [".........","...1..1..","..2122122","..2333333","..2122122","..2333333","..2122122","...1..1..","........."]
+        },
+        "m3": {
+          "palette": [
+            "transparent",
+            {"color":["def","sleeper"]},
+            {"color":["def","steel"]},
+            {"color":["def","ballast"]}
+          ],
+          "rows": [".1121211.","..32321..","..3232133",".11222222","..3232133","..3222222","..3133133","...1..1..","........."]
+        },
+        "m4": {
+          "palette": [
+            "transparent",
+            {"color":["def","ballast"]},
+            {"color":["def","steel"]},
+            {"color":["def","sleeper"]}
+          ],
+          "rows": [".........",".........","..11111..","..12121..","..12121..","..12121..",".3323233.","..12121..","..12121.."]
+        },
+        "m5": {
+          "palette": [
+            "transparent",
+            {"color":["def","sleeper"]},
+            {"color":["def","steel"]},
+            {"color":["def","ballast"]}
+          ],
+          "rows": [".1121211.","..32323..","..32323..",".1121211.","..32323..","..32323..",".1121211.","..32323..","..32323.."]
+        },
+        "m6": {
+          "palette": [
+            "transparent",
+            {"color":["def","sleeper"]},
+            {"color":["def","ballast"]},
+            {"color":["def","steel"]}
+          ],
+          "rows": [".........","...1..1..","..2122122","..2333333","..2323122","..2333333",".11313112","..23231..","..23232.."]
+        },
+        "m7": {
+          "palette": [
+            "transparent",
+            {"color":["def","sleeper"]},
+            {"color":["def","steel"]},
+            {"color":["def","ballast"]}
+          ],
+          "rows": [".1121211.","..32321..","..3232133",".11222222","..3232133","..3222222",".11212113","..32321..","..32323.."]
+        },
+        "m8": {
+          "palette": [
+            "transparent",
+            {"color":["def","sleeper"]},
+            {"color":["def","ballast"]},
+            {"color":["def","steel"]}
+          ],
+          "rows": [".........","1........","1222222..","3333332..","1222222..","3333332..","1222222..","1........","........."]
+        },
+        "m9": {
+          "palette": [
+            "transparent",
+            {"color":["def","sleeper"]},
+            {"color":["def","steel"]},
+            {"color":["def","ballast"]}
+          ],
+          "rows": [".1121211.","1.32323..","1332323..","22222211.","1332323..","2222223..","1333333..","1........","........."]
+        },
+        "m10": {
+          "palette": [
+            "transparent",
+            {"color":["def","sleeper"]},
+            {"color":["def","ballast"]},
+            {"color":["def","steel"]}
+          ],
+          "rows": [".........","1..1..1..","122122122","333333333","122122122","333333333","122122122","1..1..1..","........."]
+        },
+        "m11": {
+          "palette": [
+            "transparent",
+            {"color":["def","sleeper"]},
+            {"color":["def","steel"]},
+            {"color":["def","ballast"]}
+          ],
+          "rows": [".1121211.","1.32321..","133232133","222222222","133232133","222222222","133133133","1..1..1..","........."]
+        },
+        "m12": {
+          "palette": [
+            "transparent",
+            {"color":["def","sleeper"]},
+            {"color":["def","ballast"]},
+            {"color":["def","steel"]}
+          ],
+          "rows": [".........","1........","1222222..","3333332..","1223232..","3333332..","11131311.","1.23232..","..23232.."]
+        },
+        "m13": {
+          "palette": [
+            "transparent",
+            {"color":["def","sleeper"]},
+            {"color":["def","steel"]},
+            {"color":["def","ballast"]}
+          ],
+          "rows": [".1121211.","1.32323..","1332323..","22222211.","1332323..","2222223..","11121211.","1.32323..","..32323.."]
+        },
+        "m14": {
+          "palette": [
+            "transparent",
+            {"color":["def","sleeper"]},
+            {"color":["def","ballast"]},
+            {"color":["def","steel"]}
+          ],
+          "rows": [".........","1..1..1..","122122122","333333333","122323122","333333333","111313112","1.23231..","..23232.."]
+        },
+        "m15": {
+          "palette": [
+            "transparent",
+            {"color":["def","sleeper"]},
+            {"color":["def","steel"]},
+            {"color":["def","ballast"]}
+          ],
+          "rows": [".1121211.","1.32321..","133232133","222222222","133232133","222222222","111212113","1.32321..","..32323.."]
+        }
+      },
+      "conditions": [
+        {"when":"m = 1","design":"m1"},
+        {"when":"m = 2","design":"m2"},
+        {"when":"m = 3","design":"m3"},
+        {"when":"m = 4","design":"m4"},
+        {"when":"m = 5","design":"m5"},
+        {"when":"m = 6","design":"m6"},
+        {"when":"m = 7","design":"m7"},
+        {"when":"m = 8","design":"m8"},
+        {"when":"m = 9","design":"m9"},
+        {"when":"m = 10","design":"m10"},
+        {"when":"m = 11","design":"m11"},
+        {"when":"m = 12","design":"m12"},
+        {"when":"m = 13","design":"m13"},
+        {"when":"m = 14","design":"m14"},
+        {"when":"m = 15","design":"m15"}
       ]
     }
   }

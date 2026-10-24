@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile, readdir, stat } from 'node:fs/promises';
 import { dirname, resolve, relative, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildTextures } from './textures.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -71,6 +72,10 @@ async function buildPage(input, output) {
   await writeFile(out, html, 'utf8');
   console.log(`Built ${output}`);
 }
+
+// Recompile textures/*.texture first so the pages always ship current art.
+const tex = buildTextures();
+console.log(`textures: ${tex.textures} in ${tex.files} files -> ${relative(root, tex.outFile)}`);
 
 // `node scripts/build.mjs out.html` keeps the old single-file behaviour.
 if (process.argv[2]) {

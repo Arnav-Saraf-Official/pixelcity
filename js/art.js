@@ -130,8 +130,6 @@ function drawFreightCar(c, x, y, horiz, kind) {
 
 function drawPlane(c, p, night) {
   const h = ((Math.round(p.ang / (Math.PI / 4)) % 8) + 8) % 8;
-  const gx = Math.round(p.x), gy = Math.round(p.y);
-  if (p.alt > 0.5) TEX.draw(c, 'vehicles', 'plane_shadow', gx - 4, gy - 4, { h });
   const blink = (performance.now() / 500 | 0) % 2;
   TEX.draw(c, 'vehicles', 'plane',
     Math.round(p.x - p.alt * 0.5) - 4, Math.round(p.y - p.alt) - 4,

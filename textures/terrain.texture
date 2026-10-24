@@ -1,18 +1,3182 @@
+// texture/2 — designs of pixel rows, conditions in short text.
+// A condition chooses the design to paint, e.g. "m = 5" or "hw > 0 and night".
+// Edit with the Texture Studio (npm run build, then /textures).
 {
-  "format": "texture/1",
+  "format": "texture/2",
   "name": "terrain",
   "tile": 9,
+  "defs": {},
   "textures": {
     "snow_grass": {
-      "size": [9, 9],
-      "params": { "seed": 0 },
-      "ops": [
-        { "op": "repeat", "as": "k", "times": 9, "ops": [
-          { "op": "pixel", "x": ["mod", ["+", ["*", ["var", "k"], 5], ["mod", ["param", "seed"], 7]], 9],
-            "y": ["mod", ["+", ["*", ["var", "k"], 7], ["floor", ["/", ["param", "seed"], 11]]], 9],
-            "color": ["if", ["==", ["mod", ["var", "k"], 3], 0], "#ffffff48", "#b9d8f530"] }
-        ] }
-      ]
+      "size": [9,9],
+      "params": {"seed":0},
+      "designs": {
+        "base": {
+          "palette": [
+            "transparent",
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 0 and 0 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 0 and 0 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 0 and 0 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 0 and 0 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 0 and 0 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 0 and 0 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 0 and 0 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 0 and 0 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 0 and 0 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 0 and 0 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 0 and 0 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 0 and 0 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 0 and 0 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 0 and 0 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 0 and 0 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 0 and 0 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 0 and 0 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 0 and 0 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 1 and 1 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 0 and 0 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 1 and 1 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 0 and 0 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 1 and 1 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 0 and 0 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 1 and 1 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 0 and 0 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 1 and 1 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 0 and 0 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 1 and 1 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 0 and 0 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 1 and 1 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 0 and 0 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 1 and 1 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 0 and 0 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 1 and 1 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 0 and 0 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 2 and 2 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 0 and 0 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 2 and 2 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 0 and 0 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 2 and 2 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 0 and 0 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 2 and 2 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 0 and 0 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 2 and 2 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 0 and 0 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 2 and 2 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 0 and 0 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 2 and 2 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 0 and 0 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 2 and 2 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 0 and 0 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 2 and 2 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 0 and 0 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 3 and 3 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 0 and 0 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 3 and 3 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 0 and 0 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 3 and 3 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 0 and 0 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 3 and 3 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 0 and 0 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 3 and 3 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 0 and 0 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 3 and 3 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 0 and 0 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 3 and 3 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 0 and 0 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 3 and 3 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 0 and 0 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 3 and 3 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 0 and 0 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 4 and 4 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 0 and 0 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 4 and 4 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 0 and 0 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 4 and 4 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 0 and 0 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 4 and 4 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 0 and 0 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 4 and 4 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 0 and 0 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 4 and 4 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 0 and 0 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 4 and 4 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 0 and 0 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 4 and 4 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 0 and 0 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 4 and 4 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 0 and 0 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 5 and 5 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 0 and 0 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 5 and 5 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 0 and 0 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 5 and 5 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 0 and 0 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 5 and 5 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 0 and 0 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 5 and 5 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 0 and 0 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 5 and 5 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 0 and 0 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 5 and 5 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 0 and 0 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 5 and 5 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 0 and 0 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 5 and 5 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 0 and 0 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 6 and 6 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 0 and 0 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 6 and 6 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 0 and 0 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 6 and 6 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 0 and 0 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 6 and 6 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 0 and 0 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 6 and 6 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 0 and 0 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 6 and 6 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 0 and 0 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 6 and 6 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 0 and 0 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 6 and 6 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 0 and 0 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 6 and 6 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 0 and 0 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 7 and 7 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 0 and 0 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 7 and 7 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 0 and 0 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 7 and 7 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 0 and 0 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 7 and 7 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 0 and 0 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 7 and 7 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 0 and 0 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 7 and 7 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 0 and 0 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 7 and 7 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 0 and 0 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 7 and 7 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 0 and 0 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 7 and 7 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 0 and 0 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 8 and 8 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 0 and 0 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 8 and 8 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 0 and 0 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 8 and 8 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 0 and 0 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 8 and 8 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 0 and 0 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 8 and 8 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 0 and 0 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 8 and 8 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 0 and 0 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 8 and 8 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 0 and 0 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 8 and 8 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 0 and 0 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 8 and 8 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 0 and 0 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 0 and 0 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 1 and 1 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 0 and 0 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 1 and 1 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 0 and 0 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 1 and 1 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 0 and 0 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 1 and 1 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 0 and 0 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 1 and 1 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 0 and 0 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 1 and 1 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 0 and 0 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 1 and 1 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 0 and 0 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 1 and 1 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 0 and 0 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 1 and 1 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 1 and 1 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 1 and 1 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 1 and 1 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 1 and 1 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 1 and 1 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 1 and 1 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 1 and 1 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 1 and 1 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 1 and 1 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 1 and 1 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 1 and 1 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 1 and 1 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 1 and 1 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 1 and 1 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 1 and 1 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 1 and 1 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 1 and 1 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 1 and 1 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 2 and 2 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 1 and 1 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 2 and 2 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 1 and 1 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 2 and 2 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 1 and 1 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 2 and 2 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 1 and 1 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 2 and 2 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 1 and 1 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 2 and 2 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 1 and 1 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 2 and 2 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 1 and 1 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 2 and 2 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 1 and 1 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 2 and 2 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 1 and 1 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 3 and 3 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 1 and 1 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 3 and 3 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 1 and 1 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 3 and 3 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 1 and 1 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 3 and 3 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 1 and 1 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 3 and 3 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 1 and 1 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 3 and 3 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 1 and 1 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 3 and 3 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 1 and 1 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 3 and 3 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 1 and 1 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 3 and 3 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 1 and 1 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 4 and 4 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 1 and 1 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 4 and 4 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 1 and 1 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 4 and 4 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 1 and 1 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 4 and 4 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 1 and 1 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 4 and 4 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 1 and 1 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 4 and 4 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 1 and 1 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 4 and 4 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 1 and 1 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 4 and 4 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 1 and 1 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 4 and 4 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 1 and 1 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 5 and 5 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 1 and 1 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 5 and 5 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 1 and 1 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 5 and 5 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 1 and 1 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 5 and 5 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 1 and 1 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 5 and 5 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 1 and 1 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 5 and 5 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 1 and 1 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 5 and 5 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 1 and 1 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 5 and 5 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 1 and 1 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 5 and 5 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 1 and 1 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 6 and 6 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 1 and 1 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 6 and 6 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 1 and 1 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 6 and 6 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 1 and 1 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 6 and 6 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 1 and 1 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 6 and 6 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 1 and 1 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 6 and 6 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 1 and 1 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 6 and 6 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 1 and 1 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 6 and 6 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 1 and 1 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 6 and 6 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 1 and 1 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 7 and 7 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 1 and 1 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 7 and 7 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 1 and 1 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 7 and 7 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 1 and 1 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 7 and 7 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 1 and 1 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 7 and 7 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 1 and 1 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 7 and 7 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 1 and 1 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 7 and 7 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 1 and 1 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 7 and 7 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 1 and 1 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 7 and 7 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 1 and 1 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 8 and 8 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 1 and 1 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 8 and 8 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 1 and 1 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 8 and 8 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 1 and 1 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 8 and 8 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 1 and 1 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 8 and 8 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 1 and 1 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 8 and 8 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 1 and 1 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 8 and 8 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 1 and 1 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 8 and 8 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 1 and 1 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 8 and 8 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 1 and 1 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 0 and 0 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 2 and 2 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 0 and 0 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 2 and 2 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 0 and 0 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 2 and 2 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 0 and 0 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 2 and 2 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 0 and 0 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 2 and 2 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 0 and 0 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 2 and 2 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 0 and 0 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 2 and 2 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 0 and 0 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 2 and 2 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 0 and 0 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 2 and 2 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 1 and 1 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 2 and 2 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 1 and 1 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 2 and 2 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 1 and 1 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 2 and 2 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 1 and 1 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 2 and 2 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 1 and 1 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 2 and 2 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 1 and 1 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 2 and 2 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 1 and 1 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 2 and 2 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 1 and 1 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 2 and 2 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 1 and 1 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 2 and 2 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 2 and 2 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 2 and 2 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 2 and 2 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 2 and 2 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 2 and 2 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 2 and 2 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 2 and 2 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 2 and 2 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 2 and 2 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 2 and 2 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 2 and 2 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 2 and 2 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 2 and 2 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 2 and 2 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 2 and 2 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 2 and 2 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 2 and 2 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 2 and 2 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 3 and 3 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 2 and 2 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 3 and 3 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 2 and 2 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 3 and 3 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 2 and 2 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 3 and 3 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 2 and 2 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 3 and 3 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 2 and 2 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 3 and 3 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 2 and 2 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 3 and 3 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 2 and 2 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 3 and 3 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 2 and 2 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 3 and 3 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 2 and 2 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 4 and 4 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 2 and 2 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 4 and 4 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 2 and 2 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 4 and 4 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 2 and 2 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 4 and 4 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 2 and 2 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 4 and 4 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 2 and 2 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 4 and 4 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 2 and 2 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 4 and 4 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 2 and 2 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 4 and 4 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 2 and 2 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 4 and 4 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 2 and 2 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 5 and 5 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 2 and 2 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 5 and 5 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 2 and 2 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 5 and 5 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 2 and 2 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 5 and 5 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 2 and 2 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 5 and 5 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 2 and 2 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 5 and 5 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 2 and 2 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 5 and 5 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 2 and 2 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 5 and 5 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 2 and 2 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 5 and 5 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 2 and 2 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 6 and 6 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 2 and 2 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 6 and 6 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 2 and 2 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 6 and 6 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 2 and 2 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 6 and 6 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 2 and 2 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 6 and 6 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 2 and 2 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 6 and 6 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 2 and 2 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 6 and 6 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 2 and 2 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 6 and 6 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 2 and 2 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 6 and 6 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 2 and 2 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 7 and 7 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 2 and 2 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 7 and 7 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 2 and 2 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 7 and 7 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 2 and 2 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 7 and 7 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 2 and 2 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 7 and 7 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 2 and 2 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 7 and 7 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 2 and 2 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 7 and 7 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 2 and 2 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 7 and 7 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 2 and 2 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 7 and 7 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 2 and 2 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 8 and 8 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 2 and 2 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 8 and 8 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 2 and 2 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 8 and 8 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 2 and 2 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 8 and 8 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 2 and 2 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 8 and 8 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 2 and 2 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 8 and 8 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 2 and 2 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 8 and 8 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 2 and 2 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 8 and 8 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 2 and 2 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 8 and 8 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 2 and 2 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 0 and 0 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 3 and 3 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 0 and 0 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 3 and 3 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 0 and 0 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 3 and 3 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 0 and 0 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 3 and 3 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 0 and 0 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 3 and 3 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 0 and 0 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 3 and 3 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 0 and 0 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 3 and 3 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 0 and 0 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 3 and 3 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 0 and 0 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 3 and 3 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 1 and 1 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 3 and 3 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 1 and 1 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 3 and 3 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 1 and 1 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 3 and 3 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 1 and 1 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 3 and 3 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 1 and 1 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 3 and 3 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 1 and 1 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 3 and 3 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 1 and 1 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 3 and 3 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 1 and 1 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 3 and 3 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 1 and 1 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 3 and 3 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 2 and 2 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 3 and 3 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 2 and 2 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 3 and 3 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 2 and 2 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 3 and 3 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 2 and 2 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 3 and 3 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 2 and 2 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 3 and 3 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 2 and 2 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 3 and 3 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 2 and 2 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 3 and 3 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 2 and 2 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 3 and 3 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 2 and 2 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 3 and 3 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 3 and 3 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 3 and 3 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 3 and 3 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 3 and 3 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 3 and 3 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 3 and 3 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 3 and 3 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 3 and 3 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 3 and 3 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 3 and 3 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 3 and 3 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 3 and 3 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 3 and 3 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 3 and 3 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 3 and 3 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 3 and 3 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 3 and 3 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 3 and 3 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 4 and 4 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 3 and 3 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 4 and 4 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 3 and 3 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 4 and 4 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 3 and 3 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 4 and 4 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 3 and 3 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 4 and 4 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 3 and 3 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 4 and 4 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 3 and 3 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 4 and 4 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 3 and 3 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 4 and 4 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 3 and 3 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 4 and 4 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 3 and 3 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 5 and 5 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 3 and 3 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 5 and 5 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 3 and 3 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 5 and 5 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 3 and 3 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 5 and 5 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 3 and 3 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 5 and 5 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 3 and 3 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 5 and 5 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 3 and 3 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 5 and 5 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 3 and 3 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 5 and 5 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 3 and 3 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 5 and 5 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 3 and 3 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 6 and 6 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 3 and 3 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 6 and 6 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 3 and 3 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 6 and 6 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 3 and 3 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 6 and 6 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 3 and 3 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 6 and 6 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 3 and 3 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 6 and 6 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 3 and 3 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 6 and 6 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 3 and 3 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 6 and 6 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 3 and 3 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 6 and 6 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 3 and 3 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 7 and 7 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 3 and 3 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 7 and 7 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 3 and 3 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 7 and 7 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 3 and 3 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 7 and 7 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 3 and 3 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 7 and 7 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 3 and 3 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 7 and 7 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 3 and 3 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 7 and 7 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 3 and 3 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 7 and 7 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 3 and 3 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 7 and 7 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 3 and 3 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 8 and 8 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 3 and 3 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 8 and 8 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 3 and 3 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 8 and 8 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 3 and 3 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 8 and 8 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 3 and 3 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 8 and 8 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 3 and 3 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 8 and 8 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 3 and 3 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 8 and 8 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 3 and 3 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 8 and 8 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 3 and 3 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 8 and 8 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 3 and 3 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 0 and 0 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 4 and 4 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 0 and 0 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 4 and 4 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 0 and 0 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 4 and 4 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 0 and 0 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 4 and 4 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 0 and 0 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 4 and 4 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 0 and 0 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 4 and 4 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 0 and 0 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 4 and 4 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 0 and 0 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 4 and 4 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 0 and 0 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 4 and 4 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 1 and 1 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 4 and 4 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 1 and 1 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 4 and 4 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 1 and 1 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 4 and 4 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 1 and 1 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 4 and 4 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 1 and 1 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 4 and 4 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 1 and 1 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 4 and 4 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 1 and 1 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 4 and 4 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 1 and 1 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 4 and 4 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 1 and 1 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 4 and 4 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 2 and 2 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 4 and 4 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 2 and 2 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 4 and 4 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 2 and 2 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 4 and 4 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 2 and 2 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 4 and 4 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 2 and 2 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 4 and 4 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 2 and 2 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 4 and 4 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 2 and 2 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 4 and 4 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 2 and 2 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 4 and 4 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 2 and 2 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 4 and 4 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 3 and 3 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 4 and 4 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 3 and 3 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 4 and 4 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 3 and 3 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 4 and 4 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 3 and 3 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 4 and 4 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 3 and 3 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 4 and 4 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 3 and 3 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 4 and 4 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 3 and 3 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 4 and 4 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 3 and 3 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 4 and 4 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 3 and 3 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 4 and 4 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 4 and 4 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 4 and 4 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 4 and 4 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 4 and 4 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 4 and 4 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 4 and 4 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 4 and 4 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 4 and 4 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 4 and 4 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 4 and 4 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 4 and 4 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 4 and 4 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 4 and 4 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 4 and 4 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 4 and 4 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 4 and 4 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 4 and 4 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 4 and 4 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 5 and 5 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 4 and 4 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 5 and 5 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 4 and 4 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 5 and 5 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 4 and 4 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 5 and 5 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 4 and 4 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 5 and 5 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 4 and 4 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 5 and 5 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 4 and 4 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 5 and 5 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 4 and 4 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 5 and 5 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 4 and 4 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 5 and 5 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 4 and 4 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 6 and 6 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 4 and 4 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 6 and 6 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 4 and 4 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 6 and 6 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 4 and 4 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 6 and 6 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 4 and 4 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 6 and 6 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 4 and 4 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 6 and 6 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 4 and 4 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 6 and 6 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 4 and 4 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 6 and 6 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 4 and 4 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 6 and 6 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 4 and 4 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 7 and 7 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 4 and 4 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 7 and 7 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 4 and 4 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 7 and 7 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 4 and 4 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 7 and 7 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 4 and 4 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 7 and 7 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 4 and 4 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 7 and 7 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 4 and 4 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 7 and 7 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 4 and 4 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 7 and 7 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 4 and 4 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 7 and 7 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 4 and 4 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 8 and 8 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 4 and 4 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 8 and 8 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 4 and 4 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 8 and 8 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 4 and 4 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 8 and 8 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 4 and 4 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 8 and 8 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 4 and 4 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 8 and 8 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 4 and 4 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 8 and 8 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 4 and 4 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 8 and 8 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 4 and 4 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 8 and 8 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 4 and 4 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 0 and 0 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 5 and 5 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 0 and 0 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 5 and 5 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 0 and 0 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 5 and 5 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 0 and 0 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 5 and 5 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 0 and 0 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 5 and 5 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 0 and 0 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 5 and 5 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 0 and 0 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 5 and 5 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 0 and 0 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 5 and 5 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 0 and 0 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 5 and 5 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 1 and 1 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 5 and 5 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 1 and 1 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 5 and 5 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 1 and 1 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 5 and 5 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 1 and 1 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 5 and 5 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 1 and 1 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 5 and 5 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 1 and 1 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 5 and 5 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 1 and 1 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 5 and 5 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 1 and 1 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 5 and 5 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 1 and 1 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 5 and 5 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 2 and 2 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 5 and 5 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 2 and 2 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 5 and 5 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 2 and 2 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 5 and 5 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 2 and 2 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 5 and 5 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 2 and 2 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 5 and 5 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 2 and 2 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 5 and 5 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 2 and 2 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 5 and 5 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 2 and 2 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 5 and 5 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 2 and 2 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 5 and 5 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 3 and 3 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 5 and 5 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 3 and 3 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 5 and 5 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 3 and 3 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 5 and 5 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 3 and 3 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 5 and 5 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 3 and 3 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 5 and 5 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 3 and 3 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 5 and 5 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 3 and 3 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 5 and 5 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 3 and 3 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 5 and 5 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 3 and 3 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 5 and 5 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 4 and 4 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 5 and 5 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 4 and 4 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 5 and 5 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 4 and 4 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 5 and 5 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 4 and 4 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 5 and 5 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 4 and 4 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 5 and 5 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 4 and 4 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 5 and 5 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 4 and 4 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 5 and 5 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 4 and 4 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 5 and 5 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 4 and 4 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 5 and 5 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 5 and 5 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 5 and 5 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 5 and 5 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 5 and 5 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 5 and 5 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 5 and 5 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 5 and 5 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 5 and 5 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 5 and 5 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 5 and 5 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 5 and 5 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 5 and 5 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 5 and 5 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 5 and 5 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 5 and 5 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 5 and 5 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 5 and 5 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 5 and 5 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 6 and 6 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 5 and 5 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 6 and 6 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 5 and 5 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 6 and 6 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 5 and 5 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 6 and 6 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 5 and 5 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 6 and 6 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 5 and 5 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 6 and 6 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 5 and 5 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 6 and 6 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 5 and 5 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 6 and 6 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 5 and 5 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 6 and 6 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 5 and 5 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 7 and 7 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 5 and 5 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 7 and 7 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 5 and 5 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 7 and 7 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 5 and 5 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 7 and 7 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 5 and 5 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 7 and 7 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 5 and 5 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 7 and 7 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 5 and 5 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 7 and 7 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 5 and 5 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 7 and 7 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 5 and 5 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 7 and 7 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 5 and 5 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 8 and 8 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 5 and 5 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 8 and 8 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 5 and 5 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 8 and 8 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 5 and 5 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 8 and 8 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 5 and 5 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 8 and 8 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 5 and 5 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 8 and 8 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 5 and 5 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 8 and 8 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 5 and 5 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 8 and 8 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 5 and 5 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 8 and 8 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 5 and 5 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 0 and 0 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 6 and 6 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 0 and 0 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 6 and 6 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 0 and 0 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 6 and 6 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 0 and 0 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 6 and 6 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 0 and 0 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 6 and 6 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 0 and 0 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 6 and 6 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 0 and 0 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 6 and 6 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 0 and 0 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 6 and 6 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 0 and 0 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 6 and 6 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 1 and 1 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 6 and 6 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 1 and 1 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 6 and 6 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 1 and 1 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 6 and 6 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 1 and 1 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 6 and 6 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 1 and 1 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 6 and 6 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 1 and 1 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 6 and 6 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 1 and 1 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 6 and 6 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 1 and 1 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 6 and 6 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 1 and 1 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 6 and 6 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 2 and 2 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 6 and 6 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 2 and 2 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 6 and 6 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 2 and 2 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 6 and 6 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 2 and 2 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 6 and 6 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 2 and 2 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 6 and 6 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 2 and 2 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 6 and 6 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 2 and 2 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 6 and 6 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 2 and 2 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 6 and 6 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 2 and 2 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 6 and 6 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 3 and 3 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 6 and 6 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 3 and 3 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 6 and 6 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 3 and 3 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 6 and 6 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 3 and 3 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 6 and 6 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 3 and 3 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 6 and 6 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 3 and 3 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 6 and 6 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 3 and 3 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 6 and 6 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 3 and 3 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 6 and 6 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 3 and 3 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 6 and 6 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 4 and 4 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 6 and 6 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 4 and 4 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 6 and 6 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 4 and 4 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 6 and 6 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 4 and 4 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 6 and 6 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 4 and 4 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 6 and 6 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 4 and 4 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 6 and 6 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 4 and 4 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 6 and 6 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 4 and 4 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 6 and 6 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 4 and 4 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 6 and 6 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 5 and 5 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 6 and 6 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 5 and 5 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 6 and 6 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 5 and 5 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 6 and 6 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 5 and 5 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 6 and 6 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 5 and 5 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 6 and 6 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 5 and 5 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 6 and 6 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 5 and 5 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 6 and 6 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 5 and 5 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 6 and 6 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 5 and 5 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 6 and 6 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 6 and 6 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 6 and 6 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 6 and 6 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 6 and 6 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 6 and 6 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 6 and 6 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 6 and 6 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 6 and 6 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 6 and 6 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 6 and 6 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 6 and 6 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 6 and 6 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 6 and 6 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 6 and 6 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 6 and 6 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 6 and 6 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 6 and 6 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 6 and 6 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 7 and 7 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 6 and 6 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 7 and 7 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 6 and 6 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 7 and 7 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 6 and 6 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 7 and 7 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 6 and 6 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 7 and 7 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 6 and 6 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 7 and 7 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 6 and 6 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 7 and 7 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 6 and 6 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 7 and 7 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 6 and 6 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 7 and 7 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 6 and 6 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 8 and 8 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 6 and 6 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 8 and 8 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 6 and 6 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 8 and 8 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 6 and 6 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 8 and 8 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 6 and 6 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 8 and 8 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 6 and 6 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 8 and 8 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 6 and 6 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 8 and 8 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 6 and 6 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 8 and 8 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 6 and 6 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 8 and 8 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 6 and 6 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 0 and 0 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 7 and 7 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 0 and 0 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 7 and 7 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 0 and 0 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 7 and 7 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 0 and 0 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 7 and 7 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 0 and 0 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 7 and 7 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 0 and 0 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 7 and 7 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 0 and 0 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 7 and 7 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 0 and 0 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 7 and 7 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 0 and 0 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 7 and 7 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 1 and 1 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 7 and 7 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 1 and 1 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 7 and 7 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 1 and 1 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 7 and 7 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 1 and 1 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 7 and 7 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 1 and 1 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 7 and 7 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 1 and 1 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 7 and 7 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 1 and 1 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 7 and 7 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 1 and 1 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 7 and 7 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 1 and 1 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 7 and 7 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 2 and 2 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 7 and 7 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 2 and 2 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 7 and 7 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 2 and 2 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 7 and 7 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 2 and 2 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 7 and 7 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 2 and 2 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 7 and 7 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 2 and 2 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 7 and 7 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 2 and 2 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 7 and 7 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 2 and 2 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 7 and 7 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 2 and 2 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 7 and 7 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 3 and 3 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 7 and 7 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 3 and 3 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 7 and 7 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 3 and 3 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 7 and 7 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 3 and 3 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 7 and 7 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 3 and 3 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 7 and 7 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 3 and 3 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 7 and 7 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 3 and 3 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 7 and 7 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 3 and 3 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 7 and 7 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 3 and 3 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 7 and 7 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 4 and 4 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 7 and 7 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 4 and 4 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 7 and 7 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 4 and 4 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 7 and 7 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 4 and 4 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 7 and 7 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 4 and 4 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 7 and 7 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 4 and 4 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 7 and 7 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 4 and 4 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 7 and 7 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 4 and 4 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 7 and 7 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 4 and 4 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 7 and 7 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 5 and 5 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 7 and 7 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 5 and 5 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 7 and 7 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 5 and 5 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 7 and 7 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 5 and 5 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 7 and 7 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 5 and 5 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 7 and 7 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 5 and 5 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 7 and 7 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 5 and 5 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 7 and 7 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 5 and 5 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 7 and 7 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 5 and 5 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 7 and 7 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 6 and 6 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 7 and 7 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 6 and 6 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 7 and 7 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 6 and 6 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 7 and 7 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 6 and 6 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 7 and 7 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 6 and 6 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 7 and 7 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 6 and 6 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 7 and 7 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 6 and 6 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 7 and 7 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 6 and 6 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 7 and 7 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 6 and 6 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 7 and 7 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 7 and 7 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 7 and 7 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 7 and 7 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 7 and 7 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 7 and 7 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 7 and 7 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 7 and 7 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 7 and 7 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 7 and 7 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 7 and 7 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 7 and 7 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 7 and 7 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 7 and 7 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 7 and 7 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 7 and 7 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 7 and 7 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 7 and 7 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 7 and 7 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 8 and 8 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 7 and 7 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 8 and 8 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 7 and 7 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 8 and 8 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 7 and 7 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 8 and 8 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 7 and 7 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 8 and 8 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 7 and 7 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 8 and 8 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 7 and 7 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 8 and 8 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 7 and 7 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 8 and 8 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 7 and 7 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 8 and 8 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 7 and 7 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 0 and 0 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 8 and 8 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 0 and 0 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 8 and 8 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 0 and 0 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 8 and 8 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 0 and 0 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 8 and 8 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 0 and 0 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 8 and 8 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 0 and 0 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 8 and 8 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 0 and 0 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 8 and 8 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 0 and 0 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 8 and 8 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 0 and 0 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 8 and 8 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 1 and 1 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 8 and 8 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 1 and 1 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 8 and 8 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 1 and 1 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 8 and 8 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 1 and 1 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 8 and 8 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 1 and 1 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 8 and 8 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 1 and 1 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 8 and 8 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 1 and 1 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 8 and 8 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 1 and 1 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 8 and 8 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 1 and 1 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 8 and 8 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 2 and 2 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 8 and 8 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 2 and 2 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 8 and 8 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 2 and 2 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 8 and 8 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 2 and 2 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 8 and 8 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 2 and 2 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 8 and 8 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 2 and 2 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 8 and 8 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 2 and 2 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 8 and 8 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 2 and 2 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 8 and 8 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 2 and 2 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 8 and 8 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 3 and 3 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 8 and 8 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 3 and 3 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 8 and 8 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 3 and 3 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 8 and 8 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 3 and 3 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 8 and 8 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 3 and 3 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 8 and 8 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 3 and 3 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 8 and 8 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 3 and 3 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 8 and 8 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 3 and 3 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 8 and 8 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 3 and 3 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 8 and 8 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 4 and 4 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 8 and 8 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 4 and 4 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 8 and 8 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 4 and 4 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 8 and 8 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 4 and 4 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 8 and 8 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 4 and 4 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 8 and 8 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 4 and 4 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 8 and 8 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 4 and 4 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 8 and 8 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 4 and 4 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 8 and 8 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 4 and 4 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 8 and 8 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 5 and 5 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 8 and 8 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 5 and 5 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 8 and 8 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 5 and 5 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 8 and 8 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 5 and 5 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 8 and 8 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 5 and 5 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 8 and 8 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 5 and 5 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 8 and 8 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 5 and 5 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 8 and 8 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 5 and 5 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 8 and 8 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 5 and 5 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 8 and 8 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 6 and 6 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 8 and 8 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 6 and 6 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 8 and 8 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 6 and 6 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 8 and 8 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 6 and 6 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 8 and 8 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 6 and 6 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 8 and 8 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 6 and 6 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 8 and 8 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 6 and 6 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 8 and 8 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 6 and 6 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 8 and 8 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 6 and 6 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 8 and 8 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 7 and 7 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 8 and 8 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 7 and 7 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 8 and 8 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 7 and 7 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 8 and 8 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 7 and 7 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 8 and 8 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 7 and 7 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 8 and 8 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 7 and 7 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 8 and 8 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 7 and 7 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 8 and 8 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 7 and 7 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 8 and 8 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 7 and 7 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 8 and 8 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            },
+            {
+              "layers": [
+                {
+                  "color": ["choose","((0 + seed % 7) % 9 <= 8 and 8 < (0 + seed % 7) % 9 + 1 and (0 + floor(seed / 11)) % 9 <= 8 and 8 < (0 + floor(seed / 11)) % 9 + 1)","#ffffff48",null]
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((5 + seed % 7) % 9 <= 8 and 8 < (5 + seed % 7) % 9 + 1 and (7 + floor(seed / 11)) % 9 <= 8 and 8 < (7 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((10 + seed % 7) % 9 <= 8 and 8 < (10 + seed % 7) % 9 + 1 and (14 + floor(seed / 11)) % 9 <= 8 and 8 < (14 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((15 + seed % 7) % 9 <= 8 and 8 < (15 + seed % 7) % 9 + 1 and (21 + floor(seed / 11)) % 9 <= 8 and 8 < (21 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((20 + seed % 7) % 9 <= 8 and 8 < (20 + seed % 7) % 9 + 1 and (28 + floor(seed / 11)) % 9 <= 8 and 8 < (28 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((25 + seed % 7) % 9 <= 8 and 8 < (25 + seed % 7) % 9 + 1 and (35 + floor(seed / 11)) % 9 <= 8 and 8 < (35 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#ffffff48",
+                  "when": "((30 + seed % 7) % 9 <= 8 and 8 < (30 + seed % 7) % 9 + 1 and (42 + floor(seed / 11)) % 9 <= 8 and 8 < (42 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((35 + seed % 7) % 9 <= 8 and 8 < (35 + seed % 7) % 9 + 1 and (49 + floor(seed / 11)) % 9 <= 8 and 8 < (49 + floor(seed / 11)) % 9 + 1)"
+                },
+                {
+                  "color": "#b9d8f530",
+                  "when": "((40 + seed % 7) % 9 <= 8 and 8 < (40 + seed % 7) % 9 + 1 and (56 + floor(seed / 11)) % 9 <= 8 and 8 < (56 + floor(seed / 11)) % 9 + 1)"
+                }
+              ]
+            }
+          ],
+          "rows": ["123456789","abcdefghi","jklmnopqr","stuvwxyzA","BCDEFGHIJ","KLMNOPQRS","TUVWXYZ!#","$%&'()*+,","-/:;<=>?@"]
+        }
+      }
     }
   }
 }

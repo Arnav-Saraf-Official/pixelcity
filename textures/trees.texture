@@ -1,5 +1,8 @@
+// texture/2 — designs of pixel rows, conditions in short text.
+// A condition chooses the design to paint, e.g. "m = 5" or "hw > 0 and night".
+// Edit with the Texture Studio (npm run build, then /textures).
 {
-  "format": "texture/1",
+  "format": "texture/2",
   "name": "trees",
   "tile": 9,
   "defs": {
@@ -25,140 +28,252 @@
   },
   "textures": {
     "tree": {
-      "size": [9, 9],
-      "params": {"v": 1},
-      "ops": [
-        {"op": "if", "test": ["==", ["param", "v"], 1], "then": [{"op": "use", "texture": "pine", "at": [0, 0]}]},
-        {"op": "if", "test": ["==", ["param", "v"], 2], "then": [{"op": "use", "texture": "oak", "at": [0, 0]}]},
-        {"op": "if", "test": ["==", ["param", "v"], 3], "then": [{"op": "use", "texture": "cedar", "at": [0, 0]}]},
-        {"op": "if", "test": ["==", ["param", "v"], 4], "then": [{"op": "use", "texture": "birch", "at": [0, 0]}]},
-        {"op": "if", "test": ["==", ["param", "v"], 5], "then": [{"op": "use", "texture": "palm", "at": [0, 0]}]},
-        {"op": "if", "test": ["==", ["param", "v"], 6], "then": [{"op": "use", "texture": "jungle", "at": [0, 0]}]},
-        {"op": "if", "test": ["==", ["param", "v"], 7], "then": [{"op": "use", "texture": "autumn", "at": [0, 0]}]},
-        {"op": "if", "test": ["==", ["param", "v"], 8], "then": [{"op": "use", "texture": "cactus", "at": [0, 0]}]}
+      "size": [9,9],
+      "params": {"v":1},
+      "default": "pine",
+      "designs": {
+        "pine": {
+          "palette": [
+            "transparent",
+            {"color":["def","pineLight"]},
+            {"color":["def","pine"]},
+            {"color":["def","pineDark"]},
+            "#8bb66a",
+            "#173923",
+            {"color":["def","trunk"]}
+          ],
+          "rows": ["....1....","...222...","..31113..",".2141112.","324222223","..22222..","...333...","...565...","....6...."]
+        },
+        "oak": {
+          "palette": [
+            "transparent",
+            "#a2c65b",
+            {"color":["def","oak"]},
+            {"color":["def","oakLight"]},
+            {"color":["def","oakDark"]},
+            "#609342",
+            {"color":["def","trunk"]}
+          ],
+          "rows": [".........","...122...","..33224..",".2332551.",".2222552.","...666...","....6....","....6....","....6...."]
+        },
+        "cedar": {
+          "palette": [
+            "transparent",
+            {"color":["def","pineLight"]},
+            {"color":["def","pine"]},
+            {"color":["def","pineDark"]},
+            {"color":["def","trunk"]}
+          ],
+          "rows": [".........","...111...","..22222..","...333...",".2222222.","..33333..","221222222",".3333313.","....4...."]
+        },
+        "birch": {
+          "palette": [
+            "transparent",
+            "#a2c65b",
+            "#6e9f4b",
+            "#477c3b",
+            "#8ab755",
+            "#558e41",
+            "#68563e",
+            {"color":["def","birchTrunk"]}
+          ],
+          "rows": [".........","..1222...","..322234.",".533331..","....6....","....7....","....7....","....6....","....7...."]
+        },
+        "palm": {
+          "palette": [
+            "transparent",
+            {"color":["def","palmLeaf"]},
+            "#58a653",
+            "#d5ac45",
+            {"color":["def","palmTrunk"]},
+            "#bd8a4d"
+          ],
+          "rows": [".11.....2","...11322.","111112222","...1142..","..1..5.2.",".....4...","....5....","....4....","....4...."]
+        },
+        "jungle": {
+          "palette": [
+            "transparent",
+            "#87ca53",
+            {"color":["def","jungle"]},
+            {"color":["def","jungleLight"]},
+            {"color":["def","jungleDark"]},
+            "#76bf4c",
+            "#35984e",
+            "#65452b"
+          ],
+          "rows": [".........",".........","...122...","..332245.",".2332662.",".2222662.","....7....","....7....","....7...."]
+        },
+        "autumn": {
+          "palette": [
+            "transparent",
+            {"color":["def","autumn"]},
+            {"color":["def","autumnLight"]},
+            "#e28a35",
+            "#f2c451",
+            {"color":["def","trunk"]}
+          ],
+          "rows": [".........","...111...","..22113..",".1221111.",".1111114.","...555...","....5....","....5....","....5...."]
+        },
+        "cactus": {
+          "palette": [
+            "transparent",
+            {"color":["def","cactusLight"]},
+            {"color":["def","cactusDark"]},
+            {"color":["def","cactus"]},
+            "#62503a"
+          ],
+          "rows": [".........","....12...","....322..",".2..312..",".231322..",".22232...","....32...","...422...","........."]
+        }
+      },
+      "conditions": [
+        {"when":"v = 2","design":"oak"},
+        {"when":"v = 3","design":"cedar"},
+        {"when":"v = 4","design":"birch"},
+        {"when":"v = 5","design":"palm"},
+        {"when":"v = 6","design":"jungle"},
+        {"when":"v = 7","design":"autumn"},
+        {"when":"v = 8","design":"cactus"}
       ]
     },
     "pine": {
-      "size": [9, 9],
-      "ops": [
-        {"op": "rect", "x": 3, "y": 7, "w": 3, "h": 1, "color": "#173923"},
-        {"op": "rect", "x": 4, "y": 5, "w": 1, "h": 4, "color": ["def", "trunk"]},
-        {"op": "pixel", "x": 4, "y": 0, "color": ["def", "pineLight"]},
-        {"op": "rect", "x": 3, "y": 1, "w": 3, "h": 1, "color": ["def", "pine"]},
-        {"op": "rect", "x": 2, "y": 2, "w": 5, "h": 1, "color": ["def", "pineDark"]},
-        {"op": "rect", "x": 3, "y": 2, "w": 3, "h": 1, "color": ["def", "pineLight"]},
-        {"op": "rect", "x": 1, "y": 3, "w": 7, "h": 1, "color": ["def", "pine"]},
-        {"op": "rect", "x": 2, "y": 3, "w": 5, "h": 1, "color": ["def", "pineLight"]},
-        {"op": "rect", "x": 0, "y": 4, "w": 9, "h": 1, "color": ["def", "pineDark"]},
-        {"op": "rect", "x": 1, "y": 4, "w": 7, "h": 1, "color": ["def", "pine"]},
-        {"op": "rect", "x": 2, "y": 5, "w": 5, "h": 1, "color": ["def", "pine"]},
-        {"op": "rect", "x": 3, "y": 6, "w": 3, "h": 1, "color": ["def", "pineDark"]},
-        {"op": "pixel", "x": 3, "y": 3, "color": "#8bb66a"},
-        {"op": "pixel", "x": 2, "y": 4, "color": "#8bb66a"}
-      ]
+      "size": [9,9],
+      "params": {},
+      "designs": {
+        "base": {
+          "palette": [
+            "transparent",
+            {"color":["def","pineLight"]},
+            {"color":["def","pine"]},
+            {"color":["def","pineDark"]},
+            "#8bb66a",
+            "#173923",
+            {"color":["def","trunk"]}
+          ],
+          "rows": ["....1....","...222...","..31113..",".2141112.","324222223","..22222..","...333...","...565...","....6...."]
+        }
+      }
     },
     "oak": {
-      "size": [9, 9],
-      "ops": [
-        {"op": "rect", "x": 4, "y": 5, "w": 1, "h": 4, "color": ["def", "trunk"]},
-        {"op": "line", "x1": 4, "y1": 6, "x2": 2, "y2": 4, "color": ["def", "trunk"]},
-        {"op": "line", "x1": 4, "y1": 6, "x2": 6, "y2": 4, "color": ["def", "trunk"]},
-        {"op": "rect", "x": 2, "y": 2, "w": 5, "h": 3, "color": ["def", "oakDark"]},
-        {"op": "rect", "x": 1, "y": 3, "w": 7, "h": 2, "color": ["def", "oak"]},
-        {"op": "rect", "x": 3, "y": 1, "w": 3, "h": 2, "color": ["def", "oak"]},
-        {"op": "rect", "x": 2, "y": 2, "w": 2, "h": 2, "color": ["def", "oakLight"]},
-        {"op": "rect", "x": 5, "y": 3, "w": 2, "h": 2, "color": "#609342"},
-        {"op": "pixel", "x": 3, "y": 1, "color": "#a2c65b"},
-        {"op": "pixel", "x": 7, "y": 3, "color": "#a2c65b"}
-      ]
+      "size": [9,9],
+      "params": {},
+      "designs": {
+        "base": {
+          "palette": [
+            "transparent",
+            "#a2c65b",
+            {"color":["def","oak"]},
+            {"color":["def","oakLight"]},
+            {"color":["def","oakDark"]},
+            "#609342",
+            {"color":["def","trunk"]}
+          ],
+          "rows": [".........","...122...","..33224..",".2332551.",".2222552.","...666...","....6....","....6....","....6...."]
+        }
+      }
     },
     "cedar": {
-      "size": [9, 9],
-      "ops": [
-        {"op": "rect", "x": 4, "y": 4, "w": 1, "h": 5, "color": ["def", "trunk"]},
-        {"op": "rect", "x": 3, "y": 1, "w": 3, "h": 1, "color": ["def", "pineLight"]},
-        {"op": "rect", "x": 2, "y": 2, "w": 5, "h": 1, "color": ["def", "pine"]},
-        {"op": "rect", "x": 3, "y": 3, "w": 3, "h": 1, "color": ["def", "pineDark"]},
-        {"op": "rect", "x": 1, "y": 4, "w": 7, "h": 1, "color": ["def", "pine"]},
-        {"op": "rect", "x": 2, "y": 5, "w": 5, "h": 1, "color": ["def", "pineDark"]},
-        {"op": "rect", "x": 0, "y": 6, "w": 9, "h": 1, "color": ["def", "pine"]},
-        {"op": "rect", "x": 1, "y": 7, "w": 7, "h": 1, "color": ["def", "pineDark"]},
-        {"op": "pixel", "x": 2, "y": 6, "color": ["def", "pineLight"]},
-        {"op": "pixel", "x": 6, "y": 7, "color": ["def", "pineLight"]}
-      ]
+      "size": [9,9],
+      "params": {},
+      "designs": {
+        "base": {
+          "palette": [
+            "transparent",
+            {"color":["def","pineLight"]},
+            {"color":["def","pine"]},
+            {"color":["def","pineDark"]},
+            {"color":["def","trunk"]}
+          ],
+          "rows": [".........","...111...","..22222..","...333...",".2222222.","..33333..","221222222",".3333313.","....4...."]
+        }
+      }
     },
     "birch": {
-      "size": [9, 9],
-      "ops": [
-        {"op": "rect", "x": 4, "y": 3, "w": 1, "h": 6, "color": ["def", "birchTrunk"]},
-        {"op": "pixel", "x": 4, "y": 4, "color": "#68563e"},
-        {"op": "pixel", "x": 4, "y": 7, "color": "#68563e"},
-        {"op": "rect", "x": 2, "y": 2, "w": 5, "h": 2, "color": "#477c3b"},
-        {"op": "rect", "x": 3, "y": 1, "w": 3, "h": 2, "color": "#6e9f4b"},
-        {"op": "pixel", "x": 1, "y": 3, "color": "#558e41"},
-        {"op": "pixel", "x": 7, "y": 2, "color": "#8ab755"},
-        {"op": "pixel", "x": 2, "y": 1, "color": "#a2c65b"},
-        {"op": "pixel", "x": 6, "y": 3, "color": "#a2c65b"}
-      ]
+      "size": [9,9],
+      "params": {},
+      "designs": {
+        "base": {
+          "palette": [
+            "transparent",
+            "#a2c65b",
+            "#6e9f4b",
+            "#477c3b",
+            "#8ab755",
+            "#558e41",
+            "#68563e",
+            {"color":["def","birchTrunk"]}
+          ],
+          "rows": [".........","..1222...","..322234.",".533331..","....6....","....7....","....7....","....6....","....7...."]
+        }
+      }
     },
     "palm": {
-      "size": [9, 9],
-      "ops": [
-        {"op": "line", "x1": 4, "y1": 8, "x2": 5, "y2": 2, "color": ["def", "palmTrunk"]},
-        {"op": "pixel", "x": 4, "y": 6, "color": "#bd8a4d"},
-        {"op": "pixel", "x": 5, "y": 4, "color": "#bd8a4d"},
-        {"op": "line", "x1": 5, "y1": 2, "x2": 1, "y2": 0, "color": ["def", "palmLeaf"]},
-        {"op": "line", "x1": 5, "y1": 2, "x2": 0, "y2": 2, "color": ["def", "palmLeaf"]},
-        {"op": "line", "x1": 5, "y1": 2, "x2": 2, "y2": 4, "color": ["def", "palmLeaf"]},
-        {"op": "line", "x1": 5, "y1": 2, "x2": 8, "y2": 0, "color": "#58a653"},
-        {"op": "line", "x1": 5, "y1": 2, "x2": 8, "y2": 2, "color": "#58a653"},
-        {"op": "line", "x1": 5, "y1": 2, "x2": 7, "y2": 4, "color": "#58a653"},
-        {"op": "pixel", "x": 5, "y": 1, "color": "#d5ac45"}
-      ]
+      "size": [9,9],
+      "params": {},
+      "designs": {
+        "base": {
+          "palette": [
+            "transparent",
+            {"color":["def","palmLeaf"]},
+            "#58a653",
+            "#d5ac45",
+            {"color":["def","palmTrunk"]},
+            "#bd8a4d"
+          ],
+          "rows": [".11.....2","...11322.","111112222","...1142..","..1..5.2.",".....4...","....5....","....4....","....4...."]
+        }
+      }
     },
     "jungle": {
-      "size": [9, 9],
-      "ops": [
-        {"op": "rect", "x": 4, "y": 5, "w": 1, "h": 4, "color": "#65452b"},
-        {"op": "rect", "x": 2, "y": 3, "w": 5, "h": 3, "color": ["def", "jungleDark"]},
-        {"op": "rect", "x": 1, "y": 4, "w": 7, "h": 2, "color": ["def", "jungle"]},
-        {"op": "rect", "x": 3, "y": 2, "w": 3, "h": 3, "color": ["def", "jungle"]},
-        {"op": "rect", "x": 2, "y": 3, "w": 2, "h": 2, "color": ["def", "jungleLight"]},
-        {"op": "rect", "x": 5, "y": 4, "w": 2, "h": 2, "color": "#35984e"},
-        {"op": "pixel", "x": 3, "y": 2, "color": "#87ca53"},
-        {"op": "pixel", "x": 7, "y": 3, "color": "#76bf4c"}
-      ]
+      "size": [9,9],
+      "params": {},
+      "designs": {
+        "base": {
+          "palette": [
+            "transparent",
+            "#87ca53",
+            {"color":["def","jungle"]},
+            {"color":["def","jungleLight"]},
+            {"color":["def","jungleDark"]},
+            "#76bf4c",
+            "#35984e",
+            "#65452b"
+          ],
+          "rows": [".........",".........","...122...","..332245.",".2332662.",".2222662.","....7....","....7....","....7...."]
+        }
+      }
     },
     "autumn": {
-      "size": [9, 9],
-      "ops": [
-        {"op": "rect", "x": 4, "y": 5, "w": 1, "h": 4, "color": ["def", "trunk"]},
-        {"op": "line", "x1": 4, "y1": 6, "x2": 2, "y2": 4, "color": ["def", "trunk"]},
-        {"op": "line", "x1": 4, "y1": 6, "x2": 6, "y2": 4, "color": ["def", "trunk"]},
-        {"op": "rect", "x": 2, "y": 2, "w": 5, "h": 3, "color": ["def", "autumnDark"]},
-        {"op": "rect", "x": 1, "y": 3, "w": 7, "h": 2, "color": ["def", "autumn"]},
-        {"op": "rect", "x": 3, "y": 1, "w": 3, "h": 2, "color": ["def", "autumn"]},
-        {"op": "rect", "x": 2, "y": 2, "w": 2, "h": 2, "color": ["def", "autumnLight"]},
-        {"op": "pixel", "x": 6, "y": 2, "color": "#e28a35"},
-        {"op": "pixel", "x": 7, "y": 4, "color": "#f2c451"}
-      ]
+      "size": [9,9],
+      "params": {},
+      "designs": {
+        "base": {
+          "palette": [
+            "transparent",
+            {"color":["def","autumn"]},
+            {"color":["def","autumnLight"]},
+            "#e28a35",
+            "#f2c451",
+            {"color":["def","trunk"]}
+          ],
+          "rows": [".........","...111...","..22113..",".1221111.",".1111114.","...555...","....5....","....5....","....5...."]
+        }
+      }
     },
     "cactus": {
-      "size": [9, 9],
-      "ops": [
-        {"op": "rect", "x": 3, "y": 7, "w": 3, "h": 1, "color": "#62503a"},
-        {"op": "rect", "x": 4, "y": 1, "w": 2, "h": 7, "color": ["def", "cactusDark"]},
-        {"op": "rect", "x": 4, "y": 2, "w": 1, "h": 5, "color": ["def", "cactus"]},
-        {"op": "rect", "x": 2, "y": 4, "w": 2, "h": 2, "color": ["def", "cactus"]},
-        {"op": "rect", "x": 1, "y": 3, "w": 1, "h": 3, "color": ["def", "cactusDark"]},
-        {"op": "rect", "x": 2, "y": 5, "w": 2, "h": 1, "color": ["def", "cactusDark"]},
-        {"op": "rect", "x": 5, "y": 3, "w": 2, "h": 2, "color": ["def", "cactus"]},
-        {"op": "rect", "x": 6, "y": 2, "w": 1, "h": 3, "color": ["def", "cactusDark"]},
-        {"op": "rect", "x": 5, "y": 4, "w": 2, "h": 1, "color": ["def", "cactusDark"]},
-        {"op": "pixel", "x": 4, "y": 1, "color": ["def", "cactusLight"]},
-        {"op": "pixel", "x": 3, "y": 4, "color": ["def", "cactusLight"]},
-        {"op": "pixel", "x": 5, "y": 3, "color": ["def", "cactusLight"]}
-      ]
+      "size": [9,9],
+      "params": {},
+      "designs": {
+        "base": {
+          "palette": [
+            "transparent",
+            {"color":["def","cactusLight"]},
+            {"color":["def","cactusDark"]},
+            {"color":["def","cactus"]},
+            "#62503a"
+          ],
+          "rows": [".........","....12...","....322..",".2..312..",".231322..",".22232...","....32...","...422...","........."]
+        }
+      }
     }
   }
 }

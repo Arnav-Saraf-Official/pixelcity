@@ -2,14 +2,20 @@
 // =====================================================================
 // Textures: .texture documents (JSONC) -> cached canvases + marks
 //
-// A document holds a family of named textures. Each texture is a list of
-// ops painting an RGBA image, with values taken from expression trees over
-// the texture's params. There is no eval: expressions are nested arrays
-// compiled to closures, so a malformed file fails the build, not the game.
+// A document holds a family of named sprites. Each sprite is pixel art:
 //
-// Ops that paint are pure functions of (params, defs, rng). Anything that
-// needs game state or heavier maths is registered in TEX_OPS and reached
-// from a file with { "op": "call", "fn": "name" } or ["fn", "name", ...].
+//   designs      one or more complete pictures, painted as rows of
+//                characters into a colour palette
+//   conditions   rules that choose which design to draw for a given
+//                parameter value ("if m has a north arm, use north")
+//   marks        the non-visual layer (windows, parking slots, status
+//                lights) the game reads back after drawing
+//
+// Palette entries may be plain colours or dynamic: a colour taken from a
+// parameter, a shade of another swatch, or a cell painted only when a
+// condition holds (a lane dash, a crosswalk stripe, a wet dock).
+// There are no drawing ops and no if/then/else: everything the game sees
+// is either painted pixels or a condition on a parameter.
 //
 // Load order: js/texture.js, js/textures.generated.js, then js/art.js.
 // =====================================================================
@@ -19,10 +25,14 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const FORMAT = 'texture/1';
+  const FORMAT = 'texture/2';
   const MAX_CACHE = 3000;
+  // One character per palette entry in a design's rows. '.' is transparent,
+  // so the palette can use every other printable JSON-safe character.
+  const ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!#$%&\'()*+,-/:;<=>?@[]^_`{|}~';
+  const TRANSPARENT = '.';
+
   const docs = Object.create(null);
-  const images = Object.create(null);
   const cache = new Map();
 
   // ---------------------------------------------------------------------
@@ -40,12 +50,6 @@
       t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
       return ((t ^ t >>> 14) >>> 0) / 4294967296;
     };
-  }
-  function vnoise(x, y, s) {
-    const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
-    const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
-    const a = hash(xi, yi, s), b = hash(xi + 1, yi, s), c = hash(xi, yi + 1, s), d = hash(xi + 1, yi + 1, s);
-    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
   }
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
@@ -78,7 +82,16 @@
     const A = parseColor(a), B = parseColor(b);
     return rgbaStr(A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t, A[2] + (B[2] - A[2]) * t, A[3] + (B[3] - A[3]) * t);
   }
-  const rot90 = spr => spr.map(p => [-p[1], p[0], p[2]]);
+  // Source-over composite, straight alpha. Used by translucent pixels that
+  // sit on top of another colour (bridge shadows on asphalt).
+  function over(top, bottom) {
+    const T = parseColor(top), B = parseColor(bottom);
+    const sa = T[3] / 255, da = B[3] / 255, oa = sa + da * (1 - sa);
+    if (!oa) return 'transparent';
+    return rgbaStr((T[0] * sa + B[0] * da * (1 - sa)) / oa,
+      (T[1] * sa + B[1] * da * (1 - sa)) / oa,
+      (T[2] * sa + B[2] * da * (1 - sa)) / oa, oa * 255);
+  }
 
   // ---------------------------------------------------------------------
   // JSONC: comments and trailing commas, so these files stay readable
@@ -106,102 +119,344 @@
     return out.replace(/,(\s*[}\]])/g, '$1');
   }
 
-  // ---------------------------------------------------------------------
-  // Expression compiler
-  // ---------------------------------------------------------------------
-  const EXPR = {
-    '+': a => a.reduce((s, v) => s + v, 0),
-    '-': a => a.length > 1 ? a[0] - a[1] : -a[0],
-    '*': a => a.reduce((s, v) => s * v, 1),
-    '/': a => a[0] / a[1],
-    '%': a => a[0] % a[1],
-    '<': a => a[0] < a[1],
-    '<=': a => a[0] <= a[1],
-    '>': a => a[0] > a[1],
-    '>=': a => a[0] >= a[1],
-    '==': a => a[0] === a[1],
-    '!=': a => a[0] !== a[1],
-    and: a => a.every(Boolean),
-    or: a => a.some(Boolean),
-    not: a => !a[0],
-    if: a => a[0] ? a[1] : a[2],
-    mod: a => ((a[0] % a[1]) + a[1]) % a[1],
-    mask: a => a[0] & a[1],
-    bit: a => (a[0] >> a[1]) & 1,
-    bits: a => (a[0] & 1) + (a[0] >> 1 & 1) + (a[0] >> 2 & 1) + (a[0] >> 3 & 1),
-    floor: a => Math.floor(a[0]),
-    ceil: a => Math.ceil(a[0]),
-    round: a => Math.round(a[0]),
-    abs: a => Math.abs(a[0]),
-    min: a => Math.min.apply(null, a),
-    max: a => Math.max.apply(null, a),
-    pick: a => a[0][Math.floor(a[1] * a[0].length) % a[0].length],
-    shade: a => shade(a[0], a[1]),
-    mix: a => mix(a[0], a[1], a[2]),
-    at: a => (a[0] == null ? undefined : a[0][a[1]]),
-    len: a => a[0].length,
-    range: a => { const r = []; for (let k = 0; k < a[0]; k++) r.push(k); return r; },
-    rot: a => { let s = a[0]; for (let k = 0; k < a[1]; k++) s = rot90(s); return s; },
-    // point rotation for lane arrows: direction 1=N 2=E 3=S 4=W on a 9x9 tile
-    rotx: a => a[2] === 1 ? a[0] : a[2] === 2 ? 8 - a[1] : a[2] === 3 ? 8 - a[0] : a[1],
-    roty: a => a[2] === 1 ? a[1] : a[2] === 2 ? a[0] : a[2] === 3 ? 8 - a[1] : 8 - a[0],
-    default: a => (a[0] == null ? a[1] : a[0]),
-    hash: a => hash(a[0], a[1], a[2]),
-    noise: a => vnoise(a[0], a[1], a[2])
-  };
+  // Compact JSON for .texture files: rows and short expressions stay on one
+  // line, objects expand. Roads stays reviewable instead of a wall of arrays.
+  function formatJson(v, level) {
+    const pad = '  '.repeat(level || 0);
+    if (v === null || typeof v !== 'object') return JSON.stringify(v);
+    if (Array.isArray(v)) {
+      if (!v.length) return '[]';
+      // Expression trees and pixel rows have no objects: one line keeps them
+      // out of the way. Arrays of objects (palette entries, marks) expand.
+      const hasObject = v.some(x => x && typeof x === 'object' && !Array.isArray(x));
+      if (!hasObject) return JSON.stringify(v);
+      return '[\n' + v.map(x => '  '.repeat(level + 1) + formatJson(x, level + 1)).join(',\n') + '\n' + pad + ']';
+    }
+    const keys = Object.keys(v);
+    if (!keys.length) return '{}';
+    const flat = JSON.stringify(v);
+    if (flat.length + (level + 1) * 2 <= 130) return flat;
+    return '{\n' + keys.map(k => '  '.repeat(level + 1) + JSON.stringify(k) + ': ' + formatJson(v[k], level + 1)).join(',\n') + '\n' + pad + '}';
+  }
 
-  // Heads that read the render environment rather than compute a value.
-  // They live outside EXPR because they need the env closure themselves.
-  const ENV_HEADS = { param: 1, def: 1, var: 1, rnd: 1, fn: 1 };
-  const isExpr = head => typeof head === 'string' &&
-    (Object.prototype.hasOwnProperty.call(EXPR, head) || Object.prototype.hasOwnProperty.call(ENV_HEADS, head));
-
-  function compile(node, where) {
+  // ---------------------------------------------------------------------
+  // Values: what a palette swatch resolves to. Everything here is either a
+  // literal or reads a parameter/def; `slot` points at an earlier swatch,
+  // so a shade does not consume a random pick a second time.
+  // ---------------------------------------------------------------------
+  function evalValue(node, env, slots) {
+    if (typeof node === 'string' || typeof node === 'number' || typeof node === 'boolean') return node;
+    if (node == null) return node;
     if (Array.isArray(node)) {
       const head = node[0];
-      if (isExpr(head)) {
-        if (head === 'param') {
+      if (typeof head !== 'string') return node.map(v => evalValue(v, env, slots));
+      const a = k => evalValue(node[k], env, slots);
+      switch (head) {
+        case 'param': {
           const name = node[1];
-          return env => {
-            if (Object.prototype.hasOwnProperty.call(env.p, name)) return env.p[name];
-            if (name in env.locals) return env.locals[name];
-            // implicit locals: w, h, tw, th, ox, oy
-            if (name in env && name !== 'p' && name !== 'd' && name !== 'locals' && name !== 'imp') return env[name];
-            if (Object.prototype.hasOwnProperty.call(env.imp, name)) return env.imp[name];
-            return undefined;
-          };
+          if (Object.prototype.hasOwnProperty.call(env.p, name)) return env.p[name];
+          if (name in env) return env[name];
+          return undefined;
         }
-        if (head === 'def') {
-          const name = node[1];
-          return env => env.d[name];
+        case 'def': return env.d[node[1]];
+        case 'slot': return slots[node[1]];
+        case 'rnd': return env.rng();
+        case 'shade': return shade(a(1), a(2));
+        case 'mix': return mix(a(1), a(2), a(3));
+        case 'pick': {
+          const list = a(1), t = a(2);
+          if (!Array.isArray(list) || !list.length) return undefined;
+          return list[Math.abs(Math.floor(t * list.length)) % list.length];
         }
-        if (head === 'var') {
-          const name = node[1];
-          return env => env.locals[name];
+        case 'at': { const list = a(1); return list == null ? undefined : list[a(2)]; }
+        case 'default': { const v = a(1); return v == null ? a(2) : v; }
+        case 'choose': return evalCond(node[1], env, slots) ? a(2) : a(3);
+        case 'over': return over(a(1), a(2));
+        case 'hash': return hash(env.x, env.y, env.seed);
+        case '+': return node.slice(1).reduce((s, _, k) => s + a(k + 1), 0);
+        case '-': return a(1) - a(2);
+        case '*': return node.slice(1).reduce((s, _, k) => s * a(k + 1), 1);
+        case '/': return a(1) / a(2);
+        case 'mod': return ((a(1) % a(2)) + a(2)) % a(2);
+        case 'floor': return Math.floor(a(1));
+        case 'ceil': return Math.ceil(a(1));
+        case 'round': return Math.round(a(1));
+        case 'abs': return Math.abs(a(1));
+        case 'min': return Math.min(...node.slice(1).map((_, k) => a(k + 1)));
+        case 'max': return Math.max(...node.slice(1).map((_, k) => a(k + 1)));
+        case 'len': { const v = a(1); return v == null ? 0 : v.length; }
+        case 'mask': return a(1) & a(2);
+        case '&': return a(1) & a(2);
+        case '|': return a(1) | a(2);
+        case 'shift': return a(1) << a(2);
+        case 'bits': {
+          const n = a(1) | 0;
+          return (n & 1) + (n >> 1 & 1) + (n >> 2 & 1) + (n >> 3 & 1);
         }
-        if (head === 'rnd') return env => env.rng();
-        if (head === 'fn') {
-          const name = node[1], args = node.slice(2).map(a => compile(a, where));
-          return env => {
-            const f = env.p[name] || TEX_OPS[name];
-            if (typeof f !== 'function') throw new Error('unknown fn "' + name + '" in ' + where);
-            return f.apply(null, args.map(g => g(env)));
-          };
-        }
-        const op = EXPR[head];
-        const args = node.slice(1).map(a => compile(a, where));
-        return env => op(args.map(g => g(env)));
+        default: return node.map(v => evalValue(v, env, slots));
       }
-      // a plain literal list (a palette, a point, a list of pixel triples)
-      const items = node.map(a => compile(a, where));
-      return () => items.map(g => g());
     }
-    if (node && typeof node === 'object') {
-      const keys = Object.keys(node);
-      const fns = keys.map(k => compile(node[k], where));
-      return env => { const o = {}; for (let k = 0; k < keys.length; k++) o[keys[k]] = fns[k](env); return o; };
+    return node;
+  }
+
+  // ---------------------------------------------------------------------
+  // Conditions are short text, always about a parameter or a pixel:
+  //
+  //   m = 5                hw > 0              kind != "sad"
+  //   m has 4              bits(m) >= 3        night
+  //   m = 1 or m = 2       not wet(tx, ty)     (x + y) % 2 = 0
+  //
+  // The parser below turns that text into the small AST evalCond reads.
+  // ---------------------------------------------------------------------
+  const TEX_VALUE_FUNCS = ['at', 'pick', 'default', 'shade', 'mix', 'floor', 'ceil', 'round',
+    'abs', 'min', 'max', 'len', 'def', 'slot', 'hash'];
+  function evalCond(c, env, slots) {
+    if (typeof c === 'string') {
+      let ast = COND_CACHE.get(c);
+      if (!ast) { ast = parseCondition(c); COND_CACHE.set(c, ast); }
+      return evalCond(ast, env, slots);
     }
-    return () => node;
+    if (c === true) return true;
+    if (!c || c === false) return false;
+    if (!Array.isArray(c)) return !!c;
+    const v = k => evalValue(c[k], env, slots);
+    switch (c[0]) {
+      case 'truthy': return !!v(1);
+      case 'has': return ((v(1) | 0) & (v(2) | 0)) !== 0;
+      case 'in': { const list = v(2); return Array.isArray(list) && list.indexOf(v(1)) >= 0; }
+      case 'eq': return v(1) === v(2);
+      case 'ne': return v(1) !== v(2);
+      case 'lt': return v(1) < v(2);
+      case 'lte': return v(1) <= v(2);
+      case 'gt': return v(1) > v(2);
+      case 'gte': return v(1) >= v(2);
+      case 'bit': return ((v(1) >> v(2)) & 1) === 1;
+      case 'bits': {
+        const n = (v(1) | 0) & 15, count = (n & 1) + (n >> 1 & 1) + (n >> 2 & 1) + (n >> 3 & 1);
+        switch (c[2]) {
+          case '>': return count > v(3);
+          case '>=': return count >= v(3);
+          case '<': return count < v(3);
+          case '<=': return count <= v(3);
+          case '==': return count === v(3);
+          default: return count;
+        }
+      }
+      case 'all': return c.slice(1).every(x => evalCond(x, env, slots));
+      case 'any': return c.slice(1).some(x => evalCond(x, env, slots));
+      case 'none': return !c.slice(1).some(x => evalCond(x, env, slots));
+      case 'call': {
+        const fn = env.p[c[1]];
+        if (typeof fn !== 'function') return false;
+        return !!fn.apply(null, c.slice(2).map((_, k) => v(k + 2)));
+      }
+      case 'rnd': return hash(env.x, env.y, env.seed ^ 0x5f3759) < v(1);
+      case 'dash': {
+        const axis = c[1], period = v(2), duty = v(3), phase = v(4) | 0;
+        const at = axis === 'y' ? env.y : env.x;
+        return ((at + phase) % period + period) % period < duty;
+      }
+      case 'grid': {
+        const period = v(1), offset = v(2) | 0;
+        return ((env.x + env.y + offset) % period + period) % period === 0;
+      }
+      case 'noise': return hash(env.x, env.y, v(2) | 0) < v(1);
+      default: throw new Error('unknown condition "' + c[0] + '"');
+    }
+  }
+
+  // --- condition text parser -------------------------------------------
+  const COND_CACHE = new Map();
+
+  function condTokens(src) {
+    const out = [];
+    let i = 0;
+    while (i < src.length) {
+      const ch = src[i];
+      if (/\s/.test(ch)) { i++; continue; }
+      if (/[0-9]/.test(ch) || (ch === '.' && /[0-9]/.test(src[i + 1] || ''))) {
+        let j = i, dot = false;
+        while (j < src.length && /[0-9.]/.test(src[j])) { if (src[j] === '.') { if (dot) break; dot = true; } j++; }
+        out.push({ t: 'num', v: Number(src.slice(i, j)) }); i = j; continue;
+      }
+      if (ch === '"' || ch === "'") {
+        let j = i + 1, text = '';
+        while (j < src.length && src[j] !== ch) {
+          if (src[j] === '\\') { text += src[j + 1] === undefined ? '\\' : src[j + 1]; j += 2; continue; }
+          text += src[j++];
+        }
+        if (src[j] !== ch) throw new Error('unterminated string');
+        out.push({ t: 'str', v: text }); i = j + 1; continue;
+      }
+      if (/[A-Za-z_]/.test(ch)) {
+        let j = i;
+        while (j < src.length && /[A-Za-z0-9_]/.test(src[j])) j++;
+        out.push({ t: 'name', v: src.slice(i, j) }); i = j; continue;
+      }
+      const two = src.slice(i, i + 2);
+      if (['==', '!=', '<=', '>=', '&&', '||'].indexOf(two) >= 0) { out.push({ t: 'op', v: two }); i += 2; continue; }
+      if ('=<>!()[],+-*/%&|'.indexOf(ch) >= 0) { out.push({ t: 'op', v: ch }); i++; continue; }
+      throw new Error('unexpected "' + ch + '"');
+    }
+    out.push({ t: 'end', v: null });
+    return out;
+  }
+
+  function parseCondition(src) {
+    if (typeof src !== 'string') throw new Error('a condition must be text');
+    const text = src.trim();
+    if (!text) throw new Error('empty condition');
+    const tk = condTokens(text);
+    let pos = 0;
+    const peek = () => tk[pos];
+    const take = () => tk[pos++];
+    const fail = msg => { throw new Error(msg + ' near "' + (peek().v == null ? 'end' : peek().v) + '"'); };
+    const isOp = v => peek().t === 'op' && peek().v === v;
+    const isName = v => peek().t === 'name' && peek().v === v;
+    function args() {
+      const list = [];
+      if (isOp(')')) { take(); return list; }
+      for (;;) {
+        list.push(orExpr());
+        if (isOp(',')) { take(); continue; }
+        if (isOp(')')) { take(); return list; }
+        fail('expected "," or ")"');
+      }
+    }
+    function listLiteral() {
+      take(); // [
+      const list = [];
+      if (isOp(']')) { take(); return list; }
+      for (;;) {
+        list.push(orExpr());
+        if (isOp(',')) { take(); continue; }
+        if (isOp(']')) { take(); return list; }
+        fail('expected "," or "]"');
+      }
+    }
+    function primary() {
+      const t = peek();
+      if (t.t === 'num' || t.t === 'str') { take(); return t.v; }
+      if (t.t === 'name') {
+        take();
+        if (t.v === 'true') return true;
+        if (t.v === 'false') return false;
+        if (t.v === 'null') return null;
+        if (isOp('(')) {
+          take();
+          const a = args();
+          switch (t.v) {
+            case 'bits': return ['bits', a[0]];
+            case 'bit': return ['has', a[0], ['shift', 1, a[1]]];
+            case 'dashx': return ['dash', 'x', a[0], a[1], a[2]];
+            case 'dashy': return ['dash', 'y', a[0], a[1], a[2]];
+            case 'grid': return ['grid', a[0], a[1]];
+            case 'noise': return ['noise', a[0], a[1]];
+            case 'rnd': return ['rnd', a[0]];
+            default:
+              if (TEX_VALUE_FUNCS.indexOf(t.v) >= 0) return [t.v, ...a];
+              return ['call', t.v, ...a];
+          }
+        }
+        return ['param', t.v];
+      }
+      if (isOp('(')) { take(); const e = orExpr(); if (!isOp(')')) fail('expected ")"'); take(); return e; }
+      if (isOp('[')) return listLiteral();
+      if (isOp('-')) { take(); return ['-', 0, unary()]; }
+      fail('expected a value');
+    }
+    function unary() {
+      if (isName('not') || isOp('!')) { take(); return ['none', unary()]; }
+      return primary();
+    }
+    function mul() {
+      let left = unary();
+      for (;;) {
+        if (isOp('*') || isOp('/') || isOp('%')) { const op = take().v; left = [op === '%' ? 'mod' : op, left, unary()]; continue; }
+        return left;
+      }
+    }
+    function add() {
+      let left = mul();
+      for (;;) {
+        if (isOp('+') || isOp('-')) { const op = take().v; left = [op, left, mul()]; continue; }
+        return left;
+      }
+    }
+    function bitAnd() {
+      let left = add();
+      while (isOp('&')) { take(); left = ['&', left, add()]; }
+      return left;
+    }
+    function bitOr() {
+      let left = bitAnd();
+      while (isOp('|')) { take(); left = ['|', left, bitAnd()]; }
+      return left;
+    }
+    function compare() {
+      const left = bitOr();
+      if (isOp('=') || isOp('==')) { take(); return ['eq', left, bitOr()]; }
+      if (isOp('!=')) { take(); return ['ne', left, bitOr()]; }
+      if (isOp('<')) { take(); return ['lt', left, bitOr()]; }
+      if (isOp('<=')) { take(); return ['lte', left, bitOr()]; }
+      if (isOp('>')) { take(); return ['gt', left, bitOr()]; }
+      if (isOp('>=')) { take(); return ['gte', left, bitOr()]; }
+      if (isName('has')) { take(); return ['has', left, bitOr()]; }
+      if (isName('in')) {
+        take();
+        if (!isOp('[')) fail('expected "[" after "in"');
+        return ['in', left, listLiteral()];
+      }
+      return left;
+    }
+    function notExpr() {
+      if (isName('not') || isOp('!')) { take(); return ['none', notExpr()]; }
+      return compare();
+    }
+    function andExpr() {
+      let left = notExpr();
+      while (isName('and') || isOp('&&')) { take(); left = ['all', left, notExpr()]; }
+      return left;
+    }
+    function orExpr() {
+      let left = andExpr();
+      while (isName('or') || isOp('||')) { take(); left = ['any', left, andExpr()]; }
+      return left;
+    }
+    const ast = orExpr();
+    if (peek().t !== 'end') fail('unexpected token');
+    // A bare value is a truth test: `night` means `night` is set.
+    const COND_HEADS = ['truthy', 'has', 'in', 'eq', 'ne', 'lt', 'lte', 'gt', 'gte',
+      'all', 'any', 'none', 'call', 'rnd', 'dash', 'grid', 'noise'];
+    return COND_HEADS.indexOf(ast[0]) >= 0 ? ast : ['truthy', ast];
+  }
+
+  function compileCond(c) {
+    if (typeof c === 'boolean') return () => c;
+    if (typeof c !== 'string') throw new Error('a condition must be text, got ' + JSON.stringify(c));
+    let ast = COND_CACHE.get(c);
+    if (!ast) { ast = parseCondition(c); COND_CACHE.set(c, ast); }
+    return env => evalCond(ast, env, env._slots);
+  }
+
+  // Identifiers a condition may read: declared params plus the engine's own
+  // pixel and seed values. Exported so the studio can flag typos before save.
+  function conditionNames(ast, out = new Set()) {
+    if (Array.isArray(ast)) {
+      if (ast[0] === 'param' && typeof ast[1] === 'string') out.add(ast[1]);
+      else if (ast[0] === 'call' && typeof ast[1] === 'string') out.add(ast[1]);
+      else for (const v of ast) conditionNames(v, out);
+    }
+    return out;
+  }
+
+  function conditionError(text, paramNames) {
+    let ast;
+    try { ast = parseCondition(String(text)); }
+    catch (e) { return e.message; }
+    const known = new Set(['x', 'y', 'tx', 'ty', 'seed', 'w', 'h'].concat(paramNames || []));
+    for (const name of conditionNames(ast)) if (!known.has(name)) return 'unknown name "' + name + '"';
+    return null;
   }
 
   // ---------------------------------------------------------------------
@@ -212,26 +467,12 @@
     cv.width = w; cv.height = h;
     const g = cv.getContext('2d');
     g.imageSmoothingEnabled = false;
-    const tmp = new Map();
     return {
       canvas: cv,
       fillRect(x, y, ww, hh, color) {
         if (color === 'transparent' || ww <= 0 || hh <= 0) return;
         g.fillStyle = color;
         g.fillRect(x, y, ww, hh);
-      },
-      blit(img, x, y, alpha) {
-        let c = tmp.get(img);
-        if (!c) {
-          c = document.createElement('canvas');
-          c.width = img.w; c.height = img.h;
-          const cg = c.getContext('2d');
-          cg.putImageData(new ImageData(new Uint8ClampedArray(img.data), img.w, img.h), 0, 0);
-          tmp.set(img, c);
-        }
-        if (alpha !== undefined && alpha !== 1) g.globalAlpha = alpha;
-        g.drawImage(c, x, y);
-        if (alpha !== undefined && alpha !== 1) g.globalAlpha = 1;
       },
       clearRect(x, y, ww, hh) {
         if (ww <= 0 || hh <= 0) return;
@@ -240,13 +481,11 @@
     };
   }
 
-  // Software rasteriser: same op semantics, no DOM. Used by the CLI so
-  // textures can be exported and diffed outside a browser.
+  // Software rasteriser: same output, no DOM. Used by the CLI so textures
+  // can be exported and diffed outside a browser.
   function bufferBackend(w, h) {
     const data = new Uint8ClampedArray(w * h * 4);
     // Source-over with straight (non-premultiplied) colour, matching canvas.
-    // Multiplying the source by alpha here instead would darken translucent
-    // art, and darken it again every time it is blitted.
     const blend = (x, y, r, g, b, a) => {
       if (x < 0 || y < 0 || x >= w || y >= h || a <= 0) return;
       const o = (y * w + x) * 4;
@@ -266,13 +505,6 @@
         const x0 = Math.round(x), y0 = Math.round(y), x1 = x0 + Math.round(ww), y1 = y0 + Math.round(hh);
         for (let yy = y0; yy < y1; yy++) for (let xx = x0; xx < x1; xx++) blend(xx, yy, r, g, b, a);
       },
-      blit(img, x, y, alpha) {
-        const src = img.data, k = alpha === undefined ? 1 : alpha;
-        for (let yy = 0; yy < img.h; yy++) for (let xx = 0; xx < img.w; xx++) {
-          const o = (yy * img.w + xx) * 4;
-          blend(x + xx, y + yy, src[o], src[o + 1], src[o + 2], Math.round(src[o + 3] * k));
-        }
-      },
       clearRect(x, y, ww, hh) {
         if (ww <= 0 || hh <= 0) return;
         const x0 = Math.round(x), y0 = Math.round(y), x1 = x0 + Math.round(ww), y1 = y0 + Math.round(hh);
@@ -285,134 +517,9 @@
   }
 
   // ---------------------------------------------------------------------
-  // Ops. Each receives already-evaluated values; control-flow ops get the
-  // compiled child lists plus `run`.
-  // ---------------------------------------------------------------------
-  const TEX_OPS = Object.create(null);
-
-  const DRAW = {
-    rect(a, env, be) { be.fillRect(a.x + env.ox, a.y + env.oy, a.w, a.h, a.color); },
-    // Punch a hole back to transparent. Unlike a rect with alpha 0, this erases
-    // whatever was painted under it, which is what patching pixel art needs.
-    clear(a, env, be) { be.clearRect(a.x + env.ox, a.y + env.oy, a.w, a.h); },
-    pixel(a, env, be) { be.fillRect(a.x + env.ox, a.y + env.oy, 1, 1, a.color); },
-    line(a, env, be) {
-      let x0 = a.x1 + env.ox, y0 = a.y1 + env.oy;
-      const x1 = a.x2 + env.ox, y1 = a.y2 + env.oy;
-      const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0);
-      const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
-      let err = dx + dy;
-      for (;;) {
-        be.fillRect(x0, y0, 1, 1, a.color);
-        if (x0 === x1 && y0 === y1) break;
-        const e2 = 2 * err;
-        if (e2 >= dy) { err += dy; x0 += sx; }
-        if (e2 <= dx) { err += dx; y0 += sy; }
-      }
-    },
-    png(a, env, be) {
-      const img = images[a.ref] || a.image;
-      if (!img) throw new Error('missing image ref "' + a.ref + '"');
-      be.blit(img, a.x + env.ox, a.y + env.oy, a.alpha);
-    },
-    each(a, env, be, marks, run) {
-      const list = a.in, had = Object.prototype.hasOwnProperty.call(env.locals, a.as);
-      if (list == null) return;
-      const prev = env.locals[a.as];
-      for (let k = 0; k < list.length; k++) { env.locals[a.as] = list[k]; run(a.ops, env, be, marks); }
-      if (had) env.locals[a.as] = prev; else delete env.locals[a.as];
-    },
-    repeat(a, env, be, marks, run) {
-      const had = Object.prototype.hasOwnProperty.call(env.locals, a.as);
-      const prev = env.locals[a.as], from = a.from || 0;
-      for (let k = 0; k < a.times; k++) { env.locals[a.as] = from + k; run(a.ops, env, be, marks); }
-      if (had) env.locals[a.as] = prev; else delete env.locals[a.as];
-    },
-    if(a, env, be, marks, run) {
-      if (a.test) { if (a.then) run(a.then, env, be, marks); }
-      else if (a.else) run(a.else, env, be, marks);
-    },
-    win(a, env, be, marks) {
-      be.fillRect(a.x + env.ox, a.y + env.oy, 1, 1, a.color || '#2b3a4e');
-      marks.win.push([a.x + env.ox, a.y + env.oy]);
-    },
-    park(a, env, be, marks) { marks.park.push([a.x + env.ox, a.y + env.oy, a.v ? 1 : 0]); },
-    stat(a, env, be, marks) { marks.stat = [a.x + env.ox, a.y + env.oy]; },
-    berth(a, env, be, marks) { if (!marks.berth) marks.berth = [a.x, a.y]; },
-    spot(a, env, be, marks) { marks.spots.push([a.x + env.ox, a.y + env.oy]); },
-    // mark only records a point; nothing is painted (visitors/lots/queues)
-    mark(a, env, be, marks) {
-      const list = a.as === 'park' ? marks.park : a.as === 'spots' ? marks.spots : marks.win;
-      for (const p of a.of) list.push([p[0] + env.ox, p[1] + env.oy]);
-    },
-    spots(a, env, be, marks) { marks.spots = a.of.map(p => [p[0] + env.ox, p[1] + env.oy]); },
-    // writes a param for later ops in the same render (first-match flags)
-    set(a, env) { env.p[a.as] = a.value; },
-    use(a, env, be, marks) {
-      const file = a.file || env.__file;
-      const sub = getDef(file, a.texture);
-      const subEnv = makeEnv(sub.doc, sub.def, a.params || {}, env.__seed);
-      subEnv.__file = file;
-      subEnv.locals = Object.create(env.locals);
-      subEnv.ox = env.ox + a.at[0];
-      subEnv.oy = env.oy + a.at[1];
-      subEnv.depth = env.depth + 1;
-      if (subEnv.depth > 6) throw new Error('texture "use" nested too deeply');
-      runOps(sub.def._compiled, subEnv, be, marks);
-    },
-    call(a, env, be, marks) {
-      const f = TEX_OPS[a.fn];
-      if (typeof f !== 'function') throw new Error('unknown call fn "' + a.fn + '"');
-      f(be, env, a.args || {}, marks);
-    }
-  };
-
-  function runOps(ops, env, be, marks) {
-    for (let k = 0; k < ops.length; k++) {
-      const n = ops[k], a = {};
-      for (let j = 0; j < n.keys.length; j++) a[n.keys[j]] = n.fns[j](env);
-      if (n.ops) a.ops = n.ops;
-      if (n.then) a.then = n.then;
-      if (n.else) a.else = n.else;
-      n.impl(a, env, be, marks, runOps);
-    }
-  }
-
-  function compileOps(rawOps, def) {
-    return rawOps.map(raw => {
-      const impl = DRAW[raw.op];
-      if (!impl) throw new Error('unknown op "' + raw.op + '" in ' + def.__id);
-      const keys = [], fns = [];
-      for (const k of Object.keys(raw)) {
-        if (k === 'op' || k === 'ops' || k === 'then' || k === 'else') continue;
-        keys.push(k);
-        fns.push(compile(raw[k], def.__id));
-      }
-      const node = { impl, keys, fns };
-      if (raw.ops) node.ops = compileOps(raw.ops, def);
-      if (raw.then) node.then = compileOps(raw.then, def);
-      if (raw.else) node.else = compileOps(raw.else, def);
-      return node;
-    });
-  }
-
-  // ---------------------------------------------------------------------
   // Documents
   // ---------------------------------------------------------------------
   function define(files) { for (const k of Object.keys(files)) docs[k] = files[k]; }
-
-  // Images arrive as {w,h,b64} from the build; hand-written code may pass
-  // {w,h,data} directly.
-  function unpackImage(v) {
-    if (v && v.data && typeof v.data.length === 'number') return v;
-    const bin = typeof atob === 'function'
-      ? atob(v.b64)
-      : Buffer.from(v.b64, 'base64').toString('binary');
-    const arr = new Uint8ClampedArray(bin.length);
-    for (let k = 0; k < bin.length; k++) arr[k] = bin.charCodeAt(k);
-    return { w: v.w, h: v.h, data: arr };
-  }
-  function defineImages(map) { for (const k of Object.keys(map)) images[k] = unpackImage(map[k]); }
 
   function getDef(file, texName) {
     const doc = docs[file];
@@ -423,49 +530,199 @@
     return { doc, def };
   }
 
+  // The studio mutates a document in place; drop its compiled cache so the
+  // next render reads the new palette, rows and conditions.
+  function refresh(file, texName) {
+    const doc = docs[file];
+    const def = doc && doc.textures && doc.textures[texName];
+    if (def) def._compiled = false;
+  }
+
+  function pickDesign(file, texName, params) {
+    const { doc, def } = getDef(file, texName);
+    return selectDesign(def, makeEnv(doc, def, params));
+  }
+
   function prep(doc, def, file, name) {
     if (def._compiled) return def;
     def.__id = file + ':' + name;
     def.__file = file;
-    if (def.extends) {
-      const parts = def.extends.indexOf(':') >= 0 ? def.extends.split(':') : [file, def.extends];
-      const parent = getDef(parts[0], parts[1]);
-      if (!def.size) def.size = parent.def.size;
-      if (!def._parentParams) def._parentParams = parent.def._params;
-      if (!def.ops || !def.ops.length) def.ops = parent.def.ops;
-    }
     def.size = def.size || [9, 9];
-    def._params = compileParams(def.params || {}, def.__id);
-    def._compiled = compileOps(def.ops || [], def);
+    def.params = def.params || {};
+    def.designs = def.designs || {};
+
+    const names = Object.keys(def.designs);
+    if (!names.length) throw new Error(def.__id + ': no designs');
+    def._default = def.default && def.designs[def.default] ? def.default : names[0];
+    def._conditions = (def.conditions || []).map(c => ({ when: compileCond(c.when), design: c.design }));
+    def._designs = Object.create(null);
+    for (const n of names) {
+      const d = def.designs[n];
+      def._designs[n] = {
+        palette: (d.palette || []).map(entry => compilePalette(entry, def.__id + '.' + n)),
+        rows: d.rows || []
+      };
+    }
+    def._marks = def.marks || {};
+    def._compiled = true;
     return def;
   }
 
-  function compileParams(decl, where) {
-    const keys = Object.keys(decl);
-    return { keys, fns: keys.map(k => compile(decl[k], where)) };
+  function compilePalette(raw, where) {
+    if (typeof raw === 'string') return { color: () => raw, when: null, elseColor: null };
+    if (raw == null) return { color: () => 'transparent', when: null, elseColor: null };
+    if (typeof raw !== 'object') throw new Error(where + ': a palette entry must be a colour or an object');
+    if (Array.isArray(raw.layers)) {
+      return {
+        layers: raw.layers.map(l => ({
+          color: () => evalValue(l.color, CACHE_ENV, CACHE_SLOTS),
+          when: l.when ? compileCond(l.when) : null
+        })),
+        when: null, elseColor: null
+      };
+    }
+    if (!('color' in raw) && !('when' in raw)) throw new Error(where + ': a palette entry needs "color"');
+    return {
+      color: () => evalValue(raw.color, CACHE_ENV, CACHE_SLOTS),
+      when: raw.when ? compileCond(raw.when) : null,
+      elseColor: raw.else !== undefined ? (() => evalValue(raw.else, CACHE_ENV, CACHE_SLOTS)) : null
+    };
   }
+  // compilePalette build a closure that reads the environment through these
+  // slots; they are reassigned for every render, before any swatch is read.
+  let CACHE_ENV = null;
+  let CACHE_SLOTS = null;
 
-  function makeEnv(doc, def, params, seedOverride) {
-    const p = {};
+  function makeEnv(doc, def, params) {
+    const p = Object.assign({}, def.params);
     if (params) for (const k of Object.keys(params)) if (params[k] !== undefined) p[k] = params[k];
-    const seed = seedOverride !== undefined ? seedOverride : (p.seed !== undefined ? p.seed | 0 : 1);
-    const env = {
-      p, d: doc.defs || {}, locals: Object.create(null), imp: Object.create(null),
+    const seed = p.seed !== undefined ? p.seed | 0 : 1;
+    return {
+      p, d: doc.defs || {}, x: 0, y: 0,
+      seed,
       rng: mulberry(seed),
       w: def.size[0], h: def.size[1],
       tw: def.size[0] / (doc.tile || 9), th: def.size[1] / (doc.tile || 9),
-      ox: 0, oy: 0, depth: 0, __file: def.__file, __seed: seed
+      ox: 0, oy: 0, _slots: []
     };
-    const run = cp => {
-      for (let k = 0; k < cp.keys.length; k++) {
-        const key = cp.keys[k];
-        if (Object.prototype.hasOwnProperty.call(p, key)) continue;
-        p[key] = cp.fns[k](env);
+  }
+
+  function selectDesign(def, env) {
+    for (let k = 0; k < def._conditions.length; k++) {
+      const c = def._conditions[k];
+      if (c.when(env)) return c.design;
+    }
+    return def._default;
+  }
+
+  function renderWith(file, texName, params, be) {
+    const { doc, def } = getDef(file, texName);
+    const env = makeEnv(doc, def, params);
+    return paintDesign(doc, def, selectDesign(def, env), env, be);
+  }
+
+  // Render one named design directly. The studio edits a design even when
+  // the current test parameters would select a different one.
+  function renderDesignWith(file, texName, designName, params, be) {
+    const { doc, def } = getDef(file, texName);
+    if (!def._designs[designName]) throw new Error(def.__id + ': unknown design "' + designName + '"');
+    return paintDesign(doc, def, designName, makeEnv(doc, def, params), be);
+  }
+
+  function loadPalette(design) {
+    CACHE_SLOTS = [];
+    const colors = new Array(design.palette.length);
+    const layerColors = new Array(design.palette.length);
+    for (let i = 0; i < design.palette.length; i++) {
+      const entry = design.palette[i];
+      if (entry.layers) {
+        layerColors[i] = entry.layers.map(l => l.color());
+        colors[i] = layerColors[i][layerColors[i].length - 1];
+      } else {
+        colors[i] = entry.color();
       }
-    };
-    run(def._params);
-    if (def._parentParams) run(def._parentParams);
-    return env;
+      CACHE_SLOTS.push(colors[i]);
+    }
+    return { colors, layerColors };
+  }
+
+  // The colour a swatch resolves to at the top-left pixel, for the studio's
+  // palette strip. Conditional pixels may differ elsewhere; this is a hint.
+  function swatchColor(file, texName, designName, index, params) {
+    const { doc, def } = getDef(file, texName);
+    const design = def._designs[designName];
+    if (!design || !design.palette[index]) return null;
+    const env = makeEnv(doc, def, params);
+    env.x = 0; env.y = 0;
+    const prevEnv = CACHE_ENV, prevSlots = CACHE_SLOTS;
+    CACHE_ENV = env;
+    const { colors, layerColors } = loadPalette(design);
+    const entry = design.palette[index];
+    let color;
+    if (entry.layers) {
+      let acc = null;
+      for (let k = 0; k < entry.layers.length; k++) {
+        const layer = entry.layers[k];
+        if (layer.when && !layer.when(env)) continue;
+        const v = layerColors[index][k];
+        if (v === 'transparent' || v == null) continue;
+        acc = acc == null ? v : over(v, acc);
+      }
+      color = acc;
+    } else if (!entry.when || entry.when(env)) color = colors[index];
+    else if (entry.elseColor) color = entry.elseColor();
+    CACHE_ENV = prevEnv; CACHE_SLOTS = prevSlots;
+    return color || null;
+  }
+
+  function paintDesign(doc, def, designName, env, be) {
+    const marks = { win: [], park: [], stat: null, berth: null, spots: [], design: null };
+    const design = def._designs[designName];
+    if (!design) throw new Error(def.__id + ': unknown design "' + designName + '"');
+    marks.design = designName;
+
+    // Swatches are resolved once, in palette order, so a random colour pick
+    // is consumed once per render and shades of it stay consistent.
+    const prevEnv = CACHE_ENV, prevSlots = CACHE_SLOTS;
+    CACHE_ENV = env;
+    const { colors, layerColors } = loadPalette(design);
+
+    for (let y = 0; y < def.size[1]; y++) {
+      const row = design.rows[y] || '';
+      for (let x = 0; x < def.size[0]; x++) {
+        const ch = row[x];
+        if (!ch || ch === TRANSPARENT) continue;
+        const idx = ALPHABET.indexOf(ch);
+        if (idx < 0) throw new Error(def.__id + '.' + designName + ': unknown pixel "' + ch + '"');
+        const entry = design.palette[idx];
+        if (!entry) throw new Error(def.__id + '.' + designName + ': pixel "' + ch + '" has no palette entry');
+        env.x = x; env.y = y;
+        let color;
+        if (entry.layers) {
+          let acc = null;
+          for (let k = 0; k < entry.layers.length; k++) {
+            const layer = entry.layers[k];
+            if (layer.when && !layer.when(env)) continue;
+            const v = layerColors[idx][k];
+            if (v === 'transparent' || v == null) continue;
+            acc = acc == null ? v : over(v, acc);
+          }
+          color = acc;
+        } else if (!entry.when || entry.when(env)) color = colors[idx];
+        else if (entry.elseColor) color = entry.elseColor();
+        if (!color || color === 'transparent') continue;
+        be.fillRect(x, y, 1, 1, color);
+      }
+    }
+    CACHE_ENV = prevEnv; CACHE_SLOTS = prevSlots;
+
+    const m = def._marks;
+    if (m.win) marks.win = m.win.map(p => [p[0], p[1]]);
+    if (m.park) marks.park = m.park.map(p => [p[0], p[1], p[2] | 0]);
+    if (m.stat) marks.stat = [m.stat[0], m.stat[1]];
+    if (m.berth) marks.berth = [m.berth[0], m.berth[1]];
+    if (m.spots) marks.spots = m.spots.map(p => [p[0], p[1]]);
+    return marks;
   }
 
   // ---------------------------------------------------------------------
@@ -477,12 +734,18 @@
       .map(k => k + '=' + JSON.stringify(params[k])).join('&');
   }
 
-  function renderWith(file, texName, params, be) {
-    const { doc, def } = getDef(file, texName);
-    const env = makeEnv(doc, def, params);
-    const marks = { win: [], park: [], stat: null, berth: null, spots: [] };
-    runOps(def._compiled, env, be, marks);
-    return marks;
+  function renderDesign(file, texName, designName, params) {
+    const { def } = getDef(file, texName);
+    const be = canvasBackend(def.size[0], def.size[1]);
+    const marks = renderDesignWith(file, texName, designName, params, be);
+    return { canvas: be.canvas, marks };
+  }
+
+  function renderDesignBuffer(file, texName, designName, params) {
+    const { def } = getDef(file, texName);
+    const be = bufferBackend(def.size[0], def.size[1]);
+    const marks = renderDesignWith(file, texName, designName, params, be);
+    return { w: be.w, h: be.h, data: be.data, marks };
   }
 
   function render(file, texName, params, keySuffix) {
@@ -517,8 +780,7 @@
   // ---------------------------------------------------------------------
   // Static validation, run by the build so a bad file never ships
   // ---------------------------------------------------------------------
-  const OPSET = Object.keys(DRAW);
-  const IMPLICIT = ['w', 'h', 'tw', 'th', 'ox', 'oy'];
+  const MARK_KEYS = ['win', 'park', 'stat', 'berth', 'spots'];
 
   function validate(files) {
     const errs = [];
@@ -529,76 +791,92 @@
       const defs = doc.defs || {};
       for (const name of Object.keys(doc.textures)) {
         const def = doc.textures[name], where = file + ':' + name;
-        if (!def.size && !def.extends) errs.push(where + ': missing size');
-        if (!def.ops && !def.extends) errs.push(where + ': missing ops');
-        const known = new Set(Object.keys(def.params || {}).concat(IMPLICIT));
-        for (const k of Object.keys(def.params || {})) checkExpr(def.params[k], where + '.params.' + k, errs, known, defs, new Set());
-        checkOps(def.ops || [], where, errs, known, defs, new Set(), files);
+        if (!Array.isArray(def.size) || def.size.length !== 2) { errs.push(where + ': missing size [w,h]'); continue; }
+        const [w, h] = def.size;
+        const known = new Set(Object.keys(def.params || {}).concat(['w', 'h', 'tw', 'th']));
+        if (!def.designs || !Object.keys(def.designs).length) { errs.push(where + ': no designs'); continue; }
+        for (const dn of Object.keys(def.designs)) {
+          const d = def.designs[dn], at = where + ':' + dn;
+          if (!Array.isArray(d.rows) || d.rows.length !== h) { errs.push(at + ': expected ' + h + ' rows'); continue; }
+          if (!Array.isArray(d.palette)) { errs.push(at + ': missing palette'); continue; }
+          if (d.palette.length > ALPHABET.length) errs.push(at + ': palette has ' + d.palette.length + ' entries (max ' + ALPHABET.length + ')');
+          for (let y = 0; y < h; y++) {
+            const row = d.rows[y];
+            if (typeof row !== 'string' || row.length !== w) { errs.push(at + ': row ' + y + ' must be ' + w + ' characters'); continue; }
+            for (const ch of row) {
+              if (ch === TRANSPARENT) continue;
+              const idx = ALPHABET.indexOf(ch);
+              if (idx < 0) { errs.push(at + ': unknown pixel "' + ch + '"'); break; }
+              if (idx >= d.palette.length) { errs.push(at + ': row ' + y + ' uses palette entry "' + ch + '" which does not exist'); break; }
+            }
+          }
+          d.palette.forEach((entry, i) => {
+            if (typeof entry === 'string') return;
+            if (!entry || typeof entry !== 'object') { errs.push(at + '.palette[' + i + ']: bad entry'); return; }
+            if (Array.isArray(entry.layers)) {
+              entry.layers.forEach((l, k) => {
+                checkValue(l.color, at + '.palette[' + i + '].layers[' + k + '].color', errs, known, defs, i);
+                if (l.when !== undefined) checkCond(l.when, at + '.palette[' + i + '].layers[' + k + '].when', errs, known, defs, i);
+              });
+              return;
+            }
+            if (!('color' in entry)) errs.push(at + '.palette[' + i + ']: missing color');
+            checkValue(entry.color, at + '.palette[' + i + '].color', errs, known, defs, i);
+            if (entry.else !== undefined) checkValue(entry.else, at + '.palette[' + i + '].else', errs, known, defs, i);
+            if (entry.when !== undefined) checkCond(entry.when, at + '.palette[' + i + '].when', errs, known, defs, i);
+          });
+        }
+        const names = Object.keys(def.designs);
+        if (def.default && names.indexOf(def.default) < 0) errs.push(where + ': default design "' + def.default + '" does not exist');
+        for (const c of def.conditions || []) {
+          if (names.indexOf(c.design) < 0) errs.push(where + ': condition targets unknown design "' + c.design + '"');
+          checkCond(c.when, where + '.conditions', errs, known, defs, null);
+        }
+        for (const key of Object.keys(def.marks || {})) {
+          if (MARK_KEYS.indexOf(key) < 0) errs.push(where + '.marks: unknown mark "' + key + '"');
+        }
       }
     }
     return errs;
   }
 
-  function checkOps(ops, where, errs, known, defs, scope, files) {
-    if (!Array.isArray(ops)) { errs.push(where + ': ops is not a list'); return; }
-    for (const op of ops) {
-      if (!op || typeof op.op !== 'string') { errs.push(where + ': op without a name'); continue; }
-      if (OPSET.indexOf(op.op) < 0) { errs.push(where + ': unknown op "' + op.op + '"'); continue; }
-      const at = where + '.' + op.op;
-      for (const k of Object.keys(op)) {
-        if (k === 'op' || k === 'ops' || k === 'then' || k === 'else') continue;
-        checkExpr(op[k], at + '.' + k, errs, known, defs, scope);
+  function checkValue(node, where, errs, known, defs, paletteIndex) {
+    if (node == null || typeof node !== 'object' || typeof node === 'string') return;
+    if (Array.isArray(node)) {
+      const head = node[0];
+      if (head === 'choose') {
+        checkCond(node[1], where + '.choose', errs, known, defs, paletteIndex);
+        for (let k = 2; k < node.length; k++) checkValue(node[k], where, errs, known, defs, paletteIndex);
+        return;
       }
-      if (op.op === 'each' || op.op === 'repeat') {
-        if (!op.as) errs.push(at + ': missing "as"');
-        if (!Array.isArray(op.ops)) errs.push(at + ': missing "ops"');
-        const inner = new Set(scope);
-        inner.add(op.as || '_');
-        checkOps(op.ops || [], at, errs, known, defs, inner, files);
-      } else if (op.op === 'if') {
-        checkOps(op.then || [], at + '.then', errs, known, defs, scope, files);
-        checkOps(op.else || [], at + '.else', errs, known, defs, scope, files);
-      } else if (op.op === 'use') {
-        const tf = op.file;
-        if (typeof tf === 'string' && (!files[tf] || !files[tf].textures[op.texture])) errs.push(at + ': unknown texture "' + tf + ':' + op.texture + '"');
-        if (!Array.isArray(op.at)) errs.push(at + ': use needs "at"');
-      } else if (op.op === 'png') {
-        // `src` is resolved to `ref` by the build (file path or data URI)
-        if (!op.ref && !op.image && !op.src) errs.push(at + ': png needs "src"');
-      } else if (op.op === 'call') {
-        if (typeof op.fn !== 'string') errs.push(at + ': call needs "fn"');
+      if (head === 'param') {
+        if (!known.has(node[1])) errs.push(where + ': unknown param "' + node[1] + '"');
+        return;
       }
+      if (head === 'def') {
+        if (!Object.prototype.hasOwnProperty.call(defs, node[1])) errs.push(where + ': unknown def "' + node[1] + '"');
+        return;
+      }
+      if (head === 'slot') {
+        if (paletteIndex == null || node[1] >= paletteIndex) errs.push(where + ': slot ' + node[1] + ' must be an earlier swatch');
+        return;
+      }
+      for (let k = 1; k < node.length; k++) checkValue(node[k], where, errs, known, defs, paletteIndex);
     }
   }
 
-  function checkExpr(node, where, errs, known, defs, scope) {
-    if (Array.isArray(node)) {
-      const head = node[0];
-      if (isExpr(head)) {
-        if (head === 'param') {
-          if (!known.has(node[1]) && !scope.has(node[1])) errs.push(where + ': unknown param "' + node[1] + '"');
-          return;
-        }
-        if (head === 'def') {
-          if (!Object.prototype.hasOwnProperty.call(defs, node[1])) errs.push(where + ': unknown def "' + node[1] + '"');
-          return;
-        }
-        if (head === 'var') {
-          if (!scope.has(node[1]) && !known.has(node[1])) errs.push(where + ': unknown loop var "' + node[1] + '"');
-          return;
-        }
-        for (let k = 1; k < node.length; k++) checkExpr(node[k], where, errs, known, defs, scope);
-        return;
-      }
-      for (const v of node) if (Array.isArray(v)) checkExpr(v, where, errs, known, defs, scope);
-    }
+  function checkCond(text, where, errs, known, defs, paletteIndex) {
+    const e = conditionError(text, [...known]);
+    if (e) errs.push(where + ': ' + e + ' (in "' + text + '")');
   }
 
   return {
-    FORMAT, EXPR, TEX_OPS, docs, images,
-    define, defineImages, render, renderBuffer, draw, clear, validate,
-    stripJsonc, parse: src => JSON.parse(stripJsonc(src)),
-    shade, mix, hash, mulberry, parseColor, getDef,
+    FORMAT, ALPHABET, docs,
+    define, render, renderDesign, renderBuffer, renderDesignBuffer, draw, clear, validate, swatchColor,
+    refresh, pickDesign,
+    stripJsonc, parse: src => JSON.parse(stripJsonc(src)), stringify: v => formatJson(v, 0),
+    shade, mix, over, hash, mulberry, parseColor, getDef,
+    parseCondition, conditionError, conditionNames,
     cacheSize: () => cache.size
   };
 });

@@ -1,61 +1,461 @@
+// texture/2 — designs of pixel rows, conditions in short text.
+// A condition chooses the design to paint, e.g. "m = 5" or "hw > 0 and night".
+// Edit with the Texture Studio (npm run build, then /textures).
 {
-  // ===================================================================
-  // People. Pedestrians are a 1x2 sprite tinted by `color`; the mood
-  // faces are 5x5 row strings painted from a rule, so a new expression
-  // only needs one row list.
-  // ===================================================================
-  "format": "texture/1",
+  "format": "texture/2",
   "name": "people",
   "tile": 9,
-
   "defs": {
     "skin": "#f1c9a0",
     "ink": "#1a1d26",
     "faces": {
-      "happy": [".FFF.", "FkFkF", "FFFFF", "kFFFk", ".kkk."],
-      "ok":    [".FFF.", "FkFkF", "FFFFF", "FkkkF", ".FFF."],
-      "sad":   [".FFF.", "FkFkF", "FFFFF", "FkkkF", "kFFFk"],
-      "angry": ["kFFFk", "FkFkF", "FFFFF", "FkkkF", "kFFFk"]
+      "happy": [".FFF.","FkFkF","FFFFF","kFFFk",".kkk."],
+      "ok": [".FFF.","FkFkF","FFFFF","FkkkF",".FFF."],
+      "sad": [".FFF.","FkFkF","FFFFF","FkkkF","kFFFk"],
+      "angry": ["kFFFk","FkFkF","FFFFF","FkkkF","kFFFk"]
     },
-    "faceCol": {
-      "happy": "#5fdc7a",
-      "ok": "#ffd75e",
-      "sad": "#ff9a4d",
-      "angry": "#ff4848"
-    }
+    "faceCol": {"happy":"#5fdc7a","ok":"#ffd75e","sad":"#ff9a4d","angry":"#ff4848"}
   },
-
   "textures": {
     "ped": {
-      "size": [1, 2],
-      "params": { "color": "#ff6b6b" },
-      "ops": [
-        { "op": "pixel", "x": 0, "y": 0, "color": ["def", "skin"] },
-        { "op": "pixel", "x": 0, "y": 1, "color": ["param", "color"] }
-      ]
+      "size": [1,2],
+      "params": {"color":"#ff6b6b"},
+      "designs": {"base":{"palette":["transparent",{"color":["def","skin"]},{"color":["param","color"]}],"rows":["1","2"]}}
     },
-
     "face": {
-      "size": [5, 5],
-      "params": {
-        "kind": "happy",
-        "rows": ["at", ["def", "faces"], ["param", "kind"]],
-        "fill": ["at", ["def", "faceCol"], ["param", "kind"]]
+      "size": [5,5],
+      "params": {"kind":"happy"},
+      "default": "happy",
+      "designs": {
+        "happy": {
+          "palette": [
+            "transparent",
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 0), 0) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 0), 0) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 0), 1) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 0), 1) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 0), 2) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 0), 2) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 0), 3) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 0), 3) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 0), 4) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 0), 4) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 1), 0) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 1), 0) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 1), 1) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 1), 1) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 1), 2) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 1), 2) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 1), 3) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 1), 3) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 1), 4) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 1), 4) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 2), 0) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 2), 0) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 2), 1) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 2), 1) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 2), 2) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 2), 2) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 2), 3) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 2), 3) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 2), 4) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 2), 4) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 3), 0) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 3), 0) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 3), 1) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 3), 1) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 3), 2) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 3), 2) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 3), 3) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 3), 3) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 3), 4) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 3), 4) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 4), 0) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 4), 0) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 4), 1) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 4), 1) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 4), 2) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 4), 2) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 4), 3) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 4), 3) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"happy\"), 4), 4) = \"F\"",["at",["def","faceCol"],"happy"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"happy\"), 4), 4) != \".\""
+            }
+          ],
+          "rows": ["12345","6789a","bcdef","ghijk","lmnop"]
+        },
+        "ok": {
+          "palette": [
+            "transparent",
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 0), 0) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 0), 0) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 0), 1) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 0), 1) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 0), 2) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 0), 2) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 0), 3) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 0), 3) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 0), 4) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 0), 4) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 1), 0) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 1), 0) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 1), 1) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 1), 1) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 1), 2) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 1), 2) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 1), 3) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 1), 3) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 1), 4) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 1), 4) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 2), 0) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 2), 0) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 2), 1) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 2), 1) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 2), 2) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 2), 2) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 2), 3) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 2), 3) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 2), 4) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 2), 4) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 3), 0) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 3), 0) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 3), 1) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 3), 1) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 3), 2) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 3), 2) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 3), 3) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 3), 3) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 3), 4) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 3), 4) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 4), 0) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 4), 0) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 4), 1) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 4), 1) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 4), 2) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 4), 2) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 4), 3) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 4), 3) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"ok\"), 4), 4) = \"F\"",["at",["def","faceCol"],"ok"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"ok\"), 4), 4) != \".\""
+            }
+          ],
+          "rows": ["12345","6789a","bcdef","ghijk","lmnop"]
+        },
+        "sad": {
+          "palette": [
+            "transparent",
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 0), 0) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 0), 0) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 0), 1) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 0), 1) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 0), 2) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 0), 2) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 0), 3) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 0), 3) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 0), 4) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 0), 4) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 1), 0) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 1), 0) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 1), 1) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 1), 1) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 1), 2) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 1), 2) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 1), 3) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 1), 3) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 1), 4) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 1), 4) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 2), 0) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 2), 0) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 2), 1) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 2), 1) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 2), 2) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 2), 2) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 2), 3) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 2), 3) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 2), 4) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 2), 4) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 3), 0) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 3), 0) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 3), 1) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 3), 1) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 3), 2) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 3), 2) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 3), 3) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 3), 3) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 3), 4) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 3), 4) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 4), 0) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 4), 0) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 4), 1) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 4), 1) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 4), 2) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 4), 2) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 4), 3) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 4), 3) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"sad\"), 4), 4) = \"F\"",["at",["def","faceCol"],"sad"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"sad\"), 4), 4) != \".\""
+            }
+          ],
+          "rows": ["12345","6789a","bcdef","ghijk","lmnop"]
+        },
+        "angry": {
+          "palette": [
+            "transparent",
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 0), 0) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 0), 0) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 0), 1) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 0), 1) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 0), 2) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 0), 2) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 0), 3) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 0), 3) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 0), 4) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 0), 4) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 1), 0) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 1), 0) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 1), 1) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 1), 1) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 1), 2) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 1), 2) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 1), 3) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 1), 3) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 1), 4) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 1), 4) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 2), 0) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 2), 0) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 2), 1) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 2), 1) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 2), 2) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 2), 2) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 2), 3) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 2), 3) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 2), 4) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 2), 4) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 3), 0) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 3), 0) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 3), 1) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 3), 1) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 3), 2) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 3), 2) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 3), 3) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 3), 3) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 3), 4) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 3), 4) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 4), 0) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 4), 0) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 4), 1) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 4), 1) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 4), 2) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 4), 2) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 4), 3) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 4), 3) != \".\""
+            },
+            {
+              "color": ["choose","at(at(at(def(\"faces\"), \"angry\"), 4), 4) = \"F\"",["at",["def","faceCol"],"angry"],["def","ink"]],
+              "when": "at(at(at(def(\"faces\"), \"angry\"), 4), 4) != \".\""
+            }
+          ],
+          "rows": ["12345","6789a","bcdef","ghijk","lmnop"]
+        }
       },
-      "ops": [
-        { "op": "repeat", "as": "r", "times": 5, "ops": [
-          { "op": "repeat", "as": "k", "times": 5, "ops": [
-            { "op": "if",
-              "test": ["!=", ["at", ["at", ["param", "rows"], ["var", "r"]], ["var", "k"]], "."],
-              "then": [
-                { "op": "pixel", "x": ["var", "k"], "y": ["var", "r"],
-                  "color": ["if",
-                    ["==", ["at", ["at", ["param", "rows"], ["var", "r"]], ["var", "k"]], "F"],
-                    ["param", "fill"],
-                    ["def", "ink"]] }
-              ] }
-          ] }
-        ] }
+      "conditions": [
+        {"when":"kind = \"ok\"","design":"ok"},
+        {"when":"kind = \"sad\"","design":"sad"},
+        {"when":"kind = \"angry\"","design":"angry"}
       ]
     }
   }

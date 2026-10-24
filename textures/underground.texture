@@ -1,145 +1,674 @@
+// texture/2 — designs of pixel rows, conditions in short text.
+// A condition chooses the design to paint, e.g. "m = 5" or "hw > 0 and night".
+// Edit with the Texture Studio (npm run build, then /textures).
 {
-  // ===================================================================
-  // Underground. Nothing here is meant to look like a real photograph of
-  // a tunnel: it is a schematic, drawn the way a circuit board is drawn.
-  // Copper traces are the running rails, gold pads are the blocks a train
-  // can stand on, and the board itself is the dirt around them.
-  //
-  // Every tile is generated from its rail mask, so the same texture covers
-  // straights, corners, T junctions and crossings. Junction and reversing
-  // blocks are the same trace with a pad on top, which is how the network
-  // draws them: a place where lines meet, or where one stops and a train
-  // has to turn back.
-  // ===================================================================
-  "format": "texture/1",
+  "format": "texture/2",
   "name": "underground",
   "tile": 9,
-
-  "defs": {
-    "board": "#06120e",
-    "trace": "#1e6b4f",
-    "core": "#45c98d",
-    "pad": "#e0b654",
-    "padLit": "#ffe6a1"
-  },
-
+  "defs": {"board":"#06120e","trace":"#1e6b4f","core":"#45c98d","pad":"#e0b654","padLit":"#ffe6a1"},
   "textures": {
-    // -----------------------------------------------------------------
-    // The running rail: one 3px trace toward every connected neighbour,
-    // with a 1px copper core so the network reads at a glance.
-    // -----------------------------------------------------------------
     "rail": {
-      "size": [9, 9],
-      "params": { "m": 0 },
-      "ops": [
-        { "op": "rect", "x": 0, "y": 0, "w": 9, "h": 9, "color": ["def", "board"] },
-        { "op": "each", "as": "y", "in": [0, 3, 6], "ops": [
-          { "op": "rect", "x": 0, "y": ["var", "y"], "w": 9, "h": 1, "color": "#081a14" }
-        ] },
-
-        { "op": "if", "test": ["bit", ["param", "m"], 0], "then": [
-          { "op": "rect", "x": 3, "y": 0, "w": 3, "h": 5, "color": ["def", "trace"] },
-          { "op": "rect", "x": 4, "y": 0, "w": 1, "h": 5, "color": ["def", "core"] }
-        ] },
-        { "op": "if", "test": ["bit", ["param", "m"], 2], "then": [
-          { "op": "rect", "x": 3, "y": 4, "w": 3, "h": 5, "color": ["def", "trace"] },
-          { "op": "rect", "x": 4, "y": 4, "w": 1, "h": 5, "color": ["def", "core"] }
-        ] },
-        { "op": "if", "test": ["bit", ["param", "m"], 1], "then": [
-          { "op": "rect", "x": 4, "y": 3, "w": 5, "h": 3, "color": ["def", "trace"] },
-          { "op": "rect", "x": 4, "y": 4, "w": 5, "h": 1, "color": ["def", "core"] }
-        ] },
-        { "op": "if", "test": ["bit", ["param", "m"], 3], "then": [
-          { "op": "rect", "x": 0, "y": 3, "w": 5, "h": 3, "color": ["def", "trace"] },
-          { "op": "rect", "x": 0, "y": 4, "w": 5, "h": 1, "color": ["def", "core"] }
-        ] },
-
-        // a plain through-via in the middle of a track section
-        { "op": "rect", "x": 3, "y": 3, "w": 3, "h": 3, "color": ["def", "trace"] },
-        { "op": "pixel", "x": 4, "y": 4, "color": ["def", "core"] }
+      "size": [9,9],
+      "params": {"m":0},
+      "default": "m0",
+      "designs": {
+        "m0": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","trace"]},
+            {"color":["def","core"]}
+          ],
+          "rows": ["111111111","222222222","222222222","111333111","222343222","222333222","111111111","222222222","222222222"]
+        },
+        "m1": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]}
+          ],
+          "rows": ["111232111","444232444","444232444","111222111","444232444","444222444","111111111","444444444","444444444"]
+        },
+        "m2": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","trace"]},
+            {"color":["def","core"]}
+          ],
+          "rows": ["111111111","222222222","222222222","111333333","222343444","222333333","111111111","222222222","222222222"]
+        },
+        "m3": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]}
+          ],
+          "rows": ["111232111","444232444","444232444","111222222","444232333","444222222","111111111","444444444","444444444"]
+        },
+        "m4": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","trace"]},
+            {"color":["def","core"]}
+          ],
+          "rows": ["111111111","222222222","222222222","111333111","222343222","222333222","111343111","222343222","222343222"]
+        },
+        "m5": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]}
+          ],
+          "rows": ["111232111","444232444","444232444","111222111","444232444","444222444","111232111","444232444","444232444"]
+        },
+        "m6": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","trace"]},
+            {"color":["def","core"]}
+          ],
+          "rows": ["111111111","222222222","222222222","111333333","222343444","222333333","111343111","222343222","222343222"]
+        },
+        "m7": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]}
+          ],
+          "rows": ["111232111","444232444","444232444","111222222","444232333","444222222","111232111","444232444","444232444"]
+        },
+        "m8": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","trace"]},
+            {"color":["def","core"]}
+          ],
+          "rows": ["111111111","222222222","222222222","333333111","444343222","333333222","111111111","222222222","222222222"]
+        },
+        "m9": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]}
+          ],
+          "rows": ["111232111","444232444","444232444","222222111","333232444","222222444","111111111","444444444","444444444"]
+        },
+        "m10": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","trace"]},
+            {"color":["def","core"]}
+          ],
+          "rows": ["111111111","222222222","222222222","333333333","444343444","333333333","111111111","222222222","222222222"]
+        },
+        "m11": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]}
+          ],
+          "rows": ["111232111","444232444","444232444","222222222","333232333","222222222","111111111","444444444","444444444"]
+        },
+        "m12": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","trace"]},
+            {"color":["def","core"]}
+          ],
+          "rows": ["111111111","222222222","222222222","333333111","444343222","333333222","111343111","222343222","222343222"]
+        },
+        "m13": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]}
+          ],
+          "rows": ["111232111","444232444","444232444","222222111","333232444","222222444","111232111","444232444","444232444"]
+        },
+        "m14": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","trace"]},
+            {"color":["def","core"]}
+          ],
+          "rows": ["111111111","222222222","222222222","333333333","444343444","333333333","111343111","222343222","222343222"]
+        },
+        "m15": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]}
+          ],
+          "rows": ["111232111","444232444","444232444","222222222","333232333","222222222","111232111","444232444","444232444"]
+        }
+      },
+      "conditions": [
+        {"when":"m = 1","design":"m1"},
+        {"when":"m = 2","design":"m2"},
+        {"when":"m = 3","design":"m3"},
+        {"when":"m = 4","design":"m4"},
+        {"when":"m = 5","design":"m5"},
+        {"when":"m = 6","design":"m6"},
+        {"when":"m = 7","design":"m7"},
+        {"when":"m = 8","design":"m8"},
+        {"when":"m = 9","design":"m9"},
+        {"when":"m = 10","design":"m10"},
+        {"when":"m = 11","design":"m11"},
+        {"when":"m = 12","design":"m12"},
+        {"when":"m = 13","design":"m13"},
+        {"when":"m = 14","design":"m14"},
+        {"when":"m = 15","design":"m15"}
       ]
     },
-
-    // -----------------------------------------------------------------
-    // A junction block: three or four rails meet here and a train may
-    // take any of them. The gold pad is the block itself.
-    // -----------------------------------------------------------------
     "junction": {
-      "extends": "rail",
-      "size": [9, 9],
-      "params": { "m": 0 },
-      "ops": [
-        { "op": "use", "texture": "rail", "at": [0, 0], "params": { "m": ["param", "m"] } },
-        { "op": "rect", "x": 2, "y": 2, "w": 5, "h": 1, "color": ["def", "pad"] },
-        { "op": "rect", "x": 2, "y": 6, "w": 5, "h": 1, "color": ["def", "pad"] },
-        { "op": "rect", "x": 2, "y": 2, "w": 1, "h": 5, "color": ["def", "pad"] },
-        { "op": "rect", "x": 6, "y": 2, "w": 1, "h": 5, "color": ["def", "pad"] },
-        { "op": "rect", "x": 4, "y": 4, "w": 1, "h": 1, "color": ["def", "padLit"] }
+      "size": [9,9],
+      "params": {"m":0},
+      "default": "m0",
+      "designs": {
+        "m0": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","trace"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111111111","222222222","223333322","113444311","223454322","223444322","113333311","222222222","222222222"]
+        },
+        "m1": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111232111","444232444","445555544","115222511","445262544","445222544","115555511","444444444","444444444"]
+        },
+        "m2": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","trace"]},
+            {"color":["def","padLit"]},
+            {"color":["def","core"]}
+          ],
+          "rows": ["111111111","222222222","223333322","113444344","223454366","223444344","113333311","222222222","222222222"]
+        },
+        "m3": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111232111","444232444","445555544","115222522","445262533","445222522","115555511","444444444","444444444"]
+        },
+        "m4": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","trace"]},
+            {"color":["def","padLit"]},
+            {"color":["def","core"]}
+          ],
+          "rows": ["111111111","222222222","223333322","113444311","223454322","223444322","113333311","222464222","222464222"]
+        },
+        "m5": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111232111","444232444","445555544","115222511","445262544","445222544","115555511","444232444","444232444"]
+        },
+        "m6": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","trace"]},
+            {"color":["def","padLit"]},
+            {"color":["def","core"]}
+          ],
+          "rows": ["111111111","222222222","223333322","113444344","223454366","223444344","113333311","222464222","222464222"]
+        },
+        "m7": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111232111","444232444","445555544","115222522","445262533","445222522","115555511","444232444","444232444"]
+        },
+        "m8": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111111111","222222222","223333322","443444311","553464322","443444322","113333311","222222222","222222222"]
+        },
+        "m9": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111232111","444232444","445555544","225222511","335262544","225222544","115555511","444444444","444444444"]
+        },
+        "m10": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111111111","222222222","223333322","443444344","553464355","443444344","113333311","222222222","222222222"]
+        },
+        "m11": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111232111","444232444","445555544","225222522","335262533","225222522","115555511","444444444","444444444"]
+        },
+        "m12": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111111111","222222222","223333322","443444311","553464322","443444322","113333311","222454222","222454222"]
+        },
+        "m13": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111232111","444232444","445555544","225222511","335262544","225222544","115555511","444232444","444232444"]
+        },
+        "m14": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111111111","222222222","223333322","443444344","553464355","443444344","113333311","222454222","222454222"]
+        },
+        "m15": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111232111","444232444","445555544","225222522","335262533","225222522","115555511","444232444","444232444"]
+        }
+      },
+      "conditions": [
+        {"when":"m = 1","design":"m1"},
+        {"when":"m = 2","design":"m2"},
+        {"when":"m = 3","design":"m3"},
+        {"when":"m = 4","design":"m4"},
+        {"when":"m = 5","design":"m5"},
+        {"when":"m = 6","design":"m6"},
+        {"when":"m = 7","design":"m7"},
+        {"when":"m = 8","design":"m8"},
+        {"when":"m = 9","design":"m9"},
+        {"when":"m = 10","design":"m10"},
+        {"when":"m = 11","design":"m11"},
+        {"when":"m = 12","design":"m12"},
+        {"when":"m = 13","design":"m13"},
+        {"when":"m = 14","design":"m14"},
+        {"when":"m = 15","design":"m15"}
       ]
     },
-
-    // -----------------------------------------------------------------
-    // A reversing block: the track ends here and a train cannot run round
-    // a loop, so it stops, the driver changes ends and it goes back the
-    // way it came. The ring is the turning pad.
-    // -----------------------------------------------------------------
     "reverse": {
-      "extends": "rail",
-      "size": [9, 9],
-      "params": { "m": 0 },
-      "ops": [
-        { "op": "use", "texture": "rail", "at": [0, 0], "params": { "m": ["param", "m"] } },
-        { "op": "rect", "x": 3, "y": 2, "w": 3, "h": 1, "color": ["def", "pad"] },
-        { "op": "rect", "x": 3, "y": 6, "w": 3, "h": 1, "color": ["def", "pad"] },
-        { "op": "rect", "x": 2, "y": 3, "w": 1, "h": 3, "color": ["def", "pad"] },
-        { "op": "rect", "x": 6, "y": 3, "w": 1, "h": 3, "color": ["def", "pad"] },
-        { "op": "pixel", "x": 4, "y": 4, "color": ["def", "padLit"] }
+      "size": [9,9],
+      "params": {"m":0},
+      "default": "m0",
+      "designs": {
+        "m0": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","trace"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111111111","222222222","222333222","113444311","223454322","223444322","111333111","222222222","222222222"]
+        },
+        "m1": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111232111","444232444","444555444","115222511","445262544","445222544","111555111","444444444","444444444"]
+        },
+        "m2": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","trace"]},
+            {"color":["def","padLit"]},
+            {"color":["def","core"]}
+          ],
+          "rows": ["111111111","222222222","222333222","113444344","223454366","223444344","111333111","222222222","222222222"]
+        },
+        "m3": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111232111","444232444","444555444","115222522","445262533","445222522","111555111","444444444","444444444"]
+        },
+        "m4": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","trace"]},
+            {"color":["def","padLit"]},
+            {"color":["def","core"]}
+          ],
+          "rows": ["111111111","222222222","222333222","113444311","223454322","223444322","111333111","222464222","222464222"]
+        },
+        "m5": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111232111","444232444","444555444","115222511","445262544","445222544","111555111","444232444","444232444"]
+        },
+        "m6": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","trace"]},
+            {"color":["def","padLit"]},
+            {"color":["def","core"]}
+          ],
+          "rows": ["111111111","222222222","222333222","113444344","223454366","223444344","111333111","222464222","222464222"]
+        },
+        "m7": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111232111","444232444","444555444","115222522","445262533","445222522","111555111","444232444","444232444"]
+        },
+        "m8": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111111111","222222222","222333222","443444311","553464322","443444322","111333111","222222222","222222222"]
+        },
+        "m9": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111232111","444232444","444555444","225222511","335262544","225222544","111555111","444444444","444444444"]
+        },
+        "m10": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111111111","222222222","222333222","443444344","553464355","443444344","111333111","222222222","222222222"]
+        },
+        "m11": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111232111","444232444","444555444","225222522","335262533","225222522","111555111","444444444","444444444"]
+        },
+        "m12": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111111111","222222222","222333222","443444311","553464322","443444322","111333111","222454222","222454222"]
+        },
+        "m13": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111232111","444232444","444555444","225222511","335262544","225222544","111555111","444232444","444232444"]
+        },
+        "m14": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111111111","222222222","222333222","443444344","553464355","443444344","111333111","222454222","222454222"]
+        },
+        "m15": {
+          "palette": [
+            "transparent",
+            "#081a14",
+            {"color":["def","trace"]},
+            {"color":["def","core"]},
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111232111","444232444","444555444","225222522","335262533","225222522","111555111","444232444","444232444"]
+        }
+      },
+      "conditions": [
+        {"when":"m = 1","design":"m1"},
+        {"when":"m = 2","design":"m2"},
+        {"when":"m = 3","design":"m3"},
+        {"when":"m = 4","design":"m4"},
+        {"when":"m = 5","design":"m5"},
+        {"when":"m = 6","design":"m6"},
+        {"when":"m = 7","design":"m7"},
+        {"when":"m = 8","design":"m8"},
+        {"when":"m = 9","design":"m9"},
+        {"when":"m = 10","design":"m10"},
+        {"when":"m = 11","design":"m11"},
+        {"when":"m = 12","design":"m12"},
+        {"when":"m = 13","design":"m13"},
+        {"when":"m = 14","design":"m14"},
+        {"when":"m = 15","design":"m15"}
       ]
     },
-
-    // -----------------------------------------------------------------
-    // A station platform seen from above the tunnels: a lit pad.
-    // -----------------------------------------------------------------
     "station": {
-      "size": [9, 9],
+      "size": [9,9],
       "params": {},
-      "ops": [
-        { "op": "rect", "x": 0, "y": 0, "w": 9, "h": 9, "color": ["def", "board"] },
-        { "op": "rect", "x": 1, "y": 1, "w": 7, "h": 7, "color": "#0f3126" },
-        { "op": "rect", "x": 1, "y": 1, "w": 7, "h": 1, "color": ["def", "pad"] },
-        { "op": "rect", "x": 1, "y": 7, "w": 7, "h": 1, "color": ["def", "pad"] },
-        { "op": "rect", "x": 1, "y": 1, "w": 1, "h": 7, "color": ["def", "pad"] },
-        { "op": "rect", "x": 7, "y": 1, "w": 1, "h": 7, "color": ["def", "pad"] },
-        { "op": "rect", "x": 3, "y": 3, "w": 3, "h": 3, "color": ["def", "trace"] },
-        { "op": "rect", "x": 4, "y": 4, "w": 1, "h": 1, "color": ["def", "padLit"] }
-      ]
+      "designs": {
+        "base": {
+          "palette": [
+            "transparent",
+            {"color":["def","board"]},
+            {"color":["def","pad"]},
+            "#0f3126",
+            {"color":["def","trace"]},
+            {"color":["def","padLit"]}
+          ],
+          "rows": ["111111111","122222221","123333321","123444321","123454321","123444321","123333321","122222221","111111111"]
+        }
+      }
     },
-
-    // -----------------------------------------------------------------
-    // The trains. They are drawn on the rail, so keep them flat: a copper
-    // body, a dark window band and gold ends.
-    // -----------------------------------------------------------------
     "train_h": {
-      "size": [7, 3],
+      "size": [7,3],
       "params": {},
-      "ops": [
-        { "op": "rect", "x": 0, "y": 1, "w": 7, "h": 2, "color": "#2a9b72" },
-        { "op": "rect", "x": 1, "y": 2, "w": 5, "h": 1, "color": "#0b2119" },
-        { "op": "rect", "x": 0, "y": 1, "w": 1, "h": 2, "color": ["def", "pad"] },
-        { "op": "rect", "x": 6, "y": 1, "w": 1, "h": 2, "color": ["def", "pad"] },
-        { "op": "pixel", "x": 0, "y": 1, "color": ["def", "padLit"] }
-      ]
+      "designs": {
+        "base": {
+          "palette": [
+            "transparent",
+            {"color":["def","padLit"]},
+            "#2a9b72",
+            {"color":["def","pad"]},
+            "#0b2119"
+          ],
+          "rows": [".......","1222223","3444443"]
+        }
+      }
     },
     "train_v": {
-      "size": [3, 7],
+      "size": [3,7],
       "params": {},
-      "ops": [
-        { "op": "rect", "x": 1, "y": 0, "w": 2, "h": 7, "color": "#2a9b72" },
-        { "op": "rect", "x": 2, "y": 1, "w": 1, "h": 5, "color": "#0b2119" },
-        { "op": "rect", "x": 1, "y": 0, "w": 2, "h": 1, "color": ["def", "pad"] },
-        { "op": "rect", "x": 1, "y": 6, "w": 2, "h": 1, "color": ["def", "pad"] },
-        { "op": "pixel", "x": 1, "y": 0, "color": ["def", "padLit"] }
-      ]
+      "designs": {
+        "base": {
+          "palette": [
+            "transparent",
+            {"color":["def","padLit"]},
+            {"color":["def","pad"]},
+            "#2a9b72",
+            "#0b2119"
+          ],
+          "rows": [".12",".34",".34",".34",".34",".34",".22"]
+        }
+      }
     }
   }
 }

@@ -1,43 +1,49 @@
 'use strict';
 // =====================================================================
-// Texture Studio
+// Texture Studio — pixel designs and conditionals, no drawing ops.
 //
-// A visual editor for .texture files. The engine (js/texture.js) does the
-// real work: this file only builds documents, validates them with
-// TEX.validate and renders them with TEX.render. Whatever is downloaded is
-// the same JSONC the build would have read from textures/*.texture.
+//   designs     complete pictures painted pixel by pixel
+//   conditions  short text rules that choose a design for a parameter set
+//   swatches    a colour, a colour from a parameter, or a conditional cell
+//   marks       the non-visual layer (windows, parking, status light)
 //
-// Three ways to make art:
-//   1. Ops   — the small drawing commands the game runs at load time.
-//   2. Pixels — a grid editor that bakes its canvas into optimized rect ops.
-//   3. PNG   — imported images are converted to the same rect ops, so the
-//              finished .texture never needs an image file beside it.
-//
-// Build: node scripts/build.mjs -> dist/textures/index.html (route /textures)
+// The file this downloads is exactly the .texture JSONC the build reads.
 // =====================================================================
 (() => {
   const $ = (id) => document.getElementById(id);
-  const SAVED_CHANGES_KEY = 'pixelcity.textureStudio.savedChanges.v1';
+  const SAVED_KEY = 'pixelcity.textureStudio.v2';
+  const HEADER = [
+    '// texture/2 — designs of pixel rows, conditions in short text.',
+    '// A condition chooses the design to paint, e.g. "m = 5" or "hw > 0 and night".',
+    '// Edit with the Texture Studio (npm run build, then /textures).',
+    '',
+  ].join('\n');
+
   const state = {
-    families: Object.create(null),   // family name -> doc
+    families: Object.create(null),
     family: null,
-    current: null,
-    tab: 'sprite',
-    test: Object.create(null),       // "family/texture" -> {param: value}
-    fnTest: Object.create(null),     // "family/texture" -> {param: "(tx, ty) => true"}
-    opMenu: null,
-    scale: 5,
+    sprite: null,
+    design: null,
+    tool: 'pencil',
+    swatch: 1,
+    group: null,
+    zoom: 8,
     grid: true,
-    marks: true,
-    errors: [],
-    images: new Map(),               // data URI -> {w,h,data}
+    showMarks: true,
+    markType: 'win',
+    test: Object.create(null),      // "family/sprite" -> {param: value}
+    undo: new Map(),                // "family/sprite/design" -> snapshots
+    redo: new Map(),
+    drag: null,
+    last: null,
     rev: 0,
   };
-  let bundledFamilies = null;
-  let savedChangesNotice = '';
+  let bundled = null;
+  let validateTimer = null;
+  let savedNotice = '';
 
   // -------------------------------------------------------------------
-  // DOM helpers
+  // Small helpers
   // -------------------------------------------------------------------
   function h(tag, attrs, ...kids) {
     const n = document.createElement(tag);
@@ -48,7 +54,7 @@
         if (k === 'class') n.className = v;
         else if (k === 'text') n.textContent = v;
         else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
-        else if (k === 'checked' || k === 'disabled' || k === 'selected' || k === 'hidden') n[k] = !!v;
+        else if (k === 'checked' || k === 'disabled' || k === 'selected' || k === 'hidden' || k === 'value') n[k] = v;
         else n.setAttribute(k, v === true ? '' : v);
       }
     }
@@ -73,185 +79,1349 @@
     s.textContent = msg;
     s.className = kind || '';
   }
-  function showContextMenu(event, actions) {
-    event.preventDefault();
-    event.stopPropagation();
-    closeContextMenu();
-    const menu = h('div', {class: 'context-menu', role: 'menu'});
-    for (const action of actions) {
-      if (action.separator) {
-        menu.append(h('div', {class: 'context-separator'}));
-        continue;
-      }
-      menu.append(h('button', {
-        type: 'button', role: 'menuitem', class: action.danger ? 'danger' : '',
-        onclick: () => { closeContextMenu(); action.run(); }
-      }, action.label));
-    }
-    document.body.append(menu);
-    const bounds = menu.getBoundingClientRect();
-    menu.style.left = Math.max(4, Math.min(event.clientX, innerWidth - bounds.width - 4)) + 'px';
-    menu.style.top = Math.max(4, Math.min(event.clientY, innerHeight - bounds.height - 4)) + 'px';
-    state.opMenu = menu;
-    menu.querySelector('button')?.focus();
-  }
-  function closeContextMenu() {
-    if (state.opMenu) state.opMenu.remove();
-    state.opMenu = null;
-  }
   const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+  const hex2 = v => Math.max(0, Math.min(255, v | 0)).toString(16).padStart(2, '0');
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const alphaHex = a => a >= 255 ? '' : hex2(a);
+  function cssColor(r, g, b, a) {
+    return a >= 255 ? '#' + hex2(r) + hex2(g) + hex2(b) : `rgba(${r},${g},${b},${Math.round(a / 255 * 1000) / 1000})`;
+  }
+  function toHexColor(c) {
+    if (typeof c !== 'string') return '#ffffff';
+    const hex = c.match(/^#([0-9a-f]{3,8})$/i);
+    if (hex) {
+      let v = hex[1];
+      if (v.length === 3) v = v.split('').map(x => x + x).join('');
+      if (v.length === 4) v = v.split('').map(x => x + x).join('');
+      return '#' + v.slice(0, 6);
+    }
+    const m = c.match(/rgba?\(([^)]+)\)/i);
+    if (m) {
+      const p = m[1].split(',').map(Number);
+      return '#' + hex2(p[0]) + hex2(p[1]) + hex2(p[2]);
+    }
+    return '#ffffff';
+  }
 
   // -------------------------------------------------------------------
-  // Value inputs
+  // Document access
   // -------------------------------------------------------------------
-  // A field holds any JSON value: number, string, list or expression.
-  function exprInput(value, onChange, placeholder) {
-    const inp = h('input', {type: 'text', spellcheck: 'false', placeholder: placeholder || ''});
-    inp.value = value === undefined ? '' : JSON.stringify(value);
-    const commit = () => {
-      const txt = inp.value.trim();
-      if (!txt) { inp.classList.remove('invalid'); onChange(undefined); return; }
-      try { const v = JSON.parse(txt); inp.classList.remove('invalid'); onChange(v); }
-      catch (e) { inp.classList.add('invalid'); status('That value is not valid JSON: ' + e.message, 'bad'); }
+  const doc = () => state.family ? state.families[state.family] : null;
+  const tex = () => {
+    const d = doc();
+    return d && state.sprite ? d.textures[state.sprite] : null;
+  };
+  const design = () => {
+    const t = tex();
+    return t && state.design ? t.designs[state.design] : null;
+  };
+  const testKey = () => state.family + '/' + state.sprite;
+  const testParams = () => Object.assign({}, state.test[testKey()] || {});
+  const paramNames = () => Object.keys((tex() && tex().params) || {});
+  const designNames = () => Object.keys((tex() && tex().designs) || {});
+  const rowChar = (x, y) => {
+    const d = design();
+    return d && d.rows[y] ? (d.rows[y][x] || '.') : '.';
+  };
+  function groupDefinitions(t = tex(), create = false) {
+    if (!t) return null;
+    const designs = Object.values(t.designs || {});
+    const hasLegacyGroups = designs.some(d => d.groups && Array.isArray(d.groups.items));
+    if (!t.groups && !create && !hasLegacyGroups) return null;
+    if (!t.groups || typeof t.groups !== 'object') t.groups = { items: [] };
+    if (!Array.isArray(t.groups.items)) t.groups.items = [];
+
+    for (const d of designs) {
+      if (!d.groups || !Array.isArray(d.groups.items)) continue;
+      const memberships = [];
+      for (const item of d.groups.items) {
+        if (!t.groups.items.some(group => group.id === item.id)) {
+          const { id, name, when, color } = item;
+          t.groups.items.push({ id, name, when, color });
+        }
+        memberships.push({ id: item.id, pixels: Array.isArray(item.pixels) ? item.pixels : [] });
+      }
+      d.groups.items = memberships;
+      if (!Number.isInteger(d.groups.paletteStart)) d.groups.paletteStart = d.palette.length;
+    }
+    return t.groups;
+  }
+  function groupData(d = design(), create = false) {
+    if (!d) return null;
+    if (!d.groups || typeof d.groups !== 'object') {
+      if (!create) return null;
+      d.groups = { paletteStart: d.palette.length, items: [] };
+    }
+    if (!Array.isArray(d.groups.items)) d.groups.items = [];
+    if (!Number.isInteger(d.groups.paletteStart)) d.groups.paletteStart = d.palette.length;
+    for (const item of d.groups.items) if (!Array.isArray(item.pixels)) item.pixels = [];
+    return d.groups;
+  }
+  function groupById(id, d = design()) {
+    const definitions = groupDefinitions();
+    return definitions && definitions.items.find(item => item.id === id);
+  }
+  function groupPixels(id, d = design(), create = false) {
+    const groups = groupData(d, create);
+    if (!groups) return [];
+    let membership = groups.items.find(item => item.id === id);
+    if (!membership && create) {
+      membership = { id, pixels: [] };
+      groups.items.push(membership);
+    }
+    return membership ? membership.pixels : [];
+  }
+  function rebuildAllGroupPalettes() {
+    const t = tex();
+    if (!t) return;
+    for (const d of Object.values(t.designs)) if (groupData(d)) rebuildGroupPalette(d);
+  }
+  const swatchChar = () => {
+    const d = design();
+    if (!d || state.swatch < 0 || state.swatch >= d.palette.length) return '.';
+    return TEX.ALPHABET[state.swatch];
+  };
+
+  function sync() {
+    if (!Object.keys(state.families).length) return;
+    TEX.define(state.families);
+    if (state.family && state.sprite) TEX.refresh(state.family, state.sprite);
+  }
+  function validateAll() {
+    try { return TEX.validate(state.families); }
+    catch (e) { return [e.message]; }
+  }
+  function ensureSprite(t) {
+    if (!t) return;
+    t.params = t.params || {};
+    t.designs = t.designs || {};
+    t.size = t.size || [9, 9];
+    t.marks = t.marks || {};
+    if (!Object.keys(t.designs).length) {
+      t.designs.base = { palette: ['transparent'], rows: Array.from({ length: t.size[1] }, () => '.'.repeat(t.size[0])) };
+    }
+    if (!t.default || !t.designs[t.default]) t.default = Object.keys(t.designs)[0];
+    t.conditions = t.conditions || [];
+  }
+  function blankTexture(w = 9, hgt = 9) {
+    return {
+      size: [w, hgt],
+      params: {},
+      default: 'base',
+      designs: { base: { palette: ['transparent'], rows: Array.from({ length: hgt }, () => '.'.repeat(w)) } },
+      conditions: [],
+      marks: {},
     };
-    inp.addEventListener('change', commit);
-    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
-    return inp;
   }
-  function textInput(value, onChange, placeholder) {
-    const inp = h('input', {type: 'text', spellcheck: 'false', placeholder: placeholder || ''});
-    inp.value = value === undefined ? '' : String(value);
-    const commit = () => onChange(inp.value.trim());
-    inp.addEventListener('change', commit);
-    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
-    return inp;
+  function blankFamily(name) {
+    return { format: TEX.FORMAT, name, tile: 9, defs: {}, textures: Object.create(null) };
   }
-  function numberInput(value, onChange, attrs) {
-    const inp = h('input', Object.assign({type: 'number', step: '1'}, attrs || {}));
-    inp.value = value === undefined ? '' : String(value);
-    const commit = () => {
-      if (inp.value === '') { inp.classList.remove('invalid'); onChange(undefined); return; }
-      const n = Number(inp.value);
-      if (!Number.isFinite(n)) { inp.classList.add('invalid'); return; }
-      inp.classList.remove('invalid');
-      onChange(n);
+
+  // -------------------------------------------------------------------
+  // Validation display
+  // -------------------------------------------------------------------
+  function renderErrors() {
+    const box = $('errors');
+    const errs = [...new Set(validateAll())].slice(0, 10);
+    box.replaceChildren(...errs.map(e => h('div', { class: 'err' }, e)));
+  }
+  function scheduleValidate() {
+    clearTimeout(validateTimer);
+    validateTimer = setTimeout(renderErrors, 140);
+  }
+
+  // -------------------------------------------------------------------
+  // Canvas
+  // -------------------------------------------------------------------
+  function renderCanvas() {
+    const cv = $('canvas');
+    const t = tex(), d = design();
+    if (!t || !d) {
+      cv.width = 72; cv.height = 72;
+      cv.getContext('2d').clearRect(0, 0, 72, 72);
+      return;
+    }
+    const [w, hgt] = t.size;
+    const z = state.zoom;
+    cv.width = w * z;
+    cv.height = hgt * z;
+    const g = cv.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    g.clearRect(0, 0, cv.width, cv.height);
+
+    // Checkerboard in screen space so transparent pixels read clearly.
+    for (let y = 0; y < cv.height; y += 8) {
+      for (let x = 0; x < cv.width; x += 8) {
+        g.fillStyle = (((x + y) >> 3) & 1) ? '#1b2233' : '#151a27';
+        g.fillRect(x, y, 8, 8);
+      }
+    }
+
+    let picked = null;
+    try {
+      sync();
+      const r = TEX.renderDesign(state.family, state.sprite, state.design, testParams());
+      g.drawImage(r.canvas, 0, 0, cv.width, cv.height);
+      picked = TEX.pickDesign(state.family, state.sprite, testParams());
+    } catch (e) {
+      status('Preview failed: ' + e.message, 'bad');
+    }
+
+    if (state.grid && z >= 4) {
+      g.strokeStyle = 'rgba(255,255,255,.09)';
+      g.lineWidth = 1;
+      g.beginPath();
+      for (let x = 0; x <= w; x++) { g.moveTo(x * z + .5, 0); g.lineTo(x * z + .5, cv.height); }
+      for (let y = 0; y <= hgt; y++) { g.moveTo(0, y * z + .5); g.lineTo(cv.width, y * z + .5); }
+      g.stroke();
+    }
+
+    if (state.showMarks) drawMarks(g, t, z);
+    drawGroups(g, d, z);
+    updatePickedDesign(picked);
+    renderStageTitle(picked);
+    renderPreview();
+  }
+
+  // The editing canvas always shows the selected design so pixels stay in
+  // place. This preview shows what the game would actually draw: the design
+  // chosen by the rules, with conditional swatches resolved for test params.
+  function renderPreview() {
+    const cv = $('previewCanvas'), t = tex();
+    if (!cv) return;
+    if (!t) {
+      cv.width = 1; cv.height = 1;
+      $('previewPick').textContent = '';
+      return;
+    }
+    const [w, hgt] = t.size;
+    const z = Math.max(2, Math.min(10, Math.floor(110 / Math.max(w, hgt))));
+    cv.width = w * z;
+    cv.height = hgt * z;
+    const g = cv.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    g.clearRect(0, 0, cv.width, cv.height);
+    try {
+      sync();
+      const r = TEX.render(state.family, state.sprite, testParams());
+      g.drawImage(r.canvas, 0, 0, cv.width, cv.height);
+      const picked = TEX.pickDesign(state.family, state.sprite, testParams());
+      $('previewPick').textContent = '→ ' + picked +
+        (picked !== state.design ? ' · editing ' + state.design : '');
+      const params = testParams();
+      const shown = Object.keys(params).filter(k => typeof params[k] !== 'function');
+      cv.title = shown.length ? shown.map(k => k + '=' + params[k]).join(' ') : 'default parameters';
+    } catch (e) {
+      $('previewPick').textContent = 'preview failed';
+      status('Preview failed: ' + e.message, 'bad');
+    }
+  }
+
+  function drawMarks(g, t, z) {
+    const mark = (x, y, color) => {
+      g.strokeStyle = color;
+      g.lineWidth = 1;
+      g.strokeRect(x * z + .5, y * z + .5, Math.max(1, z - 1), Math.max(1, z - 1));
     };
-    inp.addEventListener('change', commit);
-    return inp;
+    const m = t.marks || {};
+    for (const p of m.win || []) mark(p[0], p[1], 'rgba(255,215,94,.8)');
+    for (const p of m.park || []) mark(p[0], p[1], 'rgba(111,179,255,.85)');
+    for (const p of m.spots || []) mark(p[0], p[1], 'rgba(95,220,122,.85)');
+    if (m.stat) mark(m.stat[0], m.stat[1], 'rgba(255,107,107,.95)');
+    if (m.berth) mark(m.berth[0], m.berth[1], 'rgba(219,201,159,.95)');
   }
-  function field(label, control, hint) {
-    const wrap = h('div', {class: 'field'}, h('label', null, label), control);
-    if (hint) wrap.append(h('div', {class: 'hint'}, hint));
-    return wrap;
+  function drawGroups(g, d, z) {
+    const groups = groupData(d);
+    if (!groups) return;
+    for (const item of groups.items) {
+      const active = item.id === state.group && state.tool === 'group';
+      g.strokeStyle = active ? '#ffd75e' : 'rgba(111,179,255,.9)';
+      g.fillStyle = active ? 'rgba(255,215,94,.22)' : 'rgba(111,179,255,.14)';
+      g.lineWidth = active ? 2 : 1;
+      for (const [x, y] of item.pixels || []) {
+        if (x < 0 || y < 0 || x >= d.rows[0]?.length || y >= d.rows.length) continue;
+        g.fillRect(x * z, y * z, z, z);
+        g.strokeRect(x * z + .5, y * z + .5, Math.max(1, z - 1), Math.max(1, z - 1));
+      }
+    }
   }
-  function pairsEditor(obj, onChange) {
-    const box = h('div', {class: 'pairs'});
-    const render = () => {
-      box.replaceChildren();
-      for (const key of Object.keys(obj)) {
-        const keyIn = textInput(key, v => {
-          if (v === key) return;
-          if (!v) { delete obj[key]; onChange(); render(); return; }
-          const old = obj[key];
-          delete obj[key]; obj[v] = old;
-          onChange(); render();
+
+  function renderStageTitle(picked) {
+    const t = tex();
+    if (!t) { $('stageTitle').replaceChildren('—'); return; }
+    const params = Object.entries(Object.assign({}, t.params || {}, testParams()))
+      .map(([key, value]) => key + '=' + value).join(', ');
+    const rules = (t.conditions || []).filter(rule => rule.design === picked).map(rule => rule.when);
+    const bits = [
+      h('span', null, state.family + '.texture › ' + state.sprite + '  '),
+      h('b', null, state.design),
+      h('span', null, '  ' + t.size[0] + '×' + t.size[1]),
+    ];
+    if (picked) {
+      bits.push(h('span', { style: 'color:var(--acc)' },
+        '  ·  preview: ' + picked +
+        (picked !== state.design ? ' (editing ' + state.design + ')' : '') +
+        (rules.length ? ' · rules: ' + rules.join(' | ') : ' · fallback')));
+    }
+    if (params) bits.push(h('span', { style: 'color:var(--dim)' }, '  ·  ' + params));
+    $('stageTitle').replaceChildren(...bits);
+  }
+  function updatePickedDesign(picked) {
+    for (const button of $('designStrip').querySelectorAll('.designThumb')) {
+      const active = button.dataset.design === picked;
+      button.classList.toggle('picked', active);
+      button.setAttribute('aria-current', active ? 'true' : 'false');
+      const tag = button.querySelector('.pickedTag');
+      if (tag) tag.hidden = !active;
+      const ruleText = button.dataset.rules || 'fallback design';
+      button.title = button.dataset.design + ' · ' + ruleText +
+        (active ? ' · selected by current preview parameters' : '') +
+        ' — double-click to rename';
+    }
+  }
+
+  // -------------------------------------------------------------------
+  // Pixel editing
+  // -------------------------------------------------------------------
+  function putPixel(x, y, ch) {
+    const d = design(), t = tex();
+    if (!d || !t || x < 0 || y < 0 || x >= t.size[0] || y >= t.size[1]) return;
+    const groups = groupData(d);
+    if (groups) {
+      for (const item of groups.items) {
+        const pixel = item.pixels.find(point => point[0] === x && point[1] === y);
+        if (pixel) { pixel[2] = ch; break; }
+      }
+    }
+    const row = (d.rows[y] || '').padEnd(t.size[0], '.');
+    if (row[x] === ch) return;
+    d.rows[y] = row.slice(0, x) + ch + row.slice(x + 1);
+  }
+  function fillPixels(x, y) {
+    const d = design(), t = tex();
+    if (!d || !t) return;
+    const target = rowChar(x, y);
+    const ch = swatchChar();
+    if (target === ch) return;
+    const [w, hgt] = t.size;
+    const stack = [[x, y]];
+    const seen = new Uint8Array(w * hgt);
+    while (stack.length) {
+      const [cx, cy] = stack.pop();
+      if (cx < 0 || cy < 0 || cx >= w || cy >= hgt) continue;
+      const p = cy * w + cx;
+      if (seen[p] || rowChar(cx, cy) !== target) continue;
+      seen[p] = 1;
+      putPixel(cx, cy, ch);
+      stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+    }
+  }
+  function toggleGroupPixel(x, y) {
+    const d = design(), t = tex(), groups = groupData(d);
+    const selected = groupById(state.group, d);
+    if (!d || !t || !groups || !selected) {
+      status('Create or select a pixel group first.', 'bad');
+      return;
+    }
+    if (x < 0 || y < 0 || x >= t.size[0] || y >= t.size[1]) return;
+    const before = clone(groups.items);
+    const selectedId = selected.id;
+    pushUndo();
+    let base = rowChar(x, y);
+    let owner = null;
+    for (const item of groups.items) {
+      const at = item.pixels.findIndex(pixel => pixel[0] === x && pixel[1] === y);
+      if (at >= 0) {
+        owner = item.id;
+        base = item.pixels[at][2] || '.';
+        const row = d.rows[y];
+        d.rows[y] = row.slice(0, x) + base + row.slice(x + 1);
+        item.pixels.splice(at, 1);
+        break;
+      }
+    }
+    if (owner !== selectedId) groupPixels(selectedId, d, true).push([x, y, base]);
+    if (!rebuildGroupPalette(d)) {
+      groups.items = before;
+      rebuildGroupPalette(d);
+      const stack = state.undo.get(undoKey()) || [];
+      stack.pop();
+      status('Cannot add this pixel: the group palette is full.', 'bad');
+      return;
+    }
+    renderGroupPanel();
+    renderPalette();
+    renderCanvas();
+    updateThumb();
+    scheduleValidate();
+  }
+  function paintLine(x0, y0, x1, y1, ch) {
+    let dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0);
+    const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    let err = dx + dy;
+    for (;;) {
+      putPixel(x0, y0, ch);
+      if (x0 === x1 && y0 === y1) break;
+      const e2 = 2 * err;
+      if (e2 >= dy) { err += dy; x0 += sx; }
+      if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+  }
+  function paintRect(x0, y0, x1, y1, ch) {
+    const ax = Math.min(x0, x1), bx = Math.max(x0, x1);
+    const ay = Math.min(y0, y1), by = Math.max(y0, y1);
+    for (let x = ax; x <= bx; x++) { putPixel(x, ay, ch); putPixel(x, by, ch); }
+    for (let y = ay; y <= by; y++) { putPixel(ax, y, ch); putPixel(bx, y, ch); }
+  }
+
+  function undoKey() { return testKey() + '/' + state.design; }
+  function captureSnapshot(allDesigns = false) {
+    const t = tex(), d = design();
+    if (!t || !d) return null;
+    return {
+      design: clone(d),
+      designs: allDesigns ? clone(t.designs) : null,
+      groups: clone(t.groups),
+    };
+  }
+  function pushUndo(allDesigns = false) {
+    const d = design();
+    if (!d) return;
+    const k = undoKey();
+    const stack = state.undo.get(k) || [];
+    stack.push(captureSnapshot(allDesigns));
+    if (stack.length > 40) stack.shift();
+    state.undo.set(k, stack);
+    state.redo.delete(k);
+  }
+  function restore(snapshot) {
+    const t = tex();
+    if (!t || !state.design) return;
+    if (snapshot && snapshot.design) {
+      if (snapshot.designs) t.designs = snapshot.designs;
+      else t.designs[state.design] = snapshot.design;
+      if (snapshot.groups) t.groups = snapshot.groups;
+      else delete t.groups;
+      rebuildAllGroupPalettes();
+    } else t.designs[state.design] = snapshot;
+    renderAll();
+  }
+  function undo() {
+    const k = undoKey();
+    const stack = state.undo.get(k) || [];
+    if (!stack.length) return;
+    const snapshot = stack.pop();
+    const current = captureSnapshot(!!snapshot.designs);
+    const redo = state.redo.get(k) || [];
+    redo.push(current);
+    state.redo.set(k, redo);
+    restore(snapshot);
+    status('Undid the last edit.', '');
+  }
+  function redo() {
+    const k = undoKey();
+    const stack = state.redo.get(k) || [];
+    if (!stack.length) return;
+    const snapshot = stack.pop();
+    const current = captureSnapshot(!!snapshot.designs);
+    const back = state.undo.get(k) || [];
+    back.push(current);
+    state.undo.set(k, back);
+    restore(snapshot);
+    status('Redid the edit.', '');
+  }
+
+  function canvasCell(e) {
+    const cv = $('canvas'), r = cv.getBoundingClientRect();
+    const t = tex();
+    if (!t) return { x: 0, y: 0 };
+    return {
+      x: Math.floor((e.clientX - r.left) / r.width * t.size[0]),
+      y: Math.floor((e.clientY - r.top) / r.height * t.size[1]),
+    };
+  }
+
+  function toggleMark(x, y) {
+    const t = tex();
+    if (!t) return;
+    const type = state.markType;
+    t.marks = t.marks || {};
+    if (type === 'stat' || type === 'berth') {
+      const cur = t.marks[type];
+      t.marks[type] = cur && cur[0] === x && cur[1] === y ? null : [x, y];
+    } else {
+      const list = t.marks[type] = t.marks[type] || [];
+      const i = list.findIndex(p => p[0] === x && p[1] === y);
+      if (i >= 0) list.splice(i, 1);
+      else list.push(type === 'park' ? [x, y, 0] : [x, y]);
+    }
+    renderMarks();
+    renderCanvas();
+    scheduleValidate();
+  }
+
+  // -------------------------------------------------------------------
+  // Library + header
+  // -------------------------------------------------------------------
+  function renderFamilySelect() {
+    $('familySelect').replaceChildren(...Object.keys(state.families).sort().map(f =>
+      h('option', { value: f, selected: f === state.family }, f)));
+  }
+  function renderLibrary() {
+    const list = $('textureList');
+    list.replaceChildren();
+    const d = doc();
+    $('spriteCount').textContent = d ? plural(Object.keys(d.textures).length, 'sprite', 'sprites') : '';
+    if (!d) { list.append(h('small', null, 'No families yet.')); return; }
+    for (const name of Object.keys(d.textures)) {
+      const t = d.textures[name];
+      ensureSprite(t);
+      const meta = t.size[0] + '×' + t.size[1] + ' · ' + Object.keys(t.designs).length + 'd';
+      list.append(h('div', { class: 'item' },
+        h('button', { class: name === state.sprite ? 'on' : '', onclick: () => selectSprite(name) },
+          h('span', null, name), h('span', { class: 'meta' }, meta)),
+        h('button', { class: 'kill', title: 'Delete ' + name, onclick: e => { e.stopPropagation(); deleteSprite(name); } }, '✕')
+      ));
+    }
+    if (!Object.keys(d.textures).length) list.append(h('small', null, 'No sprites yet. Add one below.'));
+  }
+
+  // -------------------------------------------------------------------
+  // Design strip
+  // -------------------------------------------------------------------
+  function renderDesignStrip() {
+    const strip = $('designStrip'), t = tex();
+    strip.replaceChildren();
+    if (!t) { $('designCount').textContent = ''; return; }
+    $('designCount').textContent = plural(Object.keys(t.designs).length, 'design', 'designs');
+    sync();
+    let picked = null;
+    try { picked = TEX.pickDesign(state.family, state.sprite, testParams()); }
+    catch (e) { /* surfaced by the main preview */ }
+    for (const name of Object.keys(t.designs)) {
+      const d = t.designs[name];
+      const cv = h('canvas');
+      cv.width = t.size[0] * 3;
+      cv.height = t.size[1] * 3;
+      try {
+        const r = TEX.renderDesign(state.family, state.sprite, name, testParams());
+        const g = cv.getContext('2d');
+        g.imageSmoothingEnabled = false;
+        g.drawImage(r.canvas, 0, 0, cv.width, cv.height);
+      } catch (e) { /* errors are shown in the errors panel */ }
+      const rules = (t.conditions || []).filter(c => c.design === name).map(c => c.when);
+      const btn = h('button', {
+        class: 'designThumb' + (name === state.design ? ' on' : '') + (name === picked ? ' picked' : ''),
+        'aria-current': name === picked ? 'true' : 'false',
+        'aria-label': name + (name === state.design ? ' · editing' : '') + (name === picked ? ' · preview selected' : ''),
+        onclick: () => selectDesign(name),
+        ondblclick: () => renameDesign(name),
+      }, cv, h('span', null, name), h('small', { class: 'pickedTag', hidden: name !== picked }, 'preview'));
+      btn.dataset.design = name;
+      btn.dataset.rules = rules.length ? rules.join(' or ') : 'fallback design';
+      strip.append(btn);
+    }
+  }
+
+  function updateThumb() {
+    const t = tex();
+    if (!t || !state.design) return;
+    if (groupData()) rebuildGroupPalette();
+    const btn = [...$('designStrip').querySelectorAll('button')].find(b => b.dataset.design === state.design);
+    if (!btn) return;
+    const cv = btn.querySelector('canvas');
+    if (!cv) return;
+    sync();
+    try {
+      const r = TEX.renderDesign(state.family, state.sprite, state.design, testParams());
+      const g = cv.getContext('2d');
+      g.clearRect(0, 0, cv.width, cv.height);
+      g.imageSmoothingEnabled = false;
+      g.drawImage(r.canvas, 0, 0, cv.width, cv.height);
+    } catch (e) { /* shown elsewhere */ }
+  }
+
+  // -------------------------------------------------------------------
+  // Palette
+  // -------------------------------------------------------------------
+  // The toolbar colour is stored in the design palette so normal paint tools
+  // can keep writing the texture format's compact palette characters.
+  function updatePaintColor() {
+    const inp = $('paintColor'), hex = $('paintHex'), preview = $('paintPreview'), d = design();
+    if (!inp || !d) return;
+    let c = null;
+    try { c = TEX.swatchColor(state.family, state.sprite, state.design, state.swatch, testParams()); }
+    catch (e) { c = null; }
+    const value = toHexColor(c || '#ffffff');
+    inp.value = value;
+    if (hex) hex.value = value;
+    if (preview) preview.style.background = c || 'transparent';
+  }
+  function applyPaintColor(hex) {
+    const d = design();
+    if (!d) return;
+    const want = TEX.parseColor(hex);
+    const same = c => { const p = TEX.parseColor(c); return p[3] === 255 && p[0] === want[0] && p[1] === want[1] && p[2] === want[2]; };
+    const groups = groupData(d);
+    const baseLength = groups ? groups.paletteStart : d.palette.length;
+    let idx = d.palette.slice(0, baseLength).findIndex(entry => typeof entry === 'string' && String(entry).toLowerCase() !== 'transparent' && same(entry));
+    if (idx < 0) {
+      if (baseLength >= TEX.ALPHABET.length) {
+        status('Cannot add this paint colour: the palette is full.', 'bad');
+        return;
+      }
+      d.palette.splice(baseLength, 0, hex);
+      if (groups) {
+        groups.paletteStart++;
+        if (!rebuildGroupPalette(d)) {
+          d.palette.splice(baseLength, 1);
+          groups.paletteStart--;
+          status('Cannot add this paint colour: the group palette is full.', 'bad');
+          return;
+        }
+      }
+      idx = baseLength;
+    }
+    state.swatch = idx;
+    renderPalette();
+    renderSwatchEditor();
+    if (groupData(d)) rebuildGroupPalette(d);
+    renderCanvas();
+    updateThumb();
+    scheduleValidate();
+    status('Painting with ' + hex + ' (swatch ' + idx + ').', '');
+  }
+
+  function renderPalette() {
+    const d = design();
+    if (!d) return;
+    const groups = groupData(d);
+    const baseLength = groups ? groups.paletteStart : d.palette.length;
+    if (state.swatch >= baseLength) state.swatch = Math.max(0, baseLength - 1);
+    sync();
+    updatePaintColor();
+  }
+
+  function rebuildGroupPalette(d = design()) {
+    const groups = groupData(d, true);
+    if (!groups) return false;
+    const definitions = groupDefinitions();
+    const start = clamp(groups.paletteStart, 0, d.palette.length);
+    groups.paletteStart = start;
+    const required = groups.items.reduce((sum, item) => {
+      const bases = new Set((item.pixels || []).map(pixel => pixel[2] || '.'));
+      return sum + bases.size;
+    }, 0);
+    if (start + required > TEX.ALPHABET.length) return false;
+
+    for (const item of groups.items) {
+      for (const [x, y, base] of item.pixels || []) {
+        if (y < 0 || y >= d.rows.length || x < 0 || x >= d.rows[y].length) continue;
+        const row = d.rows[y];
+        d.rows[y] = row.slice(0, x) + (base || '.') + row.slice(x + 1);
+      }
+    }
+    d.palette.splice(start);
+    for (const membership of groups.items) {
+      const item = definitions.items.find(group => group.id === membership.id);
+      if (!item) continue;
+      const swatches = new Map();
+      for (const [x, y, baseValue] of membership.pixels || []) {
+        const base = baseValue || '.';
+        let index = swatches.get(base);
+        if (index === undefined) {
+          index = d.palette.length;
+          swatches.set(base, index);
+          const source = TEX.ALPHABET.indexOf(base);
+          const entry = source >= 0 && source < start ? d.palette[source] : null;
+          let baseLayers;
+          if (typeof entry === 'string') baseLayers = [{ color: entry }];
+          else if (entry && Array.isArray(entry.layers)) baseLayers = clone(entry.layers);
+          else if (entry && typeof entry === 'object') {
+            baseLayers = [{ color: entry.else === undefined ? 'transparent' : clone(entry.else) }];
+            if (entry.color !== undefined) baseLayers.push({ color: clone(entry.color), when: entry.when || 'true' });
+          } else baseLayers = [{ color: 'transparent' }];
+          d.palette.push({
+            layers: baseLayers.concat({ color: item.color || '#ffffff', when: item.when || 'true' }),
+          });
+        }
+        if (y < 0 || y >= d.rows.length || x < 0 || x >= d.rows[y].length) continue;
+        const row = d.rows[y];
+        d.rows[y] = row.slice(0, x) + TEX.ALPHABET[index] + row.slice(x + 1);
+      }
+    }
+    return true;
+  }
+
+  function renderGroupPanel() {
+    const box = $('groupPanel'), d = design();
+    box.replaceChildren();
+    if (!d) return;
+    const groups = groupDefinitions() || { items: [] };
+    groupData(d);
+    const selected = groupById(state.group);
+    if (!selected && state.group !== null) state.group = null;
+    const list = h('div', { class: 'groupList' },
+      ...groups.items.map(item => h('div', { class: 'row' },
+        h('button', {
+          class: 'groupBtn' + (selected === item ? ' on' : ''),
+          'aria-pressed': selected === item,
+          onclick: () => {
+            state.group = item.id;
+            state.tool = 'group';
+            renderGroupPanel();
+            updateMarkControls();
+            renderCanvas();
+          },
+        }, item.name, h('small', null, groupPixels(item.id, d).length + ' px')),
+        h('button', {
+          class: 'danger', title: 'Delete ' + item.name, 'aria-label': 'Delete ' + item.name,
+          onclick: () => {
+            pushUndo(true);
+            for (const designData of Object.values(tex().designs)) {
+              const groupPixelsHere = groupPixels(item.id, designData);
+              for (const [x, y, base] of groupPixelsHere) {
+                if (y < 0 || y >= designData.rows.length || x < 0 || x >= designData.rows[y].length) continue;
+                const row = designData.rows[y];
+                designData.rows[y] = row.slice(0, x) + (base || '.') + row.slice(x + 1);
+              }
+              const data = groupData(designData);
+              if (data) {
+                data.items = data.items.filter(group => group.id !== item.id);
+                rebuildGroupPalette(designData);
+              }
+            }
+            groups.items = groups.items.filter(group => group.id !== item.id);
+            if (state.group === item.id) state.group = groups.items.length ? groups.items[0].id : null;
+            renderGroupPanel(); renderPalette(); renderCanvas(); updateThumb(); scheduleValidate();
+          },
+        }, '×')
+      ))
+    );
+    const head = h('div', { class: 'groupHead' },
+      h('b', null, 'Pixel groups'),
+      h('small', null, groups.items.length ? 'Groups are shared across designs; each design has its own pixels.' : 'Mark pixels to edit them together.'),
+      h('span', { class: 'spacer' }),
+      h('button', {
+        id: 'addGroup', title: 'Create a new pixel group', 'aria-label': 'Create a new pixel group',
+        onclick: () => {
+          pushUndo(true);
+          const actual = groupDefinitions(tex(), true);
+          const n = actual.items.length + 1;
+          let name = 'Group ' + n, suffix = n;
+          while (actual.items.some(group => group.name === name)) name = 'Group ' + (++suffix);
+          const id = actual.items.reduce((max, group) => Math.max(max, Number(group.id) || 0), 0) + 1;
+          actual.items.push({ id, name, when: 'true', color: $('paintColor').value || '#ffffff' });
+          state.group = id;
+          state.tool = 'group';
+          renderGroupPanel(); updateMarkControls(); renderCanvas();
+        },
+      }, '+ Group')
+    );
+    box.append(head, list);
+    if (!selected) {
+      box.append(h('div', { class: 'help' }, groups.items.length ? 'Choose a group to edit its condition and pixels for this design.' : 'Create a group to start marking pixels.'));
+      return;
+    }
+    const name = h('input', { type: 'text', value: selected.name, 'aria-label': 'Group name' });
+    name.addEventListener('change', () => {
+      pushUndo(true);
+      selected.name = name.value.trim() || selected.name;
+      renderGroupPanel();
+    });
+    const when = h('input', { type: 'text', value: selected.when || 'true', placeholder: 'e.g. night or m = 2', spellcheck: 'false', 'aria-label': 'Show group color when' });
+    const validateWhen = () => {
+      const err = TEX.conditionError(when.value.trim() || 'true', paramNames());
+      when.classList.toggle('invalid', !!err);
+      when.title = err || 'Texture condition';
+      return err;
+    };
+    validateWhen();
+    when.addEventListener('change', () => {
+      pushUndo(true);
+      selected.when = when.value.trim() || 'true';
+      validateWhen();
+      rebuildAllGroupPalettes();
+      renderCanvas(); renderDesignStrip(); updateThumb(); scheduleValidate();
+    });
+    const color = h('input', { type: 'color', value: toHexColor(selected.color || '#ffffff'), 'aria-label': 'Group color' });
+    color.addEventListener('change', () => {
+      pushUndo(true);
+      selected.color = color.value;
+      rebuildAllGroupPalettes();
+      renderCanvas(); renderDesignStrip(); updateThumb(); scheduleValidate();
+    });
+    box.append(h('div', { class: 'groupEdit' },
+      h('div', { class: 'groupField' }, h('label', null, 'Name'), name),
+      h('div', { class: 'groupField' }, h('label', null, 'Condition'), when, color),
+      h('div', { class: 'help' }, plural(groupPixels(selected.id, d).length, 'pixel', 'pixels') + ' in this design'),
+      h('div', { class: 'help' }, 'Group pixels use this color when the condition matches; otherwise their original colors show.')
+    ));
+  }
+
+  function valueLabel(v) {
+    if (typeof v === 'string') return 'solid colour';
+    if (Array.isArray(v)) {
+      const head = v[0];
+      return ({
+        param: 'from parameter', def: 'from family def', pick: 'random pick from a list',
+        shade: 'shade of another swatch', mix: 'mix of two colours', slot: 'earlier swatch',
+        choose: 'conditional colour', rnd: 'random colour',
+      })[head] || 'computed colour';
+    }
+    return 'computed colour';
+  }
+
+  function renderSwatchEditor() {
+    const box = $('swatchEditor'), d = design();
+    if (!box) return;
+    box.replaceChildren();
+    if (!d || !d.palette.length) { $('swatchIndex').textContent = ''; return; }
+    if (state.swatch >= d.palette.length) state.swatch = Math.max(0, d.palette.length - 1);
+    const i = state.swatch;
+    const raw = d.palette[i];
+    $('swatchIndex').textContent = '#' + i + ' · ' + TEX.ALPHABET[i];
+
+    let color = null;
+    try { color = TEX.swatchColor(state.family, state.sprite, state.design, i, testParams()); }
+    catch (e) { color = null; }
+
+    const big = h('div', { class: 'big' }, h('i', null));
+    if (color) big.firstElementChild.style.background = color;
+    const plain = typeof raw === 'string';
+    const simple = !plain && raw && typeof raw === 'object' && !Array.isArray(raw.layers) && typeof raw.color === 'string';
+    const info = h('div', null,
+      h('b', null, plain ? 'Solid colour' : valueLabel(raw && raw.color !== undefined ? raw.color : raw)),
+      plain || simple ? null : h('span', { class: 'badge' }, 'dynamic'),
+      !plain && raw && raw.when ? h('span', { class: 'badge cond' }, 'conditional') : null,
+      h('div', { class: 'help' }, plain || simple
+        ? 'This swatch paints one colour; it may switch on a condition.'
+        : 'Driven by ' + valueLabel(raw && raw.color !== undefined ? raw.color : raw) + '. You can make it solid and paint it directly.')
+    );
+    box.append(h('div', { class: 'swatchInfo' }, big, info));
+
+    if (plain || simple) {
+      const current = plain ? raw : raw.color;
+      const hex = h('input', { type: 'color', value: toHexColor(current) });
+      const text = h('input', { type: 'text', value: current, spellcheck: 'false' });
+      const commit = (v) => {
+        const d2 = design();
+        if (!d2) return;
+        if (typeof d2.palette[i] === 'string') d2.palette[i] = v;
+        else d2.palette[i].color = v;
+        renderCanvas(); renderPalette(); renderDesignStrip(); scheduleValidate();
+      };
+      hex.addEventListener('input', () => { text.value = hex.value; commit(hex.value); });
+      text.addEventListener('change', () => { hex.value = toHexColor(text.value); commit(text.value); });
+      box.append(h('div', { class: 'field' }, h('label', null, 'colour'), h('div', { class: 'row' }, hex, text)));
+
+      if (plain) {
+        box.append(h('div', { class: 'row', style: 'margin-top:4px' },
+          h('button', {
+            onclick: () => {
+              const d2 = design();
+              d2.palette[i] = { color: d2.palette[i], when: 'x = 0', else: 'transparent' };
+              renderSwatchEditor(); renderPalette(); renderCanvas(); scheduleValidate();
+            }
+          }, 'Add condition'),
+          h('button', { onclick: () => { d2safe(i, 'transparent'); } }, 'Make transparent')
+        ));
+      } else {
+        const when = h('input', { type: 'text', value: raw.when || '', placeholder: 'e.g. x % 6 < 3', spellcheck: 'false' });
+        const elseInp = h('input', { type: 'text', value: raw.else || 'transparent', spellcheck: 'false' });
+        const validateWhen = () => {
+          const err = when.value.trim() ? TEX.conditionError(when.value, paramNames()) : null;
+          when.classList.toggle('invalid', !!err);
+          when.title = err || '';
+        };
+        validateWhen();
+        when.addEventListener('input', () => {
+          validateWhen();
+          const d2 = design();
+          if (!d2 || !d2.palette[i] || typeof d2.palette[i] !== 'object') return;
+          d2.palette[i].when = when.value.trim() || undefined;
+          renderCanvas(); renderPalette(); updateThumb(); scheduleValidate();
         });
-        box.append(h('div', {class: 'pair'},
-          keyIn,
-          exprInput(obj[key], v => {
-            if (v === undefined) delete obj[key]; else obj[key] = v;
-            onChange();
-          }),
-          h('button', {class: 'danger', title: 'Remove', onclick: () => { delete obj[key]; onChange(); render(); }}, '✕')
+        elseInp.addEventListener('change', () => {
+          const d2 = design();
+          if (!d2 || !d2.palette[i] || typeof d2.palette[i] !== 'object') return;
+          d2.palette[i].else = elseInp.value.trim() || 'transparent';
+          renderCanvas(); renderPalette(); updateThumb(); scheduleValidate();
+        });
+        box.append(h('div', { class: 'field' }, h('label', null, 'paints when'), when));
+        box.append(h('div', { class: 'field' }, h('label', null, 'otherwise'), elseInp));
+        const err = when.value.trim() ? TEX.conditionError(when.value, paramNames()) : null;
+        if (err) box.append(h('div', { class: 'err' }, err));
+        box.append(h('div', { class: 'row', style: 'margin-top:4px' },
+          h('button', {
+            onclick: () => {
+              const d2 = design();
+              d2.palette[i] = typeof d2.palette[i].color === 'string' ? d2.palette[i].color : 'transparent';
+              renderSwatchEditor(); renderPalette(); renderCanvas(); scheduleValidate();
+            }
+          }, 'Remove condition'),
+          h('button', { onclick: () => { d2safe(i, 'transparent'); } }, 'Make transparent')
         ));
       }
-      box.append(h('button', {onclick: () => {
-        let n = 'param', k = 1;
-        while (Object.prototype.hasOwnProperty.call(obj, n)) n = 'param' + (++k);
-        obj[n] = 0; onChange(); render();
-      }}, '+ pair'));
+    } else {
+      if (raw && Array.isArray(raw.layers)) {
+        box.append(h('div', { class: 'help' }, 'Layered swatch: ' + plural(raw.layers.length, 'layer', 'layers') +
+          '. Each layer has its own condition. ' + (raw.layers.map(l => l.when || 'always').join(' · '))));
+      } else {
+        box.append(h('div', { class: 'help' }, 'This swatch is calculated from parameters or the seed, so it has no single editable colour.'));
+      }
+      const useColor = h('input', { type: 'color', value: toHexColor(color || '#ffffff') });
+      box.append(h('div', { class: 'field' }, h('label', null, 'use colour'),
+        h('div', { class: 'row' }, useColor,
+          h('button', {
+            onclick: () => {
+              d2safe(i, useColor.value);
+              status('Swatch ' + i + ' is now solid ' + useColor.value + '; parameters no longer tint it.', 'good');
+            }
+          }, 'Make swatch'))));
+      box.append(h('button', {
+        onclick: () => {
+          let c = null;
+          try { c = TEX.swatchColor(state.family, state.sprite, state.design, i, testParams()); } catch (e) { c = null; }
+          d2safe(i, c || 'transparent');
+          status('Swatch ' + i + ' is now a solid colour; parameters no longer tint it.', 'good');
+        }
+      }, 'Keep current colour'));
+    }
+  }
+  function d2safe(i, value) {
+    const d = design();
+    if (!d) return;
+    d.palette[i] = value;
+    renderSwatchEditor(); renderPalette(); renderCanvas(); renderDesignStrip(); scheduleValidate();
+  }
+
+  // -------------------------------------------------------------------
+  // Sprite panel
+  // -------------------------------------------------------------------
+  function renderSpritePanel() {
+    const box = $('spritePanel'), t = tex();
+    box.replaceChildren();
+    if (!t) { box.append(h('p', { class: 'help' }, 'Select a sprite.')); return; }
+
+    const nameIn = h('input', { type: 'text', value: state.sprite, spellcheck: 'false' });
+    nameIn.addEventListener('change', () => renameSprite(nameIn.value));
+
+    const wIn = h('input', { type: 'number', min: '1', max: '256', value: t.size[0] });
+    const hIn = h('input', { type: 'number', min: '1', max: '256', value: t.size[1] });
+    const applySize = () => {
+      const w = clamp(Math.round(Number(wIn.value) || t.size[0]), 1, 256);
+      const hgt = clamp(Math.round(Number(hIn.value) || t.size[1]), 1, 256);
+      resizeSprite(w, hgt);
     };
-    render();
-    return box;
-  }
 
-  // -------------------------------------------------------------------
-  // Documents
-  // -------------------------------------------------------------------
-  const blankDoc = name => ({format: 'texture/1', name, tile: 9, defs: {}, textures: {}});
-  const blankTexture = (w = 9, hpx = 9) => ({size: [w, hpx], params: {}, ops: []});
-  const familyName = () => (state.family ? state.families[state.family] : null);
-  const texDoc = () => {
-    const doc = familyName();
-    return doc && state.current ? doc.textures[state.current] : null;
-  };
-  const testKey = () => state.family + '/' + state.current;
-
-  // -------------------------------------------------------------------
-  // Op schema — mirrors DRAW in js/texture.js
-  // -------------------------------------------------------------------
-  const OP_FIELDS = {
-    rect: ['x', 'y', 'w', 'h', 'color'],
-    clear: ['x', 'y', 'w', 'h'],
-    pixel: ['x', 'y', 'color'],
-    line: ['x1', 'y1', 'x2', 'y2', 'color'],
-    png: ['src', 'x', 'y', 'alpha'],
-    each: ['as', 'in'],
-    repeat: ['as', 'times', 'from'],
-    if: ['test'],
-    win: ['x', 'y', 'color'],
-    park: ['x', 'y', 'v'],
-    stat: ['x', 'y'],
-    berth: ['x', 'y'],
-    spot: ['x', 'y'],
-    spots: ['of'],
-    mark: ['as', 'of'],
-    use: ['texture', 'file', 'at', 'params'],
-    set: ['as', 'value'],
-    call: ['fn', 'args'],
-  };
-  const RAW_FIELDS = new Set(['as', 'texture', 'file', 'fn']);
-  const PAIR_FIELDS = new Set(['params', 'args']);
-  const OP_DEFAULTS = {
-    rect: {op: 'rect', x: 0, y: 0, w: 1, h: 1, color: '#ffffff'},
-    clear: {op: 'clear', x: 0, y: 0, w: 1, h: 1},
-    pixel: {op: 'pixel', x: 0, y: 0, color: '#ffffff'},
-    line: {op: 'line', x1: 0, y1: 0, x2: 8, y2: 8, color: '#ffffff'},
-    png: {op: 'png', src: '', x: 0, y: 0},
-    each: {op: 'each', as: 'i', in: [0, 1], ops: []},
-    repeat: {op: 'repeat', as: 'i', times: 4, ops: []},
-    if: {op: 'if', test: true, then: [], else: []},
-    win: {op: 'win', x: 0, y: 0},
-    park: {op: 'park', x: 0, y: 0, v: 0},
-    stat: {op: 'stat', x: 0, y: 0},
-    berth: {op: 'berth', x: 0, y: 0},
-    spot: {op: 'spot', x: 0, y: 0},
-    spots: {op: 'spots', of: []},
-    mark: {op: 'mark', as: 'win', of: []},
-    use: {op: 'use', texture: '', at: [0, 0]},
-    set: {op: 'set', as: 'flag', value: true},
-    call: {op: 'call', fn: '', args: {}},
-  };
-  const OP_KINDS = Object.keys(OP_FIELDS);
-
-  // -------------------------------------------------------------------
-  // PNG decoding
-  // -------------------------------------------------------------------
-  function decodeImage(uri) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        const cv = document.createElement('canvas');
-        cv.width = img.naturalWidth; cv.height = img.naturalHeight;
-        const g = cv.getContext('2d');
-        g.drawImage(img, 0, 0);
-        resolve({w: cv.width, h: cv.height, data: g.getImageData(0, 0, cv.width, cv.height).data});
-      };
-      img.onerror = () => reject(new Error('That image could not be decoded.'));
-      img.src = uri;
+    const defSel = h('select', {
+      onchange: e => { t.default = e.target.value; renderConditions(); renderCanvas(); scheduleValidate(); }
     });
+    for (const n of designNames()) defSel.append(h('option', { value: n, selected: n === t.default }, n));
+
+    const paramRows = Object.keys(t.params).map(k => {
+      const control = h('input', {
+        type: 'text', value: JSON.stringify(t.params[k]), spellcheck: 'false',
+        onchange: e => {
+          const v = e.target.value.trim();
+          let parsed;
+          try { parsed = JSON.parse(v); } catch (err) { parsed = v; }
+          t.params[k] = parsed;
+          renderTestParams(); renderCanvas(); scheduleValidate();
+        }
+      });
+      return h('div', { class: 'paramRow' },
+        h('span', { class: 'name', title: k }, k),
+        control,
+        h('span', { class: 'help' }, ''),
+        h('button', { class: 'danger', title: 'Remove param', onclick: () => { delete t.params[k]; renderSpritePanel(); renderTestParams(); renderConditions(); renderCanvas(); scheduleValidate(); } }, '✕')
+      );
+    });
+
+    const newName = h('input', { type: 'text', placeholder: 'param', spellcheck: 'false', style: 'width:82px' });
+    const newValue = h('input', { type: 'text', placeholder: '0', spellcheck: 'false', style: 'width:82px' });
+    const addParam = () => {
+      const name = newName.value.trim();
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) { status('Parameter names are letters, digits and _ (not starting with a digit).', 'bad'); return; }
+      if (name in t.params) { status('Parameter "' + name + '" already exists.', 'bad'); return; }
+      let v = newValue.value.trim();
+      try { v = JSON.parse(v); } catch (e) { /* keep text */ }
+      if (v === '' || v === undefined) v = 0;
+      t.params[name] = v;
+      renderSpritePanel(); renderTestParams(); renderConditions(); renderCanvas(); scheduleValidate();
+    };
+
+    box.append(
+      h('div', { class: 'field' }, h('label', null, 'name'), nameIn),
+      h('div', { class: 'field' }, h('label', null, 'size'),
+        h('div', { class: 'row' }, wIn, h('span', null, '×'), hIn, h('button', { onclick: applySize }, 'Apply'))),
+      h('div', { class: 'field' }, h('label', null, 'fallback'), defSel),
+      h('details', { class: 'subfold' },
+        h('summary', null, 'Parameters (' + Object.keys(t.params).length + ')'),
+        h('div', { class: 'paramHead' }, h('span', null, 'name'), h('span', null, 'default'), h('span', null, ''), h('span', null, '')),
+        ...paramRows,
+        h('div', { class: 'row', style: 'margin-top:4px' }, newName, newValue, h('button', { onclick: addParam }, '+ Param'))
+      ),
+      h('div', { class: 'help' }, state.sprite + ' has ' + plural(designNames().length, 'design', 'designs') + ', ' +
+        plural((t.conditions || []).length, 'rule', 'rules') + ' and ' + plural(Object.keys(t.params).length, 'parameter', 'parameters') + '.')
+    );
   }
-  function readAsDataUri(file) {
+
+  // -------------------------------------------------------------------
+  // Preview parameters
+  // -------------------------------------------------------------------
+  function testChanged(live) {
+    renderCanvas();
+    renderPalette();
+    renderSwatchEditor();
+    if (!live) renderDesignStrip();
+  }
+
+  function renderTestParams() {
+    const box = $('testParams'), t = tex();
+    box.replaceChildren();
+    if (!t) return;
+    const keys = paramNames();
+    if (!keys.length) { box.append(h('small', { class: 'help' }, 'No parameters.')); return; }
+    const values = state.test[testKey()] = state.test[testKey()] || {};
+    for (const k of keys) {
+      const def = t.params[k];
+      const current = values[k] !== undefined ? values[k] : def;
+      let inp;
+      if (typeof def === 'boolean') {
+        inp = h('input', { type: 'checkbox', checked: !!current });
+        inp.addEventListener('change', () => {
+          values[k] = inp.checked;
+          testChanged(false);
+        });
+      } else if (typeof def === 'number') {
+        inp = h('input', { type: 'number', step: 'any', value: String(current), title: 'default ' + def });
+        inp.addEventListener('input', () => {
+          const n = Number(inp.value);
+          if (inp.value.trim() === '' || !Number.isFinite(n)) return;
+          values[k] = n;
+          testChanged(true);
+        });
+        inp.addEventListener('change', () => testChanged(false));
+      } else {
+        inp = h('input', { type: 'text', spellcheck: 'false', value: current == null ? '' : String(current), placeholder: String(def), title: 'default ' + String(def) });
+        inp.addEventListener('input', () => {
+          const txt = inp.value;
+          if (txt === '' || txt === String(def)) delete values[k];
+          else values[k] = txt;
+          testChanged(true);
+        });
+        inp.addEventListener('change', () => testChanged(false));
+      }
+      box.append(h('label', { class: 'testParam', title: k + ' — default ' + String(def) }, h('span', null, k), inp));
+    }
+  }
+
+  // -------------------------------------------------------------------
+  // Conditions
+  // -------------------------------------------------------------------
+  function renderConditions() {
+    const t = tex(), box = $('conditionRows'), names = designNames();
+    box.replaceChildren();
+    $('conditionCount').textContent = t ? plural((t.conditions || []).length, 'rule', 'rules') : '';
+    if (!t) return;
+    ensureSprite(t);
+    const params = paramNames();
+    (t.conditions || []).forEach((rule, i) => {
+      const inp = h('input', { type: 'text', value: rule.when || '', spellcheck: 'false', placeholder: 'm = 5', 'data-when': '1' });
+      const check = () => {
+        const err = TEX.conditionError(inp.value, params);
+        inp.classList.toggle('invalid', !!err);
+        inp.title = err || '';
+        return err;
+      };
+      check();
+      inp.addEventListener('change', () => {
+        rule.when = inp.value.trim();
+        check();
+        renderCanvas();
+        scheduleValidate();
+      });
+      const sel = h('select', { onchange: e => { rule.design = e.target.value; renderCanvas(); scheduleValidate(); } });
+      for (const n of names) sel.append(h('option', { value: n, selected: n === rule.design }, n));
+      const acts = h('div', { class: 'acts' },
+        h('button', { title: 'Move up', disabled: i === 0, onclick: () => moveCondition(i, -1) }, '↑'),
+        h('button', { title: 'Move down', disabled: i === t.conditions.length - 1, onclick: () => moveCondition(i, 1) }, '↓'),
+        h('button', { class: 'danger', title: 'Delete rule', onclick: () => { t.conditions.splice(i, 1); renderConditions(); renderCanvas(); scheduleValidate(); } }, '✕')
+      );
+      const row = h('div', { class: 'condRow' }, h('span', { class: 'n' }, i + 1), inp, sel, acts);
+      row.dataset.rule = i;
+      box.append(row);
+    });
+    if (!(t.conditions || []).length) box.append(h('small', null, 'No rules yet — every parameter set gets the fallback design.'));
+
+    const fallback = $('conditionFallback');
+    fallback.replaceChildren();
+    const fsel = h('select', { onchange: e => { t.default = e.target.value; renderCanvas(); scheduleValidate(); } });
+    for (const n of names) fsel.append(h('option', { value: n, selected: n === t.default }, n));
+    fallback.append(h('div', { class: 'fallbackRow' },
+      h('span', { class: 'label' }, 'otherwise →'), fsel, h('span'), h('span')));
+    applyConditionFilter();
+  }
+
+  function moveCondition(i, delta) {
+    const t = tex();
+    if (!t) return;
+    const j = i + delta;
+    if (j < 0 || j >= t.conditions.length) return;
+    const [rule] = t.conditions.splice(i, 1);
+    t.conditions.splice(j, 0, rule);
+    renderConditions();
+    renderCanvas();
+    scheduleValidate();
+  }
+
+  function applyConditionFilter() {
+    const q = ($('conditionFilter').value || '').trim().toLowerCase();
+    for (const row of $('conditionRows').querySelectorAll('.condRow')) {
+      if (!q) { row.hidden = false; continue; }
+      const when = (row.querySelector('input')?.value || '').toLowerCase();
+      const target = (row.querySelector('select')?.value || '').toLowerCase();
+      row.hidden = !when.includes(q) && !target.includes(q);
+    }
+  }
+
+  // -------------------------------------------------------------------
+  // Marks
+  // -------------------------------------------------------------------
+  function renderMarks() {
+    const t = tex(), box = $('markSummary');
+    box.replaceChildren();
+    if (!t) return;
+    const m = t.marks || {};
+    const bits = [
+      ['windows', (m.win || []).length],
+      ['parking', (m.park || []).length],
+      ['spots', (m.spots || []).length],
+      ['status light', m.stat ? 'yes' : 'no'],
+      ['berth', m.berth ? 'yes' : 'no'],
+    ];
+    box.append(h('div', { class: 'row', style: 'gap:10px' },
+      ...bits.map(([k, v]) => h('span', { class: 'help' }, k + ' ', h('b', { style: 'color:var(--txt)' }, String(v))))));
+  }
+
+  // -------------------------------------------------------------------
+  // Family panel
+  // -------------------------------------------------------------------
+  function renderFamilyPanel() {
+    const box = $('familyPanel'), d = doc();
+    box.replaceChildren();
+    if (!d) return;
+    const nameIn = h('input', { type: 'text', value: state.family, spellcheck: 'false' });
+    nameIn.addEventListener('change', () => renameFamily(nameIn.value));
+    const tileIn = h('input', { type: 'number', min: '1', max: '64', value: d.tile || 9 });
+    tileIn.addEventListener('change', () => { d.tile = clamp(Math.round(Number(tileIn.value) || 9), 1, 64); renderCanvas(); scheduleValidate(); });
+    box.append(
+      h('div', { class: 'field' }, h('label', null, 'file name'), nameIn),
+      h('div', { class: 'field' }, h('label', null, 'tile'), tileIn),
+      h('div', { class: 'help' }, plural(Object.keys(d.textures).length, 'sprite', 'sprites') + ' · ' +
+        plural(Object.keys(d.defs || {}).length, 'def', 'defs') + ' · format ' + (d.format || '?'))
+    );
+  }
+
+  // -------------------------------------------------------------------
+  // Render orchestration
+  // -------------------------------------------------------------------
+  function renderAll() {
+    const d = doc();
+    if (d) {
+      ensureSprite(tex());
+      if (!state.sprite || !d.textures[state.sprite]) state.sprite = Object.keys(d.textures)[0] || null;
+      const t = tex();
+      if (t) {
+        if (!state.design || !t.designs[state.design]) state.design = t.default || Object.keys(t.designs)[0] || null;
+      } else state.design = null;
+    }
+    renderFamilySelect();
+    renderLibrary();
+    renderDesignStrip();
+    renderPalette();
+    renderGroupPanel();
+    renderCanvas();
+    renderSpritePanel();
+    renderTestParams();
+    renderConditions();
+    renderSwatchEditor();
+    renderMarks();
+    renderFamilyPanel();
+    renderErrors();
+    updateMarkControls();
+  }
+
+  function updateMarkControls() {
+    $('markType').hidden = state.tool !== 'marker';
+    for (const b of document.querySelectorAll('#tools button[data-tool]')) b.classList.toggle('on', b.dataset.tool === state.tool);
+    $('markType').value = state.markType;
+  }
+
+  // -------------------------------------------------------------------
+  // Selection
+  // -------------------------------------------------------------------
+  function selectFamily(name) {
+    if (!name || !state.families[name]) {
+      state.family = state.sprite = state.design = null;
+      renderAll();
+      return;
+    }
+    state.family = name;
+    state.group = null;
+    const d = state.families[name];
+    state.sprite = Object.keys(d.textures)[0] || null;
+    const t = tex();
+    if (t) ensureSprite(t);
+    state.design = t ? (t.default || Object.keys(t.designs)[0]) : null;
+    state.swatch = 1;
+    state.undo.clear();
+    state.redo.clear();
+    renderAll();
+  }
+  function selectSprite(name) {
+    const d = doc();
+    if (!d || !d.textures[name]) return;
+    state.sprite = name;
+    state.group = null;
+    const t = d.textures[name];
+    ensureSprite(t);
+    state.design = t.default || Object.keys(t.designs)[0];
+    state.swatch = 1;
+    renderAll();
+  }
+  function selectDesign(name) {
+    const t = tex();
+    if (!t || !t.designs[name]) return;
+    state.design = name;
+    if (state.swatch >= t.designs[name].palette.length) state.swatch = Math.max(0, t.designs[name].palette.length - 1);
+    renderCanvas();
+    renderDesignStrip();
+    renderPalette();
+    renderGroupPanel();
+    renderSwatchEditor();
+  }
+
+  // -------------------------------------------------------------------
+  // Sprite / design / family operations
+  // -------------------------------------------------------------------
+  function resizeSprite(w, hgt) {
+    const t = tex();
+    if (!t) return;
+    state.undo.clear();
+    state.redo.clear();
+    for (const d of Object.values(t.designs)) {
+      if (groupData(d)) rebuildGroupPalette(d);
+      d.rows = Array.from({ length: hgt }, (_, y) => (d.rows[y] || '').padEnd(w, '.').slice(0, w));
+      const groups = groupData(d);
+      if (groups) {
+        for (const item of groups.items) item.pixels = item.pixels.filter(([x, y]) => x < w && y < hgt);
+        rebuildGroupPalette(d);
+      }
+    }
+    t.size = [w, hgt];
+    $('zoom').value = state.zoom = fitZoom(w, hgt);
+    renderAll();
+    status('Resized every design to ' + w + '×' + hgt + '.', 'good');
+  }
+  function renameSprite(name) {
+    const d = doc(), t = tex();
+    const next = String(name || '').trim().replace(/[^A-Za-z0-9_]/g, '_');
+    if (!t || !next || next === state.sprite) return;
+    if (d.textures[next]) { status('A sprite named "' + next + '" already exists.', 'bad'); renderSpritePanel(); return; }
+    d.textures[next] = t;
+    delete d.textures[state.sprite];
+    state.sprite = next;
+    renderAll();
+    status('Renamed the sprite to ' + next + '.', 'good');
+  }
+  function renameDesign(name) {
+    const t = tex();
+    const next = String(name || '').trim().replace(/[^A-Za-z0-9_]/g, '_');
+    if (!t || !next || next === state.design) return;
+    if (state.design == null) return;
+    if (t.designs[next]) { status('A design named "' + next + '" already exists.', 'bad'); return; }
+    t.designs[next] = t.designs[state.design];
+    delete t.designs[state.design];
+    for (const rule of t.conditions || []) if (rule.design === state.design) rule.design = next;
+    if (t.default === state.design) t.default = next;
+    state.design = next;
+    renderAll();
+    status('Renamed the design to ' + next + '.', 'good');
+  }
+  function addDesign() {
+    const t = tex(), d = design();
+    if (!t || !d) return;
+    let n = 2, name = 'variant2';
+    while (t.designs[name]) name = 'variant' + (++n);
+    t.designs[name] = clone(d);
+    state.design = name;
+    state.swatch = 1;
+    renderAll();
+    status('Added ' + name + ' as a copy of the current design.', 'good');
+  }
+  function deleteDesign() {
+    const t = tex();
+    if (!t || Object.keys(t.designs).length <= 1) { status('A sprite needs at least one design.', 'bad'); return; }
+    if (!confirm('Delete design "' + state.design + '"?')) return;
+    delete t.designs[state.design];
+    for (const rule of t.conditions || []) if (rule.design === state.design) rule.design = t.default;
+    t.conditions = (t.conditions || []).filter(r => t.designs[r.design]);
+    if (t.default === state.design) t.default = Object.keys(t.designs)[0];
+    state.design = t.default;
+    state.swatch = 1;
+    renderAll();
+  }
+  function deleteSprite(name) {
+    const d = doc();
+    if (!d || !d.textures[name]) return;
+    if (!confirm('Delete sprite "' + name + '"?')) return;
+    delete d.textures[name];
+    if (state.sprite === name) {
+      state.sprite = Object.keys(d.textures)[0] || null;
+      const t = tex();
+      state.design = t ? (t.default || Object.keys(t.designs)[0]) : null;
+    }
+    renderAll();
+  }
+  function addBlankSprite() {
+    const d = doc();
+    if (!d) { status('Create a family first.', 'bad'); return; }
+    let name = 'sprite', k = 1;
+    while (d.textures[name]) name = 'sprite' + (++k);
+    d.textures[name] = blankTexture();
+    state.sprite = name;
+    state.design = 'base';
+    state.swatch = 1;
+    renderAll();
+    status('Added a blank 9×9 sprite.', 'good');
+  }
+  function renameFamily(name) {
+    const d = doc();
+    const next = String(name || '').trim().replace(/[^A-Za-z0-9_-]/g, '_').toLowerCase();
+    if (!d || !next || next === state.family) return;
+    if (state.families[next]) { status('A family named "' + next + '" already exists.', 'bad'); renderFamilyPanel(); return; }
+    d.name = next;
+    state.families[next] = d;
+    delete state.families[state.family];
+    state.family = next;
+    renderAll();
+  }
+  function deleteFamily() {
+    if (!state.family) return;
+    if (!confirm('Delete family "' + state.family + '"?')) return;
+    delete state.families[state.family];
+    const first = Object.keys(state.families)[0] || null;
+    if (first) selectFamily(first);
+    else { state.family = state.sprite = state.design = null; renderAll(); }
+  }
+
+  // -------------------------------------------------------------------
+  // PNG import
+  // -------------------------------------------------------------------
+  function readFile(file) {
     return new Promise((resolve, reject) => {
       const r = new FileReader();
       r.onload = () => resolve(String(r.result));
@@ -259,1194 +1429,152 @@
       r.readAsDataURL(file);
     });
   }
-  async function ensureImage(uri) {
-    if (!uri || !uri.startsWith('data:')) return null;
-    if (state.images.has(uri)) return state.images.get(uri);
-    const img = await decodeImage(uri);
-    state.images.set(uri, img);
-    return img;
-  }
-  async function ensureAllImages() {
-    const uris = new Set();
-    const walk = (ops) => {
-      for (const op of ops || []) {
-        if (!op) continue;
-        if (op.op === 'png' && typeof op.src === 'string' && op.src.startsWith('data:')) uris.add(op.src);
-        if (op.ops) walk(op.ops);
-        if (op.then) walk(op.then);
-        if (op.else) walk(op.else);
-      }
-    };
-    for (const fam of Object.keys(state.families)) {
-      for (const name of Object.keys(state.families[fam].textures || {})) walk(state.families[fam].textures[name].ops);
-    }
-    let added = false;
-    for (const uri of uris) {
-      if (state.images.has(uri)) continue;
-      try { await ensureImage(uri); added = true; }
-      catch (e) { state.errors.push(e.message); }
-    }
-    if (added) preview();
-  }
-  // Turn `src` into the `ref` the engine expects, exactly as the build does.
-  function resolvePng(ops, fam, images, problems) {
-    for (const op of ops || []) {
-      if (op && op.op === 'png' && typeof op.src === 'string') {
-        const src = op.src;
-        if (src.startsWith('data:')) {
-          const key = fam + ':' + (op.name || 'inline') + ':' + src.length + ':' + src.slice(-24);
-          const img = state.images.get(src);
-          if (img) images[key] = img;
-          else problems.push(fam + ': an embedded image is still decoding.');
-          delete op.src; op.ref = key;
-        } else if (src) {
-          problems.push(fam + ': "' + src + '" is a file path. Preview can only show embedded PNGs — bake it to ops or upload the image.');
-        }
-      }
-      if (op) { resolvePng(op.ops, fam, images, problems); resolvePng(op.then, fam, images, problems); resolvePng(op.else, fam, images, problems); }
-    }
-  }
-
-  // -------------------------------------------------------------------
-  // PNG -> optimized rect ops
-  //
-  // A sprite is split into the fewest axis-aligned rectangles we can find
-  // greedily: for each unclaimed pixel, extend right along its colour, then
-  // extend down while that whole run matches. Transparent pixels are dropped,
-  // so the result is only the art itself. Every rectangle becomes one `rect`
-  // op — the same command the hand-written .texture files use, which the
-  // engine runs without decoding any image.
-  // -------------------------------------------------------------------
-  const hex2 = v => v.toString(16).padStart(2, '0');
-  function colorString(r, g, b, a) {
-    if (a === 255) return '#' + hex2(r) + hex2(g) + hex2(b);
-    const alpha = Math.round((a / 255) * 1000) / 1000;
-    return `rgba(${r},${g},${b},${alpha})`;
-  }
-  function pixelAt(data, i) {
-    const o = i * 4;
-    return [data[o], data[o + 1], data[o + 2], data[o + 3]];
-  }
-  function samePixel(data, i, r, g, b, a) {
-    const o = i * 4;
-    return data[o] === r && data[o + 1] === g && data[o + 2] === b && data[o + 3] === a;
-  }
-  function imageToOps(data, w, hpx, ox = 0, oy = 0) {
-    const ops = [];
-    const seen = new Uint8Array(w * hpx);
-    for (let y = 0; y < hpx; y++) {
-      for (let x = 0; x < w; x++) {
-        const p = y * w + x;
-        if (seen[p]) continue;
-        const [r, g, b, a] = pixelAt(data, p);
-        if (!a) { seen[p] = 1; continue; }
-        let x2 = x;
-        while (x2 + 1 < w && !seen[y * w + x2 + 1] && samePixel(data, y * w + x2 + 1, r, g, b, a)) x2++;
-        let y2 = y;
-        grow: while (y2 + 1 < hpx) {
-          for (let xx = x; xx <= x2; xx++) {
-            const q = (y2 + 1) * w + xx;
-            if (seen[q] || !samePixel(data, q, r, g, b, a)) break grow;
-          }
-          y2++;
-        }
-        for (let yy = y; yy <= y2; yy++) for (let xx = x; xx <= x2; xx++) seen[yy * w + xx] = 1;
-        ops.push({op: 'rect', x: x + ox, y: y + oy, w: x2 - x + 1, h: y2 - y + 1, color: colorString(r, g, b, a)});
-      }
-    }
-    return ops;
-  }
-  function opBytes(ops) {
-    return JSON.stringify(ops).length;
-  }
-
-  async function imageForOp(op) {
-    if (!op) return null;
-    if (typeof op.src === 'string' && op.src.startsWith('data:')) return ensureImage(op.src);
-    if (op.ref && TEX.images && TEX.images[op.ref]) {
-      const img = TEX.images[op.ref];
-      return {w: img.w, h: img.h, data: img.data};
-    }
-    return null;
-  }
-  // Replace PNG ops with rect ops, in place, at any depth.
-  async function bakeList(list) {
-    let changed = false, count = 0;
-    for (let i = 0; i < list.length; i++) {
-      const op = list[i];
-      if (!op || typeof op !== 'object') continue;
-      if (op.op === 'png') {
-        const img = await imageForOp(op);
-        if (img) {
-          const rects = imageToOps(img.data, img.w, img.h, op.x || 0, op.y || 0);
-          list.splice(i, 1, ...rects);
-          i += rects.length - 1;
-          changed = true; count += rects.length;
-          continue;
-        }
-      }
-      for (const key of ['ops', 'then', 'else']) {
-        if (!Array.isArray(op[key])) continue;
-        const res = await bakeList(op[key]);
-        changed = changed || res.changed;
-        count += res.count;
-      }
-    }
-    return {changed, count};
-  }
-  async function bakeTexture(tex) {
-    const before = opBytes(tex.ops || []);
-    const res = await bakeList(tex.ops = tex.ops || []);
-    return {changed: res.changed, count: res.count, before, after: opBytes(tex.ops)};
-  }
-  async function bakeAllPngs() {
-    let sprites = 0, rects = 0, before = 0, after = 0;
-    for (const fam of Object.keys(state.families)) {
-      for (const name of Object.keys(state.families[fam].textures || {})) {
-        const tex = state.families[fam].textures[name];
-        const res = await bakeTexture(tex);
-        if (!res.changed) continue;
-        sprites++; rects += res.count; before += res.before; after += res.after;
-      }
-    }
-    if (!sprites) { status('No embedded PNGs to convert. Uploaded PNGs are already baked to rect ops.', ''); return; }
-    renderOps(); preview();
-    status(`Converted ${plural(sprites, 'sprite', 'sprites')} to ${plural(rects, 'rect op', 'rect ops')} (${Math.round(before / 1024)} → ${Math.round(after / 1024)} KB).`, 'good');
-  }
-
-  // -------------------------------------------------------------------
-  // Preview
-  // -------------------------------------------------------------------
-  // Only overrides the user typed here. Declared defaults are left to the
-  // engine: passing an expression back in would evaluate it a second time and
-  // consume `rnd` differently from the real render.
-  function testParams() {
-    const p = Object.assign({}, state.test[testKey()] || {});
-    const fns = state.fnTest[testKey()] || {};
-    for (const k of Object.keys(fns)) {
-      const src = (fns[k] || '').trim();
-      if (!src) continue;
-      let fn;
-      try { fn = new Function('"use strict"; return (' + src + ');')(); }
-      catch (e) { throw new Error('callback ' + k + ': ' + e.message); }
-      if (typeof fn !== 'function') throw new Error('callback ' + k + ' is not a function');
-      p[k] = fn;
-    }
-    return p;
-  }
-  // Parameters the texture calls as functions, e.g. `["fn", "wet", ...]`.
-  function callbackParams(doc, tex) {
-    const out = new Set();
-    const scan = v => {
-      if (Array.isArray(v)) {
-        if (v[0] === 'fn' && typeof v[1] === 'string' && !TEX.TEX_OPS[v[1]]) out.add(v[1]);
-        for (const a of v) scan(a);
-      } else if (v && typeof v === 'object') {
-        for (const k of Object.keys(v)) scan(v[k]);
-      }
-    };
-    scan(tex.ops || []);
-    return [...out];
-  }
-
-  function preview() {
-    const doc = familyName();
-    const tex = texDoc();
-    const errs = [];
-    const marksEl = $('markList');
-    if (!doc || !tex || !state.current) {
-      $('errors').replaceChildren();
-      $('markList').replaceChildren(h('span', null, 'Nothing recorded.'));
-      return;
-    }
-
-    const files = {};
-    for (const fam of Object.keys(state.families)) files[fam] = clone(state.families[fam]);
-    if (ED.target) {
-      const previewOps = files[state.family].textures[state.current].ops;
-      const targetPaths = editorTargetPaths(texDoc().ops, previewOps);
-      if (!targetPaths) {
-        invalidateEditorTarget();
-      } else {
-        for (const forced of targetPaths.forcedIfs) pathValue(previewOps, forced.path).test = forced.result;
-      }
-    }
-    try { errs.push(...TEX.validate(files)); }
-    catch (e) { errs.push(e.message); }
-
-    const problems = [];
-    const images = {};
-    for (const fam of Object.keys(files)) {
-      for (const n of Object.keys(files[fam].textures || {})) resolvePng(files[fam].textures[n].ops, fam, images, problems);
-    }
-    errs.push(...problems);
-
-    TEX.defineImages(images);
-    TEX.define(files);
-    TEX.clear();
-
-    let rendered = null;
-    try { rendered = TEX.render(state.family, state.current, testParams(), 'editor' + (state.rev++)); }
-    catch (e) { errs.push(e.message); }
-
-    $('errors').replaceChildren(...[...new Set(errs)].slice(0, 14).map(e => h('div', {class: 'err'}, e)));
-    if (rendered) draw(rendered);
-    else { const cv = $('preview'); cv.getContext('2d').clearRect(0, 0, cv.width, cv.height); }
-
-    $('stageTitle').textContent = `${state.family}.texture › ${state.current}  ·  ${tex.size[0]}×${tex.size[1]} px`;
-
-    marksEl.replaceChildren();
-    if (rendered) {
-      const m = rendered.marks;
-      const bits = [
-        ['windows', m.win.length], ['parking', m.park.length],
-        ['spots', m.spots.length], ['status light', m.stat ? 'yes' : 'no'],
-        ['berth', m.berth ? m.berth.join(',') : 'none'],
-      ];
-      for (const [k, v] of bits) marksEl.append(h('span', null, k + ' ', h('b', null, String(v))));
-    } else marksEl.append(h('span', null, 'Nothing recorded.'));
-
-    if (!errs.length) status('Valid. ' + $('stageTitle').textContent, 'good');
-  }
-
-  function draw(t) {
-    const cv = $('preview'), g = cv.getContext('2d');
-    const s = state.scale;
-    cv.width = t.canvas.width * s; cv.height = t.canvas.height * s;
-    g.imageSmoothingEnabled = false;
-    g.clearRect(0, 0, cv.width, cv.height);
-    for (let y = 0; y < cv.height; y += s) {
-      for (let x = 0; x < cv.width; x += s) {
-        g.fillStyle = (((x / s) + (y / s)) & 1) ? '#1b2233' : '#151a27';
-        g.fillRect(x, y, s, s);
-      }
-    }
-    g.drawImage(t.canvas, 0, 0, cv.width, cv.height);
-    if (state.grid && s >= 3) {
-      g.strokeStyle = 'rgba(255,255,255,.07)';
-      g.lineWidth = 1;
-      g.beginPath();
-      for (let x = 0; x <= t.canvas.width; x++) { g.moveTo(x * s + .5, 0); g.lineTo(x * s + .5, cv.height); }
-      for (let y = 0; y <= t.canvas.height; y++) { g.moveTo(0, y * s + .5); g.lineTo(cv.width, y * s + .5); }
-      g.stroke();
-    }
-    if (state.marks) {
-      const dot = (x, y, col) => {
-        g.strokeStyle = col; g.lineWidth = 1;
-        g.strokeRect(x * s + .5, y * s + .5, Math.max(1, s - 1), Math.max(1, s - 1));
+  function decodeImage(uri) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const cv = document.createElement('canvas');
+        cv.width = img.naturalWidth;
+        cv.height = img.naturalHeight;
+        const g = cv.getContext('2d');
+        g.drawImage(img, 0, 0);
+        resolve({ data: g.getImageData(0, 0, cv.width, cv.height).data, w: cv.width, h: cv.height });
       };
-      for (const p of t.marks.win) dot(p[0], p[1], 'rgba(255,215,94,.65)');
-      for (const p of t.marks.park) dot(p[0], p[1], 'rgba(111,179,255,.75)');
-      for (const p of t.marks.spots) dot(p[0], p[1], 'rgba(95,220,122,.75)');
-      if (t.marks.stat) dot(t.marks.stat[0], t.marks.stat[1], 'rgba(255,107,107,.9)');
-      if (t.marks.berth) dot(t.marks.berth[0], t.marks.berth[1], 'rgba(219,201,159,.9)');
-    }
+      img.onerror = () => reject(new Error('That image could not be decoded.'));
+      img.src = uri;
+    });
   }
-
-  // -------------------------------------------------------------------
-  // Library
-  // -------------------------------------------------------------------
-  function renderLibrary() {
-    $('familySelect').replaceChildren(...Object.keys(state.families).sort().map(f =>
-      h('option', {value: f, selected: f === state.family}, f)));
-
-    const doc = familyName();
-    const list = $('textureList');
-    list.replaceChildren();
-    if (!doc) { list.append(h('small', null, 'No families yet.')); return; }
-    for (const name of Object.keys(doc.textures)) {
-      const tex = doc.textures[name];
-      const size = tex.size ? tex.size[0] + '×' + tex.size[1] : 'inherited';
-      const open = h('button', {class: name === state.current ? 'on' : '', onclick: () => selectTexture(name)},
-        h('span', null, name), h('span', {class: 'meta'}, size));
-      const kill = h('button', {class: 'kill', title: `Delete ${name}`, 'aria-label': `Delete ${name}`, onclick: e => {
-        e.stopPropagation();
-        deleteTexture(name);
-      }}, '✕');
-      const item = h('div', {class: 'item'}, open, kill);
-      item.addEventListener('contextmenu', e => showContextMenu(e, [
-        {label: 'Open sprite', run: () => selectTexture(name)},
-        {label: 'Edit pixels', run: () => { selectTexture(name); openPixelEditor(null, []); }},
-        {label: 'Duplicate sprite', run: () => { selectTexture(name); duplicateTexture(); }},
-        {separator: true},
-        {label: 'Delete sprite', danger: true, run: () => deleteTexture(name)}
-      ]));
-      list.append(item);
-    }
-    if (!Object.keys(doc.textures).length) list.append(h('small', null, 'No sprites yet. Add one below.'));
-  }
-
-  // -------------------------------------------------------------------
-  // Tabs
-  // -------------------------------------------------------------------
-  function setTab(tab) {
-    state.tab = tab;
-    for (const b of document.querySelectorAll('#tabs button')) b.classList.toggle('on', b.dataset.tab === tab);
-    for (const id of ['sprite', 'pixels', 'ops', 'family']) $('tab-' + id).classList.toggle('hidden', id !== tab);
-    if (tab === 'pixels') edRender();
-  }
-
-  // -------------------------------------------------------------------
-  // Sprite tab
-  // -------------------------------------------------------------------
-  function renderTextureSettings() {
-    const doc = familyName(), tex = texDoc(), box = $('texSettings');
-    if (!doc || !tex) {
-      box.replaceChildren(h('p', {class: 'help'}, 'Create or select a sprite to edit it.'));
-      return;
-    }
-    const nameIn = textInput(state.current, v => renameTexture(v));
-    const wIn = numberInput(tex.size ? tex.size[0] : undefined, v => { if (!tex.size) tex.size = [9, 9]; if (v) tex.size[0] = v; preview(); });
-    const hIn = numberInput(tex.size ? tex.size[1] : undefined, v => { if (!tex.size) tex.size = [9, 9]; if (v) tex.size[1] = v; preview(); });
-    const ops = tex.ops || [];
-    const pngs = (function countPngs(list) {
-      let n = 0;
-      for (const op of list || []) {
-        if (!op) continue;
-        if (op.op === 'png') n++;
-        if (op.ops) n += countPngs(op.ops);
-        if (op.then) n += countPngs(op.then);
-        if (op.else) n += countPngs(op.else);
+  function designFromImage(img) {
+    const palette = ['transparent'];
+    const chars = new Map();
+    const rows = [];
+    for (let y = 0; y < img.h; y++) {
+      let row = '';
+      for (let x = 0; x < img.w; x++) {
+        const o = (y * img.w + x) * 4;
+        const a = img.data[o + 3];
+        if (!a) { row += '.'; continue; }
+        const key = [img.data[o], img.data[o + 1], img.data[o + 2], a].join(',');
+        let ch = chars.get(key);
+        if (!ch) {
+          if (palette.length >= TEX.ALPHABET.length) throw new Error('The image has more than ' + (TEX.ALPHABET.length - 1) + ' colours. Reduce its palette first.');
+          palette.push(cssColor(img.data[o], img.data[o + 1], img.data[o + 2], a));
+          ch = TEX.ALPHABET[palette.length - 1];
+          chars.set(key, ch);
+        }
+        row += ch;
       }
-      return n;
-    })(ops);
-    box.replaceChildren(
-      h('div', {class: 'settings'},
-        h('h2', null, 'Sprite'),
-        field('name', nameIn),
-        field('size', h('div', {class: 'row'}, wIn, h('span', null, '×'), hIn), 'omit when inheriting via extends'),
-        field('extends', textInput(tex.extends, v => { if (v) tex.extends = v; else delete tex.extends; preview(); }), 'other texture, or "family:name"'),
-        h('small', null, `${plural(ops.length, 'top-level op', 'top-level ops')} · ${Math.round(opBytes(ops) / 1024 * 10) / 10} KB${pngs ? ` · ${plural(pngs, 'PNG', 'PNGs')}` : ''}`)
-      ),
-      h('div', {class: 'row'},
-        h('button', {onclick: duplicateTexture}, 'Duplicate'),
-        h('button', {onclick: () => openPixelEditor(null, [])}, 'Edit pixels'),
-        pngs ? h('button', {onclick: async () => {
-          const res = await bakeTexture(tex);
-          renderOps(); renderTextureSettings(); preview();
-          status(`Baked ${plural(res.count, 'rect op', 'rect ops')} from PNGs.`, 'good');
-        }}, 'Bake PNGs') : null,
-        h('button', {class: 'danger', onclick: () => deleteTexture(state.current)}, 'Delete')
-      ),
-      h('div', {class: 'row'},
-        h('button', {onclick: () => { tex.ops = []; renderOps(); renderTextureSettings(); preview(); status('Cleared every op in this sprite.', ''); }}, 'Clear ops'),
-        h('button', {onclick: () => { setTab('pixels'); edClear(); }}, 'New in pixel editor')
-      ),
-      h('div', {class: 'settings'},
-        h('h2', null, 'Params'),
-        h('div', {class: 'pairs'}, pairsEditor(tex.params = tex.params || {}, () => { preview(); renderParamForm(); })),
-        h('small', null, 'Defaults are evaluated top to bottom, so a param may use the ones above it.')
-      )
-    );
-    renderParamForm();
-  }
-
-  function renderParamForm() {
-    const tex = texDoc(), box = $('paramForm');
-    box.replaceChildren();
-    if (!tex) return;
-    const values = state.test[testKey()] = state.test[testKey()] || {};
-    const params = tex.params || {};
-    if (!Object.keys(params).length) box.append(h('small', null, 'This texture takes no parameters.'));
-    for (const k of Object.keys(params)) {
-      const inp = exprInput(k in values ? values[k] : undefined, v => {
-        if (v === undefined) delete values[k]; else values[k] = v;
-        preview();
-      });
-      inp.placeholder = JSON.stringify(params[k]);
-      box.append(field(k, inp, 'default ' + JSON.stringify(params[k])));
+      rows.push(row);
     }
-    const cb = callbackParams(familyName(), tex);
-    if (cb.length) {
-      const fnValues = state.fnTest[testKey()] = state.fnTest[testKey()] || {};
-      box.append(h('h3', null, 'Test callbacks'));
-      for (const name of cb) {
-        box.append(field('fn ' + name, textInput(fnValues[name] || '', v => {
-          if (v) fnValues[name] = v; else delete fnValues[name];
-          preview();
-        }, '(tx, ty) => true'), 'JS arrow function used in place of the one the game supplies'));
-      }
-    }
-    box.append(h('div', {class: 'field'}, h('label', null, 'implicit'),
-      h('small', null, 'w h tw th ox oy'), h('small', {class: 'hint'}, 'supplied by the engine')));
+    return { palette, rows };
   }
-
-  // -------------------------------------------------------------------
-  // Family tab
-  // -------------------------------------------------------------------
-  function renderFamilySettings() {
-    const doc = familyName(), box = $('familySettings');
-    if (!doc) { box.replaceChildren(h('p', {class: 'help'}, 'No family selected.')); renderDefs(); return; }
-    box.replaceChildren(
-      h('div', {class: 'settings'},
-        h('h2', null, 'Family'),
-        field('file name', textInput(doc.name, v => renameFamily(v)), 'textures/<name>.texture'),
-        field('tile', numberInput(doc.tile, v => { if (v) { doc.tile = v; preview(); } }), 'art pixels per tile (usually 9)'),
-        h('div', {class: 'row'},
-          h('button', {onclick: bakeAllPngs}, 'Bake all PNGs'),
-          h('button', {class: 'danger', onclick: deleteFamily}, 'Delete family')
-        )
-      )
-    );
-    renderDefs();
+  async function spriteFromPng(file) {
+    try {
+      const img = await decodeImage(await readFile(file));
+      const d = doc() || (state.families.props = blankFamily('props'), state.family = 'props', doc());
+      const base = (file.name || 'sprite').replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_]/g, '_').toLowerCase() || 'sprite';
+      let name = base, k = 1;
+      while (d.textures[name]) name = base + '_' + (++k);
+      d.textures[name] = {
+        size: [img.w, img.h],
+        params: {},
+        default: 'base',
+        designs: { base: designFromImage(img) },
+        conditions: [],
+        marks: {},
+      };
+      state.sprite = name;
+      state.design = 'base';
+      state.swatch = 1;
+      renderAll();
+      status('Added ' + name + ' (' + img.w + '×' + img.h + ') from ' + file.name + '.', 'good');
+    } catch (e) { status(e.message, 'bad'); }
   }
-  function renderDefs() {
-    const doc = familyName(), box = $('defsEditor');
-    box.replaceChildren();
-    if (!doc) return;
-    doc.defs = doc.defs || {};
-    for (const key of Object.keys(doc.defs)) {
-      box.append(h('div', {class: 'pair'},
-        textInput(key, v => {
-          if (!v || v === key) return;
-          const val = doc.defs[key]; delete doc.defs[key]; doc.defs[v] = val;
-          preview(); renderDefs();
-        }),
-        exprInput(doc.defs[key], v => { if (v === undefined) delete doc.defs[key]; else doc.defs[key] = v; preview(); }),
-        h('button', {class: 'danger', title: 'Delete def', onclick: () => { delete doc.defs[key]; preview(); renderDefs(); }}, '✕')
-      ));
-    }
-  }
-
-  // -------------------------------------------------------------------
-  // Ops tab
-  // -------------------------------------------------------------------
-  function renderOps() {
-    const tex = texDoc(), box = $('opEditor');
-    box.replaceChildren();
-    if (!tex) { box.append(h('p', {class: 'help'}, 'Select a sprite to edit its ops.')); return; }
-    tex.ops = tex.ops || [];
-    box.append(opsEditor(tex.ops, renderOps));
-  }
-  function opsEditor(ops, refresh, forcedIfs = []) {
-    const box = h('div', {class: 'ops'});
-    for (let i = 0; i < ops.length; i++) box.append(opCard(ops[i], i, ops, refresh, forcedIfs));
-    box.append(addOpRow(ops, refresh));
-    return box;
-  }
-  function addOpRow(ops, refresh) {
-    const sel = h('select', null, ...OP_KINDS.map(k => h('option', {value: k}, k)));
-    return h('div', {class: 'addop'}, sel,
-      h('button', {onclick: () => { ops.push(clone(OP_DEFAULTS[sel.value])); refresh(); preview(); }}, '+ op'));
-  }
-  function opCard(op, index, arr, refresh, forcedIfs = []) {
-    const thenForced = op.op === 'if' ? forcedIfs.concat({op, result: true}) : forcedIfs;
-    const elseForced = op.op === 'if' ? forcedIfs.concat({op, result: false}) : forcedIfs;
-    const body = h('div', {class: 'body'});
-    for (const f of OP_FIELDS[op.op] || []) body.append(opField(op, f, refresh, index, arr));
-    if (op.op === 'each' || op.op === 'repeat') {
-      op.ops = op.ops || [];
-      body.append(h('div', {class: 'sub-label'}, 'inside'), opsEditor(op.ops, refresh, forcedIfs));
-    } else if (op.op === 'if') {
-      op.then = op.then || []; op.else = op.else || [];
-      body.append(h('div', {class: 'sub-label'}, 'then'), opsEditor(op.then, refresh, thenForced));
-      body.append(h('div', {class: 'sub-label'}, 'else'), opsEditor(op.else, refresh, elseForced));
-    }
-    const actions = [
-      {label: 'Duplicate op', run: () => { arr.splice(index + 1, 0, clone(op)); refresh(); preview(); }},
-      ...(index > 0 ? [{label: 'Move up', run: () => { [arr[index - 1], arr[index]] = [arr[index], arr[index - 1]]; refresh(); preview(); }}] : []),
-      ...(index < arr.length - 1 ? [{label: 'Move down', run: () => { [arr[index + 1], arr[index]] = [arr[index], arr[index + 1]]; refresh(); preview(); }}] : []),
-      ...(op.op === 'if' ? [
-        {label: 'Draw then branch', run: () => openPixelEditor(op.then, thenForced, 'then')},
-        {label: 'Draw else branch', run: () => openPixelEditor(op.else, elseForced, 'else')}
-      ] : op.op === 'each' ? [
-        {label: 'Draw inside each', run: () => openPixelEditor(op.ops, forcedIfs, 'each')}
-      ] : []),
-      ...(op.op === 'repeat' ? [] : [{label: 'Edit sprite pixels', run: () => openPixelEditor(null, [])}]),
-      {separator: true},
-      {label: 'Delete op', danger: true, run: () => { arr.splice(index, 1); refresh(); preview(); }}
-    ];
-    const card = h('div', {class: 'op'},
-      h('header', null,
-        h('span', {class: 'kind'}, op.op),
-        h('button', {title: 'Move up', onclick: () => { if (index > 0) { [arr[index - 1], arr[index]] = [arr[index], arr[index - 1]]; refresh(); preview(); } }}, '↑'),
-        h('button', {title: 'Move down', onclick: () => { if (index < arr.length - 1) { [arr[index + 1], arr[index]] = [arr[index], arr[index + 1]]; refresh(); preview(); } }}, '↓'),
-        h('button', {title: 'Duplicate', onclick: () => { arr.splice(index + 1, 0, clone(op)); refresh(); preview(); }}, '⧉'),
-        h('button', {class: 'danger', title: 'Delete', onclick: () => { arr.splice(index, 1); refresh(); preview(); }}, '✕')
-      ),
-      body
-    );
-    if (op.op === 'if') {
-      body.prepend(
-        h('div', {class: 'row branch-actions'},
-          h('button', {onclick: () => openPixelEditor(op.then, thenForced, 'then')}, 'Draw then'),
-          h('button', {onclick: () => openPixelEditor(op.else, elseForced, 'else')}, 'Draw else')
-        )
-      );
-    } else if (op.op === 'each') {
-      body.prepend(h('div', {class: 'row branch-actions'},
-        h('button', {onclick: () => openPixelEditor(op.ops, forcedIfs, 'each')}, 'Draw inside')
-      ));
-    }
-    card.addEventListener('contextmenu', e => showContextMenu(e, actions));
-    return card;
-  }
-  function opField(op, f, refresh, index, arr) {
-    if (f === 'src') return field('png', pngControl(op, index, arr, refresh));
-    if (PAIR_FIELDS.has(f)) {
-      op[f] = op[f] || {};
-      return field(f, pairsEditor(op[f], () => preview()), f === 'params' ? 'passed to the used texture' : 'arguments for the capability');
-    }
-    if (RAW_FIELDS.has(f)) {
-      return field(f, textInput(op[f], v => {
-        if (!v) delete op[f]; else op[f] = v;
-        preview();
-        if (f === 'texture' || f === 'file') refresh();
-      }));
-    }
-    if (f === 'of' || f === 'at') {
-      return field(f, exprInput(op[f], v => { if (v === undefined) delete op[f]; else op[f] = v; preview(); }), 'a list of points, e.g. [[1,2],[3,4]]');
-    }
-    if (f === 'alpha') {
-      return field(f, exprInput(op[f], v => {
-        if (v === undefined) delete op[f]; else op[f] = v;
-        preview();
-      }), '0–1');
-    }
-    return field(f, exprInput(op[f], v => { if (v === undefined) delete op[f]; else op[f] = v; preview(); }));
-  }
-  // Every PNG that enters the studio becomes rect ops. An uploaded image is
-  // rasterized and spliced in place of this op; a legacy `png` op that is
-  // already embedded can be converted the same way.
-  function pngControl(op, index, arr, refresh) {
-    const box = h('div', {class: 'pngbox'});
-    const replaceWithRects = (img) => {
-      if (!img) { status('That PNG has not finished decoding.', 'bad'); return false; }
-      if (!Array.isArray(arr) || !Number.isInteger(index)) {
-        status('This PNG is nested; use “Bake PNGs” on the sprite instead.', 'bad');
-        return false;
-      }
-      const rects = imageToOps(img.data, img.w, img.h, op.x || 0, op.y || 0);
-      arr.splice(index, 1, ...rects);
-      refresh(); preview();
-      status(`Converted the PNG to ${plural(rects.length, 'rect op', 'rect ops')} (${Math.round(opBytes(rects) / 1024 * 10) / 10} KB).`, 'good');
-      return true;
-    };
-    const render = () => {
-      box.replaceChildren();
-      if (op.src) {
-        const km = op.src.startsWith('data:') ? ' · ' + Math.round((op.src.length * 3 / 4) / 1024) + ' KB' : '';
-        box.append(h('div', {class: 'row'},
-          op.src.startsWith('data:') ? h('img', {class: 'thumb', src: op.src, alt: ''}) : null,
-          h('span', {class: 'grow'}, h('small', null, (op.src.startsWith('data:') ? 'embedded PNG' : op.src) + km)),
-          h('button', {class: 'danger', onclick: () => { delete op.src; render(); preview(); }}, 'Remove')
-        ));
-        box.append(h('div', {class: 'row'},
-          h('button', {class: 'primary', onclick: async () => replaceWithRects(await imageForOp(op))}, 'Convert to rects')
-        ));
-        box.append(h('small', null, 'New uploads skip this step — they arrive as rect ops.'));
-      } else {
-        box.append(h('small', null, 'No image yet. Uploading converts it to rect ops.'));
-      }
-      const input = h('input', {type: 'file', accept: 'image/png,image/*', hidden: true});
-      input.addEventListener('change', async () => {
-        const file = input.files && input.files[0];
-        input.value = '';
-        if (!file) return;
-        try {
-          const uri = await readAsDataUri(file);
-          const img = await ensureImage(uri);
-          if (img && replaceWithRects(img)) return;
-        } catch (e) { status(e.message, 'bad'); }
-        render();
-      });
-      box.append(h('button', {type: 'button', onclick: () => input.click()}, op.src ? 'Replace PNG → rects' : 'Upload PNG → rects'), input);
-    };
-    render();
-    return box;
-  }
-
-  // -------------------------------------------------------------------
-  // Selection and item actions
-  // -------------------------------------------------------------------
-  function selectFamily(fam) {
-    if (!state.families[fam]) return;
-    edClearBuffer();
-    state.family = fam;
-    const names = Object.keys(state.families[fam].textures);
-    state.current = names[0] || null;
-    renderAll();
-  }
-  function selectTexture(name) {
-    if (!familyName() || !familyName().textures[name]) return;
-    edClearBuffer();
-    state.current = name;
-    renderAll();
-  }
-  function renderAll() {
-    renderLibrary();
-    renderTextureSettings();
-    renderFamilySettings();
-    renderOps();
-    setTab(state.tab);
-    preview();
-    edRender();
-  }
-
-  function renameFamily(raw) {
-    const name = String(raw || '').toLowerCase().replace(/[^a-z0-9_-]/g, '_').replace(/^_+|_+$/g, '');
-    const doc = familyName();
-    if (!doc) return;
-    if (!name) { renderFamilySettings(); return; }
-    if (name !== state.family) {
-      if (state.families[name]) { status('A family called "' + name + '" already exists.', 'bad'); renderFamilySettings(); return; }
-      delete state.families[state.family];
-      state.families[name] = doc;
-      doc.name = name;
-      state.family = name;
-    }
-    renderAll();
-  }
-  function renameTexture(raw) {
-    const doc = familyName();
-    if (!doc) return;
-    const name = String(raw || '').trim().replace(/[^A-Za-z0-9_]/g, '_');
-    if (!name) { renderTextureSettings(); return; }
-    if (name !== state.current) {
-      if (doc.textures[name]) { status('A sprite called "' + name + '" already exists.', 'bad'); renderTextureSettings(); return; }
-      const t = doc.textures[state.current];
-      delete doc.textures[state.current];
-      doc.textures[name] = t;
-      state.current = name;
-    }
-    renderAll();
-  }
-  function duplicateTexture() {
-    const doc = familyName(), tex = texDoc();
-    if (!doc || !tex) return;
-    edClearBuffer();
-    let n = state.current + '_copy', k = 1;
-    while (doc.textures[n]) n = state.current + '_copy' + (++k);
-    doc.textures[n] = clone(tex);
-    state.current = n;
-    renderAll();
-    status('Duplicated as ' + n + '.', 'good');
-  }
-  function deleteTexture(name = state.current) {
-    const doc = familyName();
-    if (!doc || !name || !doc.textures[name]) return;
-    if (!confirm('Delete sprite "' + name + '"? This cannot be undone.')) return;
-    delete doc.textures[name];
-    if (state.current === name) state.current = Object.keys(doc.textures)[0] || null;
-    edClearBuffer();
-    renderAll();
-    status('Deleted ' + name + '.', '');
-  }
-  function deleteFamily() {
-    if (!state.family) return;
-    if (!confirm('Delete the whole family "' + state.family + '"? This cannot be undone.')) return;
-    delete state.families[state.family];
-    const fam = Object.keys(state.families)[0];
-    state.family = fam || null;
-    state.current = fam ? Object.keys(state.families[fam].textures)[0] || null : null;
-    edClearBuffer();
-    renderAll();
-  }
-  function addBlankSprite() {
-    const doc = familyName();
-    if (!doc) { status('Create a family first.', 'bad'); return; }
-    let name = 'sprite', k = 1;
-    while (doc.textures[name]) name = 'sprite' + (++k);
-    edClearBuffer();
-    doc.textures[name] = blankTexture();
-    state.current = name;
-    renderAll();
-    setTab('pixels');
-    edClear();
-    status('New 9×9 sprite. Draw, then Apply to sprite.', 'good');
+  async function designFromPng(file) {
+    const t = tex();
+    if (!t) { status('Select a sprite first.', 'bad'); return; }
+    try {
+      const img = await decodeImage(await readFile(file));
+      const base = (file.name || 'design').replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_]/g, '_').toLowerCase() || 'design';
+      let name = base, k = 1;
+      while (t.designs[name]) name = base + '_' + (++k);
+      t.designs[name] = designFromImage(img);
+      state.design = name;
+      state.swatch = 1;
+      renderAll();
+      status('Added design ' + name + ' (' + img.w + '×' + img.h + ').', 'good');
+    } catch (e) { status(e.message, 'bad'); }
   }
 
   // -------------------------------------------------------------------
   // Import / export
   // -------------------------------------------------------------------
-  function toJSONC(doc) {
-    const body = JSON.stringify(clean(doc), null, 2);
-    if (body.length <= 2) return '{}\n';
-    return '{\n  // written by Texture Studio — JSONC: comments and trailing commas are allowed\n' + body.slice(2) + '\n';
+  function serialize(d) {
+    return HEADER + TEX.stringify(clean(d)) + '\n';
   }
-  function loadSavedChanges() {
+  function loadSaved() {
     let raw;
-    try { raw = localStorage.getItem(SAVED_CHANGES_KEY); }
-    catch (e) {
-      savedChangesNotice = 'Could not access saved texture changes: ' + e.message;
-      return;
-    }
+    try { raw = localStorage.getItem(SAVED_KEY); }
+    catch (e) { savedNotice = 'Could not read browser-saved changes: ' + e.message; return; }
     if (!raw) return;
     try {
       const saved = JSON.parse(raw);
-      if (!saved || saved.version !== 1 || !saved.families || typeof saved.families !== 'object' || Array.isArray(saved.families)) {
-        throw new Error('unrecognized saved data format');
-      }
-      for (const [name, doc] of Object.entries(saved.families)) {
-        if (!/^[a-z0-9_-]+$/i.test(name) || !doc || typeof doc !== 'object' ||
-            !doc.textures || typeof doc.textures !== 'object' || Array.isArray(doc.textures)) {
-          throw new Error('invalid texture family "' + name + '"');
-        }
-      }
+      if (!saved || saved.version !== 2 || !saved.families || typeof saved.families !== 'object') throw new Error('unrecognized saved data');
       state.families = Object.assign(Object.create(null), saved.families);
-      savedChangesNotice = 'Loaded saved editor-only texture changes from this browser.';
+      savedNotice = 'Loaded browser-saved texture changes.';
     } catch (e) {
-      savedChangesNotice = 'Could not load saved texture changes: ' + e.message + '. Using bundled textures.';
+      savedNotice = 'Could not load saved changes: ' + e.message;
     }
   }
   function saveChanges() {
     try {
-      localStorage.setItem(SAVED_CHANGES_KEY, JSON.stringify({version: 1, families: clean(state.families)}));
-      status('Saved texture changes in this browser only; gameplay files are unchanged.', 'good');
-    } catch (e) {
-      status('Could not save texture changes to this browser: ' + e.message, 'bad');
-    }
+      localStorage.setItem(SAVED_KEY, JSON.stringify({ version: 2, families: clean(state.families) }));
+      status('Saved in this browser only; the files in textures/ are unchanged.', 'good');
+    } catch (e) { status('Could not save: ' + e.message, 'bad'); }
   }
-  function clearSavedChanges() {
-    if (!confirm('Clear saved texture changes and restore the bundled editor textures? Unsaved edits will also be lost.')) return;
-    try {
-      localStorage.removeItem(SAVED_CHANGES_KEY);
-    } catch (e) {
-      status('Could not clear saved texture changes from this browser: ' + e.message, 'bad');
-      return;
-    }
-    state.families = Object.assign(Object.create(null), clone(bundledFamilies));
-    state.family = Object.keys(state.families).sort()[0] || null;
-    state.current = state.family ? Object.keys(state.families[state.family].textures)[0] || null : null;
-    edClearBuffer();
-    renderAll();
-    ensureAllImages();
-    status('Cleared saved texture changes. The editor is using bundled textures; gameplay files are unchanged.', 'good');
+  function clearSaved() {
+    if (!confirm('Clear browser-saved changes and reload the bundled textures?')) return;
+    try { localStorage.removeItem(SAVED_KEY); } catch (e) { status(e.message, 'bad'); return; }
+    state.families = Object.assign(Object.create(null), clone(bundled));
+    selectFamily(Object.keys(state.families).sort()[0] || null);
+    status('Restored the bundled textures.', 'good');
   }
   function download() {
-    const doc = familyName();
-    if (!doc) return;
-    const text = toJSONC(doc);
-    const blob = new Blob([text], {type: 'application/json'});
+    const d = doc();
+    if (!d) return;
+    const text = serialize(d);
+    const blob = new Blob([text], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = (doc.name || state.family) + '.texture';
-    document.body.append(a); a.click(); a.remove();
+    a.download = (d.name || state.family) + '.texture';
+    document.body.append(a);
+    a.click();
+    a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
     status('Downloaded ' + a.download + ' (' + Math.round(text.length / 1024) + ' KB).', 'good');
   }
-  function importTextureText(text, sourceName) {
-    const doc = TEX.parse(text);
-    if (!doc || typeof doc !== 'object' || !doc.textures) throw new Error('no "textures" object');
-    const fam = (doc.name || sourceName.replace(/\.texture$/i, '') || 'imported').replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
-    doc.name = fam;
-    edClearBuffer();
-    state.families[fam] = doc;
-    state.family = fam;
-    state.current = Object.keys(doc.textures)[0] || null;
-    renderAll();
-    status('Imported ' + sourceName + '.', 'good');
+  function importText(text, sourceName) {
+    const d = TEX.parse(text);
+    if (!d || !d.textures) throw new Error('no "textures" object');
+    if (d.format !== TEX.FORMAT) throw new Error('expected ' + TEX.FORMAT + ', got ' + (d.format || 'nothing'));
+    const fam = (d.name || sourceName.replace(/\.texture$/i, '') || 'imported').replace(/[^A-Za-z0-9_-]/g, '_').toLowerCase();
+    d.name = fam;
+    state.families[fam] = d;
+    selectFamily(fam);
   }
   async function importFiles(files) {
     for (const file of files) {
-      try { importTextureText(await file.text(), file.name); }
+      try { importText(await file.text(), file.name); status('Imported ' + file.name + '.', 'good'); }
       catch (e) { status('Could not import ' + file.name + ': ' + e.message, 'bad'); }
     }
-    ensureAllImages();
-  }
-  function importPastedTexture() {
-    const text = $('pasteTextureText').value.trim();
-    if (!text) { status('Paste .texture file contents first.', 'bad'); return; }
-    try {
-      importTextureText(text, 'pasted.texture');
-      $('pasteTextureDialog').close();
-      $('pasteTextureText').value = '';
-      ensureAllImages();
-    } catch (e) {
-      status('Could not import pasted texture: ' + e.message, 'bad');
-    }
-  }
-  async function newSprite(file) {
-    try {
-      const uri = await readAsDataUri(file);
-      const img = await ensureImage(uri);
-      const base = (file.name || 'sprite').replace(/\.[^.]+$/, '').replace(/[^a-z0-9_-]/gi, '_').toLowerCase() || 'sprite';
-      if (!state.family) { state.families.props = blankDoc('props'); state.family = 'props'; }
-      const doc = familyName();
-      let name = base, k = 1;
-      while (doc.textures[name]) name = base + '_' + (++k);
-      const ops = imageToOps(img.data, img.w, img.h);
-      edClearBuffer();
-      doc.textures[name] = {size: [img.w, img.h], params: {}, ops};
-      state.current = name;
-      renderAll();
-      status(`Added ${name} (${img.w}×${img.h}) as ${plural(ops.length, 'rect op', 'rect ops')}, ${Math.round(opBytes(ops) / 1024 * 10) / 10} KB.`, 'good');
-    } catch (e) { status(e.message, 'bad'); }
   }
 
-  // ===================================================================
-  // Pixel editor
-  // ===================================================================
-  const ED = {
-    data: null, w: 0, h: 0, base: null, baseW: 0, baseH: 0, zoom: 8, tool: 'pencil', size: 1,
-    color: {r: 255, g: 255, b: 255, a: 255},
-    undo: [], redo: [], recent: [],
-    target: null,
-    start: null, snapshot: null, strokeErase: false,
-  };
-  const ED_LIMIT = 24;
-
-  const edIdx = (x, y) => (y * ED.w + x) * 4;
-  function pathValue(root, path) {
-    let value = root;
-    for (const part of path) value = value[part];
-    return value;
-  }
-  function findNodePath(ops, target, path = []) {
-    if (ops === target) return path;
-    if (!Array.isArray(ops)) return null;
-    for (let i = 0; i < ops.length; i++) {
-      const op = ops[i];
-      if (op === target) return path.concat(i);
-      for (const key of ['ops', 'then', 'else']) {
-        const found = findNodePath(op[key], target, path.concat(i, key));
-        if (found) return found;
-      }
-    }
-    return null;
-  }
-  function editorTargetPaths(sourceOps, targetOps) {
-    if (!ED.target) return null;
-    const path = findNodePath(sourceOps, ED.target.list);
-    if (!path || !Array.isArray(pathValue(targetOps, path))) return null;
-    const forcedIfs = [];
-    for (const forced of ED.target.forcedIfs) {
-      const forcedPath = findNodePath(sourceOps, forced.op);
-      if (!forcedPath || pathValue(targetOps, forcedPath) == null) return null;
-      forcedIfs.push({path: forcedPath, result: forced.result});
-    }
-    return {path, forcedIfs};
-  }
-  function renderForEditor() {
-    const files = {};
-    for (const fam of Object.keys(state.families)) files[fam] = clone(state.families[fam]);
-    const tex = files[state.family].textures[state.current];
-    if (ED.target) {
-      const targetPaths = editorTargetPaths(texDoc().ops, tex.ops);
-      if (!targetPaths) throw new Error('The selected op was removed. Choose a draw target again.');
-      for (const forced of targetPaths.forcedIfs) pathValue(tex.ops, forced.path).test = forced.result;
-    }
-    const problems = [], images = {};
-    for (const fam of Object.keys(files)) {
-      for (const name of Object.keys(files[fam].textures || {})) {
-        resolvePng(files[fam].textures[name].ops, fam, images, problems);
-      }
-    }
-    if (problems.length) throw new Error(problems[0]);
-    TEX.defineImages(images);
-    TEX.define(files);
-    TEX.clear();
-    return TEX.render(state.family, state.current, testParams(), 'pixel-editor' + (state.rev++));
-  }
-  function openPixelEditor(list, forcedIfs, kind) {
-    ED.target = list ? {list, forcedIfs, kind} : null;
-    updatePixelTargetLabel();
-    edLoadSprite();
-    setTab('pixels');
-  }
-  function updatePixelTargetLabel() {
-    const target = ED.target;
-    const destination = target && target.kind;
-    const label = !target ? 'Drawing into whole sprite'
-      : destination === 'each' ? 'Drawing inside each op'
-        : `Drawing into ${destination} branch`;
-    $('edTargetLabel').textContent = label;
-    $('edApplyMode').disabled = destination === 'each';
-    if ($('edApplyMode').disabled) $('edApplyMode').value = 'patch';
-  }
-  function invalidateEditorTarget() {
-    ED.target = null;
-    ED.data = null;
-    ED.base = null;
-    ED.undo = [];
-    ED.redo = [];
-    $('edApplyMode').value = 'patch';
-    updatePixelTargetLabel();
-    edRender();
-  }
-  function edEnsure(w, hpx) {
-    w = Math.max(1, Math.min(256, Math.round(w)));
-    hpx = Math.max(1, Math.min(256, Math.round(hpx)));
-    if (ED.data && ED.w === w && ED.h === hpx) return;
-    const next = new Uint8ClampedArray(w * hpx * 4);
-    if (ED.data) {
-      const cw = Math.min(w, ED.w), ch = Math.min(hpx, ED.h);
-      for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
-        const from = (y * ED.w + x) * 4, to = (y * w + x) * 4;
-        next[to] = ED.data[from]; next[to + 1] = ED.data[from + 1];
-        next[to + 2] = ED.data[from + 2]; next[to + 3] = ED.data[from + 3];
-      }
-    }
-    ED.data = next; ED.w = w; ED.h = hpx;
-    ED.undo = []; ED.redo = [];
-    $('edW').value = w; $('edH').value = hpx;
-  }
-  function edClearBuffer() {
-    invalidateEditorTarget();
-    $('edLoad').disabled = false;
-  }
-  function edClear() {
-    const tex = texDoc();
-    const w = tex && tex.size ? tex.size[0] : 9;
-    const hpx = tex && tex.size ? tex.size[1] : 9;
-    ED.data = new Uint8ClampedArray(w * hpx * 4);
-    ED.w = w; ED.h = hpx;
-    ED.base = null;
-    ED.undo = []; ED.redo = [];
-    $('edW').value = w; $('edH').value = hpx;
-    edRender();
-    status(`Cleared a ${w}×${hpx} canvas.`, '');
-  }
-  function edLoadSprite() {
-    if (!state.current) { status('Select a sprite first.', 'bad'); return; }
-    try {
-      const t = renderForEditor();
-      if (ED.target) draw(t);
-      const g = t.canvas.getContext('2d');
-      const img = g.getImageData(0, 0, t.canvas.width, t.canvas.height);
-      ED.w = img.width; ED.h = img.height;
-      ED.data = new Uint8ClampedArray(img.data);
-      ED.base = new Uint8ClampedArray(img.data);
-      ED.baseW = ED.w; ED.baseH = ED.h;
-      ED.undo = []; ED.redo = [];
-      $('edW').value = ED.w; $('edH').value = ED.h;
-      edFitZoom();
-      edRender();
-      status(`Loaded ${state.current} (${ED.w}×${ED.h}) into the pixel editor${ED.target ? ' for ' + ED.target.kind : ''}.`, 'good');
-    } catch (e) { status('Could not load the sprite: ' + e.message, 'bad'); }
-  }
-  function edFitZoom() {
-    const avail = Math.max(120, Math.min(360, innerWidth * 0.3));
-    ED.zoom = Math.max(1, Math.min(24, Math.floor(avail / Math.max(ED.w, ED.h))));
-    $('edZoom').value = ED.zoom;
-  }
-  function edPushUndo() {
-    if (!ED.data) return;
-    ED.undo.push(new Uint8ClampedArray(ED.data));
-    if (ED.undo.length > ED_LIMIT) ED.undo.shift();
-    ED.redo.length = 0;
-  }
-  function edUndo() {
-    if (!ED.undo.length) return;
-    ED.redo.push(new Uint8ClampedArray(ED.data));
-    ED.data = ED.undo.pop();
-    edRender();
-  }
-  function edRedo() {
-    if (!ED.redo.length) return;
-    ED.undo.push(new Uint8ClampedArray(ED.data));
-    ED.data = ED.redo.pop();
-    edRender();
-  }
-
-  function edSet(x, y, r, g, b, a) {
-    if (x < 0 || y < 0 || x >= ED.w || y >= ED.h) return;
-    const o = edIdx(x, y);
-    ED.data[o] = r; ED.data[o + 1] = g; ED.data[o + 2] = b; ED.data[o + 3] = a;
-  }
-  function edStamp(x, y, erase) {
-    const {r, g, b, a} = ED.color;
-    const half = (ED.size - 1) >> 1;
-    for (let dy = 0; dy < ED.size; dy++) for (let dx = 0; dx < ED.size; dx++) {
-      const px = x - half + dx, py = y - half + dy;
-      if (ED.tool === 'dither' && !erase) {
-        if (((px + py) & 1) !== 0) continue;
-        edSet(px, py, r, g, b, a);
-      } else if (ED.tool === 'eraser' || erase) edSet(px, py, 0, 0, 0, 0);
-      else edSet(px, py, r, g, b, a);
-    }
-  }
-  function edFill(x, y, erase) {
-    if (x < 0 || y < 0 || x >= ED.w || y >= ED.h) return;
-    const o = edIdx(x, y);
-    const target = [ED.data[o], ED.data[o + 1], ED.data[o + 2], ED.data[o + 3]];
-    const {r, g, b, a} = erase ? {r: 0, g: 0, b: 0, a: 0} : ED.color;
-    if (target[0] === r && target[1] === g && target[2] === b && target[3] === a) return;
-    const stack = [[x, y]];
-    const seen = new Uint8Array(ED.w * ED.h);
-    while (stack.length) {
-      const [cx, cy] = stack.pop();
-      if (cx < 0 || cy < 0 || cx >= ED.w || cy >= ED.h) continue;
-      const p = cy * ED.w + cx;
-      if (seen[p]) continue;
-      const q = p * 4;
-      if (ED.data[q] !== target[0] || ED.data[q + 1] !== target[1] || ED.data[q + 2] !== target[2] || ED.data[q + 3] !== target[3]) continue;
-      seen[p] = 1;
-      ED.data[q] = r; ED.data[q + 1] = g; ED.data[q + 2] = b; ED.data[q + 3] = a;
-      stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
-    }
-  }
-  function edLine(x0, y0, x1, y1) {
-    let dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0);
-    const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
-    let err = dx + dy;
-    for (;;) {
-      edStamp(x0, y0, ED.strokeErase);
-      if (x0 === x1 && y0 === y1) break;
-      const e2 = 2 * err;
-      if (e2 >= dy) { err += dy; x0 += sx; }
-      if (e2 <= dx) { err += dx; y0 += sy; }
-    }
-  }
-  function edRect(x0, y0, x1, y1, outline) {
-    const ax = Math.min(x0, x1), bx = Math.max(x0, x1), ay = Math.min(y0, y1), by = Math.max(y0, y1);
-    const {r, g, b, a} = ED.color;
-    for (let y = ay; y <= by; y++) for (let x = ax; x <= bx; x++) {
-      if (outline && x !== ax && x !== bx && y !== ay && y !== by) continue;
-      if (ED.strokeErase) edSet(x, y, 0, 0, 0, 0);
-      else edSet(x, y, r, g, b, a);
-    }
-  }
-  function edPick(x, y) {
-    if (x < 0 || y < 0 || x >= ED.w || y >= ED.h) return;
-    const o = edIdx(x, y);
-    ED.color = {r: ED.data[o], g: ED.data[o + 1], b: ED.data[o + 2], a: ED.data[o + 3]};
-    edSyncColor();
-    status(`Picked rgba(${ED.color.r},${ED.color.g},${ED.color.b},${ED.color.a}).`, '');
-  }
-  function edSyncColor() {
-    const {r, g, b, a} = ED.color;
-    const hex = '#' + hex2(r) + hex2(g) + hex2(b);
-    $('edColor').value = hex;
-    $('edAlpha').value = a;
-    $('edAlphaValue').textContent = a;
-    $('edHex').value = a === 255 ? hex : hex + hex2(a);
-    $('edSwatch').firstElementChild.style.background = `rgba(${r},${g},${b},${a / 255})`;
-  }
-  function edParseHex(text) {
-    const m = /^#?([0-9a-f]{3,8})$/i.exec(String(text || '').trim());
-    if (!m) return false;
-    let v = m[1];
-    if (v.length === 3) v = v.split('').map(c => c + c).join('');
-    if (v.length === 4) v = v.split('').map(c => c + c).join('');
-    if (v.length !== 6 && v.length !== 8) return false;
-    ED.color = {
-      r: parseInt(v.slice(0, 2), 16), g: parseInt(v.slice(2, 4), 16), b: parseInt(v.slice(4, 6), 16),
-      a: v.length === 8 ? parseInt(v.slice(6, 8), 16) : 255,
-    };
-    edSyncColor();
-    return true;
-  }
-  function edRememberColor() {
-    const c = Object.assign({}, ED.color);
-    const key = colorString(c.r, c.g, c.b, c.a);
-    ED.recent = ED.recent.filter(o => colorString(o.r, o.g, o.b, o.a) !== key);
-    ED.recent.unshift(c);
-    ED.recent = ED.recent.slice(0, 16);
-    edRenderRecent();
-  }
-  function edRenderRecent() {
-    const box = $('edRecent');
-    box.replaceChildren(...ED.recent.map(c => {
-      const css = colorString(c.r, c.g, c.b, c.a);
-      return h('button', {title: css, style: `background:${css}`, onclick: () => {
-        ED.color = Object.assign({}, c);
-        edSyncColor();
-      }});
-    }));
-  }
-
-  function edRender() {
-    const cv = $('pixelCanvas');
-    if (!ED.data) {
-      cv.width = 90; cv.height = 90;
-      const g = cv.getContext('2d');
-      g.clearRect(0, 0, 90, 90);
-      return;
-    }
-    const z = ED.zoom;
-    cv.width = ED.w * z; cv.height = ED.h * z;
-    const g = cv.getContext('2d');
-    g.imageSmoothingEnabled = false;
-    for (let y = 0; y < cv.height; y += z) for (let x = 0; x < cv.width; x += z) {
-      g.fillStyle = (((x / z) + (y / z)) & 1) ? '#1b2233' : '#151a27';
-      g.fillRect(x, y, z, z);
-    }
-    const tmp = document.createElement('canvas');
-    tmp.width = ED.w; tmp.height = ED.h;
-    const tg = tmp.getContext('2d');
-    const img = tg.createImageData(ED.w, ED.h);
-    img.data.set(ED.data);
-    tg.putImageData(img, 0, 0);
-    g.drawImage(tmp, 0, 0, cv.width, cv.height);
-    if (z >= 6) {
-      g.strokeStyle = 'rgba(255,255,255,.08)';
-      g.lineWidth = 1;
-      g.beginPath();
-      for (let x = 0; x <= ED.w; x++) { g.moveTo(x * z + .5, 0); g.lineTo(x * z + .5, cv.height); }
-      for (let y = 0; y <= ED.h; y++) { g.moveTo(0, y * z + .5); g.lineTo(cv.width, y * z + .5); }
-      g.stroke();
-    }
-  }
-
-  function edCell(e) {
-    const cv = $('pixelCanvas');
-    const r = cv.getBoundingClientRect();
-    return {
-      x: Math.floor((e.clientX - r.left) / r.width * ED.w),
-      y: Math.floor((e.clientY - r.top) / r.height * ED.h),
-    };
-  }
-  // Only the pixels that differ from the render the canvas was loaded from.
-  // Erasures become `clear` ops, so an op tree full of ifs can be patched
-  // without being flattened.
-  function patchFromBase(data, w, h, base, bw, bh) {
-    const add = new Uint8ClampedArray(w * h * 4);
-    const cut = new Uint8ClampedArray(w * h * 4);
-    const same = (i, r, g, b, a) => {
-      if (!base || i >= bw * bh) return false;
-      const o = i * 4;
-      return base[o] === r && base[o + 1] === g && base[o + 2] === b && base[o + 3] === a;
-    };
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-      const i = y * w + x, o = i * 4;
-      const r = data[o], g = data[o + 1], b = data[o + 2], a = data[o + 3];
-      if (same(i, r, g, b, a)) continue;
-      if (a === 0) { cut[o] = cut[o + 1] = cut[o + 2] = cut[o + 3] = 255; }
-      else { add[o] = r; add[o + 1] = g; add[o + 2] = b; add[o + 3] = a; }
-    }
-    const clears = imageToOps(cut, w, h).map(op => ({op: 'clear', x: op.x, y: op.y, w: op.w, h: op.h}));
-    return [...clears, ...imageToOps(add, w, h)];
-  }
-  function edApply() {
-    const tex = texDoc();
-    if (!tex) { status('Select a sprite first.', 'bad'); return; }
-    if (!ED.data) { status('Load or clear a canvas first.', 'bad'); return; }
-    const mode = ED.target && ED.target.kind === 'each'
-      ? 'patch' : (($('edApplyMode') && $('edApplyMode').value) || 'patch');
-    const flat = imageToOps(ED.data, ED.w, ED.h);
-    tex.size = [ED.w, ED.h];
-    let applied = flat, how = 'replaced';
-    if (mode === 'patch') {
-      if (!ED.base) { status('Use “Ops → pixels” first so there is a baseline to patch.', 'bad'); return; }
-      const patch = patchFromBase(ED.data, ED.w, ED.h, ED.base, ED.baseW, ED.baseH);
-      if (!patch.length) { status('No pixels changed, so the ops were left alone.', ''); return; }
-      if (ED.target) {
-        if (!findNodePath(tex.ops || [], ED.target.list)) {
-          invalidateEditorTarget();
-          status('The selected op was removed. Reload the sprite before applying.', 'bad');
-          return;
-        }
-        ED.target.list.push(...patch);
-      } else {
-        tex.ops = [...(tex.ops || []), ...patch];
-      }
-      applied = patch; how = 'patched';
-    } else {
-      if (ED.target) {
-        if (!findNodePath(tex.ops || [], ED.target.list)) {
-          invalidateEditorTarget();
-          status('The selected op was removed. Reload the sprite before applying.', 'bad');
-          return;
-        }
-        ED.target.list.splice(0, ED.target.list.length, {op: 'clear', x: 0, y: 0, w: ED.w, h: ED.h}, ...flat);
-      } else {
-        tex.ops = flat;
-      }
-    }
-    ED.base = new Uint8ClampedArray(ED.data); ED.baseW = ED.w; ED.baseH = ED.h;
-    renderOps(); renderTextureSettings(); renderLibrary(); preview();
-    status(`${how} ${ED.w}×${ED.h} with ${plural(applied.length, 'op', 'ops')} (${Math.round(opBytes(applied) / 1024 * 10) / 10} KB).`, 'good');
+  // -------------------------------------------------------------------
+  // Zoom
+  // -------------------------------------------------------------------
+  function fitZoom(w, hgt) {
+    const avail = Math.max(180, Math.min(520, Math.min(innerWidth * 0.5, innerHeight * 0.45)));
+    return clamp(Math.floor(avail / Math.max(w, hgt)), 1, 20);
   }
 
   // -------------------------------------------------------------------
@@ -1454,168 +1582,189 @@
   // -------------------------------------------------------------------
   $('familySelect').addEventListener('change', e => selectFamily(e.target.value));
   $('newFamily').addEventListener('click', () => {
-    let name = 'props', k = 1;
-    while (state.families[name]) name = 'family' + (++k);
-    state.families[name] = blankDoc(name);
-    state.family = name;
-    state.current = null;
-    renderAll();
+    const name = (prompt('Family name (lower_snake_case)', 'props') || '').trim().replace(/[^A-Za-z0-9_-]/g, '_').toLowerCase();
+    if (!name) return;
+    if (state.families[name]) { status('That family already exists.', 'bad'); return; }
+    state.families[name] = blankFamily(name);
+    selectFamily(name);
     status('New family. Add a sprite to start painting.', 'good');
   });
   $('addTexForm').addEventListener('submit', e => {
     e.preventDefault();
-    const doc = familyName();
-    if (!doc) { status('Create or import a family first.', 'bad'); return; }
-    const input = $('addTexName');
-    const name = (input.value || '').trim().replace(/[^A-Za-z0-9_]/g, '_') || 'texture';
-    if (doc.textures[name]) { status('"' + name + '" already exists.', 'bad'); return; }
-    edClearBuffer();
-    doc.textures[name] = blankTexture();
-    state.current = name;
-    input.value = '';
+    const d = doc();
+    if (!d) { status('Create a family first.', 'bad'); return; }
+    const name = ($('addTexName').value || '').trim().replace(/[^A-Za-z0-9_]/g, '_');
+    if (!name) return;
+    if (d.textures[name]) { status('"' + name + '" already exists.', 'bad'); return; }
+    d.textures[name] = blankTexture();
+    $('addTexName').value = '';
+    state.sprite = name;
+    state.design = 'base';
+    state.swatch = 1;
     renderAll();
   });
   $('newBlankSprite').addEventListener('click', addBlankSprite);
-  $('opToPixels').addEventListener('click', () => openPixelEditor(null, []));
+  $('newSprite').addEventListener('click', () => $('spriteFile').click());
+  $('spriteFile').addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (f) spriteFromPng(f);
+  });
+  $('addDesignPng').addEventListener('click', () => $('designFile').click());
+  $('designFile').addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (f) designFromPng(f);
+  });
   $('importBtn').addEventListener('click', () => $('importFile').click());
-  $('pasteTextureBtn').addEventListener('click', () => {
-    $('pasteTextureText').value = '';
-    $('pasteTextureDialog').showModal();
-    $('pasteTextureText').focus();
-  });
-  $('cancelPasteTexture').addEventListener('click', () => $('pasteTextureDialog').close());
-  $('pasteTextureForm').addEventListener('submit', e => {
-    e.preventDefault();
-    importPastedTexture();
-  });
   $('importFile').addEventListener('change', e => {
     const files = [...(e.target.files || [])];
     e.target.value = '';
     if (files.length) importFiles(files);
   });
-  $('newSprite').addEventListener('click', () => $('spriteFile').click());
-  $('spriteFile').addEventListener('change', e => {
-    const file = e.target.files && e.target.files[0];
-    e.target.value = '';
-    if (file) newSprite(file);
-  });
-  $('bakeAll').addEventListener('click', bakeAllPngs);
   $('download').addEventListener('click', download);
-  $('saveChanges').addEventListener('click', saveChanges);
-  $('clearSavedChanges').addEventListener('click', clearSavedChanges);
   $('copy').addEventListener('click', async () => {
-    const doc = familyName();
-    if (!doc) return;
-    try { await navigator.clipboard.writeText(toJSONC(doc)); status('Copied the .texture text.', 'good'); }
+    const d = doc();
+    if (!d) return;
+    try { await navigator.clipboard.writeText(serialize(d)); status('Copied the .texture text.', 'good'); }
     catch (e) { status('Clipboard blocked by the browser. Use Download instead.', 'bad'); }
   });
-  $('zoom').addEventListener('input', e => { state.scale = +e.target.value; preview(); });
-  $('showGrid').addEventListener('change', e => { state.grid = e.target.checked; preview(); });
-  $('showMarks').addEventListener('change', e => { state.marks = e.target.checked; preview(); });
-  $('addDef').addEventListener('click', () => {
-    const doc = familyName();
-    if (!doc) return;
-    doc.defs = doc.defs || {};
-    let n = 'def', k = 1;
-    while (Object.prototype.hasOwnProperty.call(doc.defs, n)) n = 'def' + (++k);
-    doc.defs[n] = '#ffffff';
-    renderDefs(); preview();
+  $('saveChanges').addEventListener('click', saveChanges);
+  $('clearSavedChanges').addEventListener('click', clearSaved);
+  $('deleteSprite').addEventListener('click', () => state.sprite && deleteSprite(state.sprite));
+  $('deleteFamily').addEventListener('click', deleteFamily);
+  $('addDesign').addEventListener('click', addDesign);
+  $('delDesign').addEventListener('click', deleteDesign);
+  $('addCondition').addEventListener('click', () => {
+    const t = tex();
+    if (!t) return;
+    t.conditions.push({ when: 'true', design: state.design || t.default });
+    renderConditions();
+    renderCanvas();
+    scheduleValidate();
   });
-  for (const b of document.querySelectorAll('#tabs button')) b.addEventListener('click', () => setTab(b.dataset.tab));
-
-  // Pixel editor wiring
-  for (const b of document.querySelectorAll('#edTools button')) b.addEventListener('click', () => {
-    ED.tool = b.dataset.tool;
-    for (const o of document.querySelectorAll('#edTools button')) o.classList.toggle('on', o === b);
+  $('conditionFilter').addEventListener('input', applyConditionFilter);
+  $('resetTest').addEventListener('click', () => {
+    delete state.test[testKey()];
+    renderTestParams();
+    renderDesignStrip();
+    renderPalette();
+    renderSwatchEditor();
+    renderCanvas();
   });
-  $('edColor').addEventListener('input', e => edParseHex(e.target.value));
-  $('edHex').addEventListener('change', e => { if (!edParseHex(e.target.value)) status('Use #rgb, #rrggbb or #rrggbbaa.', 'bad'); });
-  $('edAlpha').addEventListener('input', e => {
-    ED.color.a = +e.target.value;
-    $('edAlphaValue').textContent = ED.color.a;
-    edSyncColor();
+  $('clearMarks').addEventListener('click', () => {
+    const t = tex();
+    if (!t) return;
+    t.marks = {};
+    renderMarks();
+    renderCanvas();
+    scheduleValidate();
   });
-  $('edSize').addEventListener('input', e => { ED.size = +e.target.value; $('edSizeValue').textContent = ED.size; });
-  $('edAddSwatch').addEventListener('click', edRememberColor);
-  $('edUndo').addEventListener('click', edUndo);
-  $('edRedo').addEventListener('click', edRedo);
-  $('edLoad').addEventListener('click', edLoadSprite);
-  $('edClear').addEventListener('click', edClear);
-  $('edApply').addEventListener('click', edApply);
-  $('edResize').addEventListener('click', () => {
-    const w = Math.round(Number($('edW').value)), hpx = Math.round(Number($('edH').value));
-    if (!Number.isFinite(w) || !Number.isFinite(hpx) || w < 1 || hpx < 1 || w > 256 || hpx > 256) {
-      status('Sizes go from 1 to 256.', 'bad'); return;
+  $('paintColor').addEventListener('change', e => applyPaintColor(e.target.value));
+  $('paintHex').addEventListener('change', e => {
+    const text = e.target.value.trim();
+    if (!/^#?([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(text)) {
+      status('Use a hex colour like #rrggbb.', 'bad');
+      updatePaintColor();
+      return;
     }
-    if (!ED.data) ED.data = new Uint8ClampedArray(w * hpx * 4);
-    edEnsure(w, hpx);
-    edFitZoom();
-    edRender();
+    const hex = toHexColor(text);
+    e.target.value = hex;
+    $('paintColor').value = hex;
+    applyPaintColor(hex);
   });
-  $('edZoom').addEventListener('input', e => { ED.zoom = +e.target.value; edRender(); });
+  $('paintAdd').addEventListener('click', () => applyPaintColor($('paintColor').value));
+  $('zoom').addEventListener('input', e => { state.zoom = +e.target.value; renderCanvas(); });
+  $('showGrid').addEventListener('change', e => { state.grid = e.target.checked; renderCanvas(); });
+  $('showMarks').addEventListener('change', e => { state.showMarks = e.target.checked; renderCanvas(); });
+  $('markType').addEventListener('change', e => { state.markType = e.target.value; });
+  for (const b of document.querySelectorAll('#tools button[data-tool]')) {
+    b.addEventListener('click', () => { state.tool = b.dataset.tool; updateMarkControls(); renderCanvas(); });
+  }
+  $('undo').addEventListener('click', undo);
+  $('redo').addEventListener('click', redo);
+  // Buttons live in <summary> headers; don't let their clicks fold the panel.
+  for (const b of document.querySelectorAll('#inspector summary button')) {
+    b.addEventListener('click', e => e.stopPropagation());
+  }
 
-  const pcv = $('pixelCanvas');
-  pcv.addEventListener('contextmenu', e => e.preventDefault());
-  document.addEventListener('pointerdown', e => {
-    if (state.opMenu && !state.opMenu.contains(e.target)) closeContextMenu();
+  const cv = $('canvas');
+  cv.addEventListener('contextmenu', e => e.preventDefault());
+  cv.addEventListener('pointermove', e => {
+    const t = tex();
+    if (!t) return;
+    const c = canvasCell(e);
+    $('cursorInfo').textContent = c.x + ',' + c.y + '  ' + rowChar(c.x, c.y) + '  swatch ' + state.swatch;
   });
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeContextMenu();
-  });
-  addEventListener('scroll', closeContextMenu, true);
-  pcv.addEventListener('pointerdown', e => {
-    if (!ED.data) { status('Click “Load sprite” or “Clear” to start a canvas.', 'bad'); return; }
+  cv.addEventListener('pointerdown', e => {
+    const t = tex(), d = design();
+    if (!t || !d) return;
     e.preventDefault();
-    pcv.setPointerCapture(e.pointerId);
-    const c = edCell(e);
-    if (ED.tool === 'pick') { edPick(c.x, c.y); return; }
-    ED.strokeErase = e.button === 2 || e.buttons === 2;
-    edPushUndo();
-    ED.start = {x: c.x, y: c.y};
-    ED.moved = false;
-    ED.snapshot = new Uint8ClampedArray(ED.data);
-    if (ED.tool === 'fill') { edFill(c.x, c.y, ED.strokeErase); edRender(); }
-    else if (ED.tool === 'line' || ED.tool === 'rect' || ED.tool === 'frame') { /* wait for move */ }
-    else edStamp(c.x, c.y, ED.strokeErase);
-    edRender();
-  });
-  pcv.addEventListener('pointermove', e => {
-    if (!ED.start || !ED.data) return;
-    const c = edCell(e);
-    if (c.x !== ED.start.x || c.y !== ED.start.y) ED.moved = true;
-    if (ED.tool === 'line' || ED.tool === 'rect' || ED.tool === 'frame') {
-      ED.data.set(ED.snapshot);
-      if (ED.tool === 'line') edLine(ED.start.x, ED.start.y, c.x, c.y);
-      else edRect(ED.start.x, ED.start.y, c.x, c.y, ED.tool === 'frame');
-    } else if (ED.tool !== 'fill') {
-      const last = ED.last || ED.start;
-      if (last.x !== c.x || last.y !== c.y) edLine(last.x, last.y, c.x, c.y);
-      ED.last = c;
+    cv.setPointerCapture(e.pointerId);
+    const c = canvasCell(e);
+    if (state.tool === 'group') { toggleGroupPixel(c.x, c.y); return; }
+    if (state.tool === 'pick') {
+      const ch = rowChar(c.x, c.y);
+      const idx = TEX.ALPHABET.indexOf(ch);
+      if (idx >= 0) { state.swatch = idx; renderPalette(); renderSwatchEditor(); }
+      return;
     }
-    edRender();
+    if (state.tool === 'marker') { toggleMark(c.x, c.y); return; }
+    pushUndo();
+    const erase = e.button === 2 || (e.buttons & 2) === 2;
+    const ch = (state.tool === 'eraser' || erase) ? '.' : swatchChar();
+    state.drag = { tool: state.tool, ch, x0: c.x, y0: c.y, rows: d.rows.slice() };
+    state.last = { x: c.x, y: c.y };
+    if (state.tool === 'fill') fillPixels(c.x, c.y);
+    else if (state.tool === 'pencil' || state.tool === 'eraser') putPixel(c.x, c.y, ch);
+    if (groupData(d)) rebuildGroupPalette(d);
+    renderCanvas();
+    updateThumb();
   });
-  pcv.addEventListener('pointerup', () => {
-    if (ED.start && !ED.moved && (ED.tool === 'line' || ED.tool === 'rect' || ED.tool === 'frame')) {
-      ED.data.set(ED.snapshot);
-      if (ED.tool === 'line') edStamp(ED.start.x, ED.start.y, ED.strokeErase);
-      else edRect(ED.start.x, ED.start.y, ED.start.x, ED.start.y, ED.tool === 'frame');
+  cv.addEventListener('pointermove', e => {
+    if (!state.drag) return;
+    const d = design();
+    if (!d) return;
+    const c = canvasCell(e);
+    const drag = state.drag;
+    if (drag.tool === 'line' || drag.tool === 'rect') {
+      d.rows = drag.rows.slice();
+      if (drag.tool === 'line') paintLine(drag.x0, drag.y0, c.x, c.y, drag.ch);
+      else paintRect(drag.x0, drag.y0, c.x, c.y, drag.ch);
+    } else if (drag.tool === 'pencil' || drag.tool === 'eraser') {
+      if (state.last && (state.last.x !== c.x || state.last.y !== c.y)) {
+        paintLine(state.last.x, state.last.y, c.x, c.y, drag.ch);
+      }
+      state.last = { x: c.x, y: c.y };
     }
-    edRender();
-    ED.start = null; ED.snapshot = null; ED.last = null; ED.moved = false;
+    if (groupData(d)) rebuildGroupPalette(d);
+    renderCanvas();
+    updateThumb();
   });
-  pcv.addEventListener('pointercancel', () => { ED.start = null; ED.snapshot = null; ED.last = null; ED.moved = false; });
+  cv.addEventListener('pointerup', () => {
+    if (!state.drag) return;
+    state.drag = null;
+    state.last = null;
+    if (groupData()) rebuildGroupPalette();
+    renderCanvas();
+    updateThumb();
+    scheduleValidate();
+  });
+  cv.addEventListener('pointercancel', () => { state.drag = null; state.last = null; });
 
   addEventListener('keydown', e => {
-    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT')) return;
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) edRedo(); else edUndo(); return; }
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); edRedo(); return; }
+    if (e.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); download(); return; }
-    if (state.tab !== 'pixels') return;
-    const k = e.key.toLowerCase();
-    const tool = {b: 'pencil', e: 'eraser', d: 'dither', g: 'fill', l: 'line', r: 'rect', f: 'frame', i: 'pick'}[k];
-    if (!tool) return;
-    ED.tool = tool;
-    for (const b of document.querySelectorAll('#edTools button')) b.classList.toggle('on', b.dataset.tool === tool);
+    if (e.key === '[' || e.key === ']') {
+      state.zoom = clamp(state.zoom + (e.key === ']' ? 1 : -1), 1, 20);
+      $('zoom').value = state.zoom;
+      renderCanvas();
+      return;
+    }
+    const tool = { b: 'pencil', e: 'eraser', g: 'fill', l: 'line', r: 'rect', i: 'pick', m: 'marker' }[e.key.toLowerCase()];
+    if (tool) { state.tool = tool; updateMarkControls(); }
   });
 
   // -------------------------------------------------------------------
@@ -1624,28 +1773,28 @@
   const sources = window.TEXTURE_SOURCES || {};
   for (const fam of Object.keys(sources)) {
     try {
-      const doc = TEX.parse(sources[fam]);
-      doc.name = doc.name || fam;
-      state.families[fam] = doc;
+      const d = TEX.parse(sources[fam]);
+      if (d.format !== TEX.FORMAT) throw new Error('expected ' + TEX.FORMAT + ', got ' + (d.format || 'nothing'));
+      d.name = fam;
+      state.families[fam] = d;
     } catch (e) {
-      state.errors.push(fam + ': ' + e.message);
+      status(fam + ': ' + e.message, 'bad');
     }
   }
-  if (!Object.keys(state.families).length) state.families.props = blankDoc('props');
-  bundledFamilies = clone(state.families);
-  loadSavedChanges();
-  if (!Object.keys(state.families).length) state.families.props = blankDoc('props');
-  state.family = Object.keys(state.families).sort()[0];
-  state.current = Object.keys(state.families[state.family].textures)[0] || null;
-  edSyncColor();
-  edRenderRecent();
+  bundled = clone(state.families);
+  loadSaved();
+  if (!Object.keys(state.families).length) state.families.props = blankFamily('props');
+  state.family = Object.keys(state.families).sort()[0] || null;
+  const first = state.family ? state.families[state.family] : null;
+  state.sprite = first ? Object.keys(first.textures)[0] || null : null;
+  const firstTex = tex();
+  state.design = firstTex ? (firstTex.default || Object.keys(firstTex.designs)[0]) : null;
+  if (firstTex) state.zoom = fitZoom(firstTex.size[0], firstTex.size[1]);
+  $('zoom').value = state.zoom;
   renderAll();
-  ensureAllImages();
+  updateMarkControls();
 
-  if (!Object.keys(sources).length) {
-    status('No texture files were embedded in this build. Import a .texture, or start a new family.', '');
-  } else {
-    status('Loaded ' + plural(Object.keys(sources).length, 'family', 'families') + ' from textures/.', 'good');
-  }
-  if (savedChangesNotice) status(savedChangesNotice, savedChangesNotice.startsWith('Could not') ? 'bad' : 'good');
+  if (!Object.keys(sources).length) status('No texture files embedded in this build. Import a .texture to begin.', '');
+  else status('Loaded ' + plural(Object.keys(sources).length, 'family', 'families') + ' from textures/.', 'good');
+  if (savedNotice) status(savedNotice, savedNotice.startsWith('Could not') ? 'bad' : 'good');
 })();

@@ -19,17 +19,18 @@ button:hover{border-color:#4a5779;background:#26304a}
 button.primary{border-color:#7a6a2a;background:#2e2a16;color:var(--hi)}
 button.danger:hover{border-color:#7a3040;background:#33171d;color:var(--bad)}
 button.on{border-color:var(--hi);background:#3c3520;color:var(--hi)}
-input:focus,select:focus,textarea:focus{outline:1px solid var(--acc);outline-offset:0}
+button:disabled{opacity:.45;cursor:default}
+input:focus,select:focus,textarea:focus{outline:1px solid var(--acc)}
 input.invalid{border-color:#7a3040;background:#2a1418}
 dialog{width:min(640px,calc(100vw - 24px));padding:14px;background:var(--panel);color:var(--txt);border:1px solid var(--edge);box-shadow:0 16px 48px #000b}
 dialog::backdrop{background:#05070bbd}
 dialog form{display:flex;flex-direction:column;gap:10px}
-dialog textarea{width:100%;min-height:280px;resize:vertical;font-size:12px;line-height:1.5}
+dialog textarea{width:100%;min-height:280px;resize:vertical;font-size:12px}
 .hidden{display:none!important}
 h1,h2,h3{margin:0;font-weight:600;letter-spacing:.02em}
 h1{font-size:15px}
 h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim)}
-h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin:14px 0 6px}
+h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin:12px 0 5px}
 small{color:var(--dim)}
 code{font-size:11px;color:var(--acc);background:#101624;padding:1px 4px;border-radius:2px}
 
@@ -38,14 +39,16 @@ header .grow{flex:1}
 header .title{display:flex;align-items:baseline;gap:8px}
 header .title b{color:var(--hi);font-size:16px;letter-spacing:.04em}
 header .title span{color:var(--dim)}
-header select{min-width:140px}
+header select{min-width:130px}
 
-#app{flex:1;display:grid;grid-template-columns:230px minmax(280px,1fr) minmax(380px,500px);min-height:0}
+#app{flex:1;display:grid;grid-template-columns:220px minmax(300px,1fr) minmax(390px,470px);min-height:0}
 .pane{min-height:0;overflow:auto;padding:10px 12px;border-right:1px solid var(--line)}
 .pane:last-child{border-right:0}
 #library{background:#111624}
-#stage{display:flex;flex-direction:column}
-#inspector{background:#111624;display:flex;flex-direction:column}
+#stage{display:flex;flex-direction:column;gap:8px}
+#inspector{background:#111624;display:flex;flex-direction:column;gap:0;padding:0}
+#inspector .panel{border-bottom:1px solid var(--line);padding:10px 12px}
+#inspector .panel:last-child{border-bottom:0}
 
 .list{display:flex;flex-direction:column;gap:2px;margin-bottom:8px}
 .list .item{display:flex;align-items:center;gap:2px}
@@ -60,137 +63,149 @@ header select{min-width:140px}
 .row .grow{flex:1}
 .spacer{flex:1}
 
-.tabs{display:flex;gap:2px;margin-bottom:8px;position:sticky;top:0;background:#111624;padding-bottom:4px;z-index:2;flex:0 0 auto}
-.tabs button{flex:1;border-radius:0;border-color:transparent;border-bottom:1px solid var(--line);background:transparent;color:var(--dim);text-transform:uppercase;font-size:11px;letter-spacing:.06em;padding:5px 4px}
-.tabs button:hover{color:var(--txt);background:#1a2133}
-.tabs button.on{color:var(--hi);border-bottom-color:var(--hi);background:#1b2033}
-.tabpane{min-height:0;overflow:auto;padding-bottom:20px}
-
-#stageTitle{font-size:13px;text-transform:none;letter-spacing:0;color:var(--txt)}
-#canvasWrap{
-  flex:0 0 auto;display:flex;align-items:center;justify-content:center;padding:14px;
-  background:
-    linear-gradient(45deg,#151b29 25%,transparent 25%,transparent 75%,#151b29 75%),
-    linear-gradient(45deg,#151b29 25%,transparent 25%,transparent 75%,#151b29 75%);
-  background-size:16px 16px;background-position:0 0,8px 8px;
-  border:1px solid var(--line);margin-top:8px;min-height:160px;max-height:46vh;overflow:auto
-}
-#preview{image-rendering:pixelated;display:block;background:transparent}
-#errors{display:flex;flex-direction:column;gap:4px;margin-top:8px}
-.err{color:#ffb3b3;background:#2a1418;border:1px solid #7a3040;padding:4px 7px;border-radius:2px;white-space:pre-wrap;font-size:11px}
-.ok{color:var(--good);font-size:11px}
-#paramForm,#texSettings{display:flex;flex-direction:column;gap:6px}
-.field{display:grid;grid-template-columns:96px 1fr;gap:8px;align-items:center}
+.panelhead{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.panelhead h2{flex:1}
+details.panel>summary{list-style:none;cursor:pointer}
+details.panel>summary::-webkit-details-marker{display:none}
+details.panel>summary::before{content:'▸';color:var(--dim);font-size:10px;width:10px;flex:0 0 10px}
+details.panel[open]>summary::before{content:'▾'}
+details.panel>summary:hover h2{color:var(--txt)}
+.subfold{margin-top:8px;padding-top:6px;border-top:1px solid var(--line)}
+.subfold>summary{cursor:pointer;color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.08em}
+.subfold>summary:hover{color:var(--txt)}
+.subfold[open]>summary{margin-bottom:6px}
+.previewRow{display:flex;gap:10px;align-items:flex-start}
+.previewFrame{flex:0 0 auto;padding:4px;border:1px solid var(--line);background:
+  linear-gradient(45deg,#151b29 25%,transparent 25%,transparent 75%,#151b29 75%),
+  linear-gradient(45deg,#151b29 25%,transparent 25%,transparent 75%,#151b29 75%);
+  background-size:12px 12px;background-position:0 0,6px 6px}
+#previewCanvas{display:block;image-rendering:pixelated}
+.previewBody{flex:1;min-width:0}
+.previewBody .help{margin:5px 0 0}
+#previewPick{color:var(--hi);font-size:10px}
+.testParams{display:flex;flex-direction:column;gap:3px}
+.testParam{display:grid;grid-template-columns:52px 1fr;gap:6px;align-items:center}
+.testParam>span{font-size:11px;color:var(--dim);text-align:right;overflow:hidden;text-overflow:ellipsis}
+.testParam input[type=number],.testParam input[type=text]{width:100%;min-width:0;font-size:11px;padding:2px 5px}
+.testParam input[type=checkbox]{justify-self:start;margin:0}
+.field{display:grid;grid-template-columns:88px 1fr;gap:8px;align-items:center;margin-bottom:5px}
 .field>label{color:var(--dim);font-size:11px;text-align:right;overflow:hidden;text-overflow:ellipsis}
-.field input[type=text],.field input[type=number],.field select{width:100%}
+.field input,.field select{width:100%;min-width:0}
 .field .hint{grid-column:2;color:var(--dim);font-size:10px}
+.help{color:var(--dim);font-size:11px;margin:6px 0}
+.help b{color:var(--txt);font-weight:500}
 
-.settings{border:1px solid var(--line);background:var(--panel);padding:8px;display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
-.settings h2{margin-bottom:2px}
-
-.ops{display:flex;flex-direction:column;gap:5px}
-.ops .ops{margin:4px 0 0 0;padding-left:10px;border-left:1px solid #2b3450}
-.op{border:1px solid var(--line);background:var(--panel);border-radius:2px}
-.op>header{display:flex;align-items:center;gap:4px;padding:3px 5px;border-bottom:1px solid var(--line);background:#1a2132;border-radius:2px 2px 0 0}
-.op>header .kind{color:var(--hi);font-size:11px;letter-spacing:.05em;flex:1}
-.op>header button{padding:1px 5px;font-size:11px;line-height:1.2}
-.op .body{padding:5px;display:flex;flex-direction:column;gap:4px}
-.op .body .field{grid-template-columns:80px 1fr}
-.branch-actions{margin:0 0 3px;padding-bottom:4px;border-bottom:1px solid var(--line)}
-.branch-actions button{flex:1}
-.sub-label{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin:4px 0 2px}
-.addop{display:flex;gap:4px;align-items:center;margin-top:4px}
-.addop select{flex:1;min-width:0}
-.context-menu{position:fixed;z-index:20;min-width:160px;padding:4px;background:var(--panel);border:1px solid var(--edge);box-shadow:0 8px 24px #0009;display:flex;flex-direction:column;gap:2px}
-.context-menu button{text-align:left;border-color:transparent;background:transparent;padding:5px 9px}
-.context-menu button:hover,.context-menu button:focus{background:#26304a;border-color:#4a5779;outline:1px solid var(--acc)}
-.context-menu button.danger{color:var(--bad)}
-.context-separator{height:1px;background:var(--line);margin:3px 0}
-.pairs{display:flex;flex-direction:column;gap:3px}
-.pairs .pair{display:grid;grid-template-columns:110px 1fr auto;gap:4px}
-.pngbox{display:flex;flex-direction:column;gap:4px}
-.pngbox .thumb{width:44px;height:44px;image-rendering:pixelated;border:1px solid var(--edge);background:#0b0f18;object-fit:contain}
-.pngbox .row{gap:4px}
-
-#markList{display:flex;flex-wrap:wrap;gap:8px;color:var(--dim);font-size:11px}
-#markList b{color:var(--txt);font-weight:500}
-
-/* Pixel editor */
-.edTools{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);background:var(--panel);padding:7px;margin-bottom:8px}
-.toolgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:3px}
-.toolgrid button{padding:4px 2px;font-size:11px}
-.toolgrid button.on{border-color:var(--hi);background:#3c3520;color:var(--hi)}
-.colorRow{display:flex;gap:8px;align-items:center}
-.colorRow input[type=color]{width:38px;height:28px;padding:0;border:1px solid var(--edge);background:none;cursor:pointer}
-.colorRow input[type=range]{flex:1;accent-color:var(--hi);min-width:80px}
-#edSwatch{width:38px;height:28px;border:1px solid var(--edge);
-  background-image:linear-gradient(45deg,#2a3348 25%,transparent 25%,transparent 75%,#2a3348 75%),linear-gradient(45deg,#2a3348 25%,transparent 25%,transparent 75%,#2a3348 75%);
-  background-size:8px 8px;background-position:0 0,4px 4px;position:relative}
-#edSwatch i{position:absolute;inset:0;display:block}
-#edHex{width:96px}
-.recent{display:flex;flex-wrap:wrap;gap:3px}
-.recent button{width:18px;height:18px;padding:0;border:1px solid var(--edge)}
-.editorWrap{display:flex;align-items:center;justify-content:center;padding:10px;border:1px solid var(--line);overflow:auto;max-height:46vh;
+.stagebar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:0 0 auto}
+#stageTitle{font-size:13px;text-transform:none;letter-spacing:0;color:var(--txt)}
+#stageTitle b{color:var(--hi);font-weight:600}
+#canvasWrap{flex:1;display:flex;align-items:center;justify-content:center;min-height:180px;overflow:auto;padding:12px;
+  border:1px solid var(--line);
   background:
     linear-gradient(45deg,#151b29 25%,transparent 25%,transparent 75%,#151b29 75%),
     linear-gradient(45deg,#151b29 25%,transparent 25%,transparent 75%,#151b29 75%);
   background-size:16px 16px;background-position:0 0,8px 8px}
-#pixelCanvas{image-rendering:pixelated;display:block;cursor:crosshair;touch-action:none}
-.hintline{color:var(--dim);font-size:10px;margin-top:6px}
+#canvas{image-rendering:pixelated;display:block;cursor:crosshair;touch-action:none}
 
-footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;border-top:1px solid var(--line);background:#101521}
+.toolbar{display:flex;align-items:center;gap:4px;flex-wrap:wrap;flex:0 0 auto}
+.toolbar .sep{width:1px;height:18px;background:var(--line);margin:0 3px}
+.toolbar button{padding:3px 7px}
+#markType{min-width:86px}
+.colorbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex:0 0 auto}
+.colorbar .colabel{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+#paintColor{width:42px;height:26px;padding:0;border:1px solid var(--edge);background:none;cursor:pointer}
+#paintHex{width:88px;font-size:11px;padding:3px 6px}
+.paintPreview{width:26px;height:26px;border:1px solid var(--edge);background:#fff}
+#swatchChip{width:20px;height:20px;border:1px solid var(--edge);background:#000}
+
+.groupPanel{display:flex;flex-direction:column;gap:5px;flex:0 0 auto;padding:6px;border:1px solid var(--line);background:var(--panel)}
+.groupHead,.groupList{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.groupList{max-height:76px;overflow:auto}
+.groupBtn{display:flex;align-items:center;gap:5px}
+.groupBtn small{font-size:10px}
+.groupEdit{display:flex;flex-direction:column;gap:4px}
+.groupField{display:grid;grid-template-columns:58px minmax(110px,1fr) auto;gap:5px;align-items:center}
+.groupField label{font-size:10px;color:var(--dim);text-align:right}
+.groupField input[type=text]{min-width:0;width:100%}
+.groupField input[type=color]{width:38px;height:26px;padding:1px}
+.groupEdit .help{margin:0}
+.designbar{border:1px solid var(--line);background:var(--panel);padding:6px 8px;flex:0 0 auto}
+.designbar-head{display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.designbar-head h3{margin:0}
+.designstrip{display:flex;gap:5px;overflow-x:auto;padding-bottom:3px}
+.designThumb{display:flex;flex-direction:column;align-items:center;gap:2px;padding:3px;background:#0f1420;border:1px solid var(--edge);min-width:52px}
+.designThumb.on{border-color:var(--hi);background:#2c2717}
+.designThumb.picked{outline:1px solid var(--acc);outline-offset:1px}
+.designThumb .pickedTag{font-size:8px;color:var(--acc);line-height:1}
+.designThumb canvas{image-rendering:pixelated;background:#0b0f18}
+.designThumb span{font-size:9px;color:var(--dim);max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.designThumb.on span{color:var(--hi)}
+
+#errors{display:flex;flex-direction:column;gap:3px;max-height:90px;overflow:auto;flex:0 0 auto}
+.err{color:#ffb3b3;background:#2a1418;border:1px solid #7a3040;padding:3px 6px;border-radius:2px;font-size:11px}
+
+.condList{display:flex;flex-direction:column;gap:3px;max-height:280px;overflow:auto;margin-top:6px}
+.condRow{display:grid;grid-template-columns:18px 1fr 118px 40px;gap:4px;align-items:center}
+.condRow .n{color:var(--dim);font-size:10px;text-align:right}
+.condRow input{font-size:11px;padding:2px 5px}
+.condRow select{font-size:10px;padding:2px 3px;min-width:0;width:100%}
+.condRow .acts{display:flex;gap:1px}
+.condRow .acts button{padding:1px 4px;font-size:10px;line-height:1.3}
+.condRow.bad input{border-color:#7a3040;background:#2a1418}
+.fallbackRow{display:grid;grid-template-columns:18px 1fr 118px 40px;gap:4px;align-items:center;margin-top:6px;padding-top:6px;border-top:1px solid var(--line)}
+.fallbackRow .label{font-size:10px;color:var(--dim);text-align:right;grid-column:1/3}
+
+.paramRow{display:grid;grid-template-columns:1fr 92px 92px 24px;gap:4px;align-items:center;margin-bottom:3px}
+.paramRow .name{font-size:11px;color:var(--txt);overflow:hidden;text-overflow:ellipsis}
+.paramRow input{font-size:11px;padding:2px 4px;min-width:0}
+.paramRow button{padding:1px 5px;font-size:10px}
+.paramHead{display:grid;grid-template-columns:1fr 92px 92px 24px;gap:4px;font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+.paramRow .dynamic{font-size:10px;color:var(--dim);padding:2px 4px;background:#121725;border:1px solid var(--line)}
+
+.swatchInfo{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.swatchInfo .big{width:34px;height:34px;border:1px solid var(--edge);background-image:linear-gradient(45deg,#2a3348 25%,transparent 25%,transparent 75%,#2a3348 75%),linear-gradient(45deg,#2a3348 25%,transparent 25%,transparent 75%,#2a3348 75%);background-size:8px 8px;background-position:0 0,4px 4px}
+.swatchInfo .big i{display:block;width:100%;height:100%}
+.swatchInfo b{color:var(--txt)}
+.badge{display:inline-block;font-size:9px;border:1px solid #4a5779;color:var(--acc);padding:0 4px;border-radius:2px;margin-left:4px}
+.badge.cond{border-color:#7a6a2a;color:var(--hi)}
+
+footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:6px 12px;border-top:1px solid var(--line);background:#101521}
 #status{color:var(--dim);font-size:11px}
 #status.good{color:var(--good)}
 #status.bad{color:var(--bad)}
 
-.help{color:var(--dim);font-size:11px;margin-top:6px}
-.help b{color:var(--txt);font-weight:500}
-
+mark{background:none;color:var(--hi)}
 @media (max-width:1100px){
-  #app{grid-template-columns:200px minmax(240px,1fr) minmax(340px,440px)}
+  #app{grid-template-columns:190px minmax(260px,1fr) minmax(340px,430px)}
+  .condRow,.fallbackRow{grid-template-columns:16px 1fr 100px 36px}
 }
 @media (max-width:900px){
   body{overflow:auto}
   #app{display:flex;flex-direction:column;height:auto}
   .pane{border-right:0;border-bottom:1px solid var(--line);max-height:none}
-  #canvasWrap,#editorWrap{max-height:none}
+  #inspector{max-height:none}
 }
 </style>
 </head>
 <body>
 
 <header>
-  <div class="title"><b>Texture Studio</b><span>· writes <code>.texture</code> files</span></div>
+  <div class="title"><b>Texture Studio</b><span>· pixel designs &amp; conditionals</span></div>
   <span class="grow"></span>
   <label class="row">Family <select id="familySelect"></select></label>
   <button id="newFamily">New family</button>
-  <button id="bakeAll" title="Replace every embedded PNG op with optimized rect ops">PNG → ops</button>
   <button id="importBtn">Import .texture…</button>
-  <button id="pasteTextureBtn">Paste .texture…</button>
   <button id="download" class="primary">Download .texture</button>
-  <button id="copy" title="Copy the entire current .texture file to the clipboard">Copy .texture</button>
-  <button id="saveChanges" title="Save all texture editor changes in this browser only">Save changes</button>
-  <button id="clearSavedChanges" title="Clear browser-saved changes and restore bundled editor textures">Clear saved changes</button>
+  <button id="copy">Copy .texture</button>
+  <button id="saveChanges">Save changes</button>
+  <button id="clearSavedChanges">Clear saved</button>
   <input type="file" id="importFile" accept=".texture,.json,application/json" multiple hidden>
   <input type="file" id="spriteFile" accept="image/png,image/*" hidden>
+  <input type="file" id="designFile" accept="image/png,image/*" hidden>
 </header>
-
-<dialog id="pasteTextureDialog" aria-labelledby="pasteTextureTitle">
-  <form id="pasteTextureForm">
-    <h2 id="pasteTextureTitle">Paste a .texture file</h2>
-    <label for="pasteTextureText">Paste the full texture file contents below. JSONC comments are supported.</label>
-    <textarea id="pasteTextureText" spellcheck="false" required placeholder='{"format":"texture/1","name":"my-textures","textures":{}}'></textarea>
-    <div class="row">
-      <span class="spacer"></span>
-      <button id="cancelPasteTexture" type="button">Cancel</button>
-      <button class="primary" type="submit">Import pasted texture</button>
-    </div>
-  </form>
-</dialog>
 
 <div id="app">
   <aside class="pane" id="library">
-    <h2>Sprites</h2>
+    <div class="panelhead"><h2>Sprites</h2><small id="spriteCount"></small></div>
     <div id="textureList" class="list"></div>
     <form id="addTexForm" class="row">
       <input id="addTexName" class="grow" placeholder="new_sprite" spellcheck="false">
@@ -200,133 +215,117 @@ footer{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;bo
       <button id="newBlankSprite" class="grow">Blank sprite</button>
       <button id="newSprite" class="grow">From PNG…</button>
     </div>
-    <p class="help">A <b>family</b> is one <code>.texture</code> file. Put it in
-      <code>textures/</code> and run <code>npm run textures</code>.</p>
-    <p class="help">PNGs are converted to compact <code>rect</code> ops, so a
-      sprite stays editable and needs no image file.</p>
+    <p class="help">A <b>family</b> is one <code>.texture</code> file. A sprite holds
+      <b>designs</b>; conditions choose which design is painted.</p>
   </aside>
 
   <section class="pane" id="stage">
-    <div class="row">
+    <div class="stagebar">
       <h2 id="stageTitle">—</h2>
       <span class="spacer"></span>
-      <label class="row">zoom <input id="zoom" type="range" min="1" max="16" value="5" style="width:80px"></label>
+      <label class="row">zoom <input id="zoom" type="range" min="1" max="20" value="8" style="width:80px"></label>
       <label class="row"><input id="showGrid" type="checkbox" checked> grid</label>
       <label class="row"><input id="showMarks" type="checkbox" checked> marks</label>
     </div>
-    <div id="canvasWrap"><canvas id="preview" width="90" height="90"></canvas></div>
-    <div id="errors"></div>
 
-    <h3>Test parameters</h3>
-    <div id="paramForm"></div>
-    <p class="help">Values here are only used by the preview. A texture always
-      renders with <code>w h tw th ox oy</code> supplied by the engine, plus a
-      <code>seed</code> if it declares one.</p>
+    <div id="canvasWrap"><canvas id="canvas" width="72" height="72"></canvas></div>
 
-    <h3>Recorded marks</h3>
-    <div id="markList"><span>Nothing recorded.</span></div>
-  </section>
-
-  <section class="pane" id="inspector">
-    <div class="tabs" id="tabs">
-      <button data-tab="sprite" class="on">Sprite</button>
-      <button data-tab="pixels">Pixels</button>
-      <button data-tab="ops">Ops</button>
-      <button data-tab="family">Family</button>
+    <div class="toolbar" id="tools">
+      <button data-tool="pencil" class="on" title="Pencil (B)">Pencil</button>
+      <button data-tool="eraser" title="Eraser (E)">Eraser</button>
+      <button data-tool="fill" title="Fill (G)">Fill</button>
+      <button data-tool="line" title="Line (L)">Line</button>
+      <button data-tool="rect" title="Outline box (R)">Box</button>
+      <button data-tool="pick" title="Pick a swatch (I)">Pick</button>
+      <button data-tool="marker" title="Place or remove a mark (M)">Marker</button>
+      <button data-tool="group" title="Add or remove pixels from the selected group">Group</button>
+      <span class="sep"></span>
+      <button id="undo" title="Undo (Ctrl+Z)">↶</button>
+      <button id="redo" title="Redo (Ctrl+Y)">↷</button>
+      <span class="sep"></span>
+      <select id="markType" aria-label="Marker type" hidden>
+        <option value="win">window</option>
+        <option value="park">parking</option>
+        <option value="spot">spot</option>
+        <option value="stat">status light</option>
+        <option value="berth">berth</option>
+      </select>
+      <span class="spacer"></span>
+      <span id="cursorInfo" style="color:var(--dim);font-size:10px"></span>
     </div>
 
-    <div class="tabpane" id="tab-sprite">
-      <div id="texSettings"></div>
+    <div class="colorbar">
+      <span class="colabel">Colour</span>
+      <input id="paintColor" type="color" value="#ffffff" aria-label="Paint colour" title="Paint colour">
+      <input id="paintHex" type="text" value="#ffffff" spellcheck="false" aria-label="Paint colour hex" title="Paint colour as a hex value">
+      <span id="paintPreview" class="paintPreview" title="Current paint colour"></span>
+      <button id="paintAdd" title="Use this colour for painting">Use colour</button>
+      <span class="help" style="margin:0">Choose a colour for paint tools.</span>
     </div>
 
-    <div class="tabpane hidden" id="tab-pixels">
-      <div class="edTools">
-        <div class="row">
-          <span style="color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.08em">Tools</span>
-          <span class="spacer"></span>
-          <button id="edUndo" title="Undo (Ctrl+Z)">↶</button>
-          <button id="edRedo" title="Redo (Ctrl+Y)">↷</button>
-        </div>
-        <div class="toolgrid" id="edTools">
-          <button data-tool="pencil" class="on" title="Pencil (B)">Pencil</button>
-          <button data-tool="eraser" title="Eraser (E)">Eraser</button>
-          <button data-tool="dither" title="Dither: paints a 50% checker (D)">Dither</button>
-          <button data-tool="fill" title="Fill (G)">Fill</button>
-          <button data-tool="line" title="Line (L)">Line</button>
-          <button data-tool="rect" title="Filled box (R)">Box</button>
-          <button data-tool="frame" title="Outline box (F)">Frame</button>
-          <button data-tool="pick" title="Pick a colour (I)">Pick</button>
-        </div>
-        <div class="colorRow">
-          <input type="color" id="edColor" value="#ffffff" aria-label="Colour">
-          <div id="edSwatch" title="Current colour"><i></i></div>
-          <input id="edHex" type="text" spellcheck="false" aria-label="Hex colour" value="#ffffff">
-        </div>
-        <div class="colorRow">
-          <span style="color:var(--dim);font-size:10px">ALPHA</span>
-          <input type="range" id="edAlpha" min="0" max="255" value="255" aria-label="Alpha">
-          <span id="edAlphaValue" style="color:var(--dim);min-width:26px;text-align:right">255</span>
-        </div>
-        <div class="row">
-          <span style="color:var(--dim);font-size:10px">SIZE</span>
-          <input type="range" id="edSize" min="1" max="8" value="1" style="width:70px" aria-label="Brush size">
-          <span id="edSizeValue" style="color:var(--dim)">1</span>
-          <span class="spacer"></span>
-          <button id="edAddSwatch" title="Remember this colour">+ colour</button>
-        </div>
-        <div class="recent" id="edRecent"></div>
-      </div>
+    <section id="groupPanel" class="groupPanel" aria-label="Pixel groups"></section>
 
-      <div class="row" style="margin-bottom:6px">
-        <button id="edLoad" class="grow">Ops → pixels</button>
-        <button id="edClear">Clear</button>
-      </div>
-      <div id="edTargetLabel" class="help">Drawing into whole sprite</div>
-      <div class="row" style="margin-bottom:6px">
-        <select id="edApplyMode" class="grow" aria-label="How to apply pixels">
-          <option value="patch">Patch ops (keeps if/repeat)</option>
-          <option value="replace">Replace all ops</option>
-        </select>
-        <button id="edApply" class="primary grow">Pixels → ops</button>
-      </div>
-      <div class="editorWrap"><canvas id="pixelCanvas" width="90" height="90"></canvas></div>
-      <div class="row" style="margin-top:6px">
-        <label class="row">W <input id="edW" type="number" min="1" max="256" value="9" style="width:56px"></label>
-        <label class="row">H <input id="edH" type="number" min="1" max="256" value="9" style="width:56px"></label>
-        <button id="edResize">Resize</button>
+    <div class="designbar">
+      <div class="designbar-head">
+        <h3>Designs</h3><small id="designCount"></small>
         <span class="spacer"></span>
-        <label class="row">zoom <input id="edZoom" type="range" min="1" max="24" value="8" style="width:70px" aria-label="Editor zoom"></label>
+        <button id="addDesign" title="Duplicate the current design as a new variant">+ Design</button>
+        <button id="addDesignPng" title="Add a design from a PNG">From PNG…</button>
+        <button id="delDesign" class="danger">Delete</button>
       </div>
-      <p class="hintline">Right-click paints transparent. Use <b>Draw then</b> /
-        <b>Draw else</b> on an <code>if</code> op to edit that branch's appearance;
-        <b>Draw inside</b> edits an <code>each</code> body. Branch patches stay
-        inside their op. <code>repeat</code> is edited through its nested ops.</p>
+      <div id="designStrip" class="designstrip"></div>
     </div>
 
-    <div class="tabpane hidden" id="tab-ops">
-      <div class="row" style="margin-bottom:6px">
-        <button id="opToPixels" class="grow">Convert to pixel art</button>
-      </div>
-      <div id="opEditor"></div>
-      <p class="help">Values are JSON: a number, <code>"#rrggbbaa"</code>, a list,
-        or an expression such as <code>["+", ["param","x"], 1]</code>.
-        Fields named <code>as</code>, <code>texture</code>, <code>file</code> and
-        <code>fn</code> are plain strings.</p>
-    </div>
-
-    <div class="tabpane hidden" id="tab-family">
-      <div id="familySettings"></div>
-      <h3>Defs</h3>
-      <div id="defsEditor" class="pairs"></div>
-      <div class="addop"><button id="addDef">Add def</button></div>
-    </div>
+    <div id="errors"></div>
   </section>
+
+  <aside class="pane" id="inspector">
+    <section class="panel">
+      <div class="panelhead"><h2>Preview</h2><small id="previewPick"></small><span class="spacer"></span><button id="resetTest" style="padding:1px 6px;font-size:10px">Reset</button></div>
+      <div class="previewRow">
+        <div class="previewFrame"><canvas id="previewCanvas" width="72" height="72"></canvas></div>
+        <div class="previewBody">
+          <div id="testParams" class="testParams"></div>
+          <p class="help">What the game draws for these values.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panelhead"><h2>Sprite</h2><span class="spacer"></span><button id="deleteSprite" class="danger" style="padding:1px 6px;font-size:10px">Delete</button></div>
+      <div id="spritePanel"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panelhead"><h2>Conditions</h2><small id="conditionCount"></small><span class="spacer"></span><button id="addCondition" style="padding:1px 6px;font-size:10px">+ Rule</button></div>
+      <input id="conditionFilter" placeholder="filter rules…" spellcheck="false" style="width:100%">
+      <div id="conditionRows" class="condList"></div>
+      <div id="conditionFallback"></div>
+      <p class="help">First matching rule wins. Write a condition like
+        <code>m = 5</code>, <code>hw &gt; 0</code>, <code>m has 4</code>,
+        <code>night</code>, <code>m = 1 or m = 2</code>,
+        <code>bits(m) &gt;= 3</code>, <code>x % 6 &lt; 3</code>. Values are
+        parameters, <code>x</code>, <code>y</code>, or <code>seed</code>.</p>
+    </section>
+
+    <details class="panel fold">
+      <summary class="panelhead"><h2>Marks</h2><span class="spacer"></span><button id="clearMarks" style="padding:1px 6px;font-size:10px">Clear</button></summary>
+      <div id="markSummary"></div>
+      <p class="help">Pick the <b>Marker</b> tool, choose a type, then click the canvas
+        to place or remove a mark. The game reads these after drawing.</p>
+    </details>
+
+    <details class="panel fold">
+      <summary class="panelhead"><h2>Family</h2><span class="spacer"></span><button id="deleteFamily" class="danger" style="padding:1px 6px;font-size:10px">Delete</button></summary>
+      <div id="familyPanel"></div>
+    </details>
+  </aside>
 </div>
 
 <footer>
   <span id="status">Ready.</span>
   <span class="spacer"></span>
-  <small>Preview is live; the file is generated on download.</small>
+  <small>Pixel edits are live; Download writes the <code>.texture</code> file.</small>
 </footer>
 
 <!--TEXTURE_SOURCES-->
