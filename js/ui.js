@@ -304,7 +304,21 @@ function showBuilding(id) {
   flash = {i, until: performance.now() + 3000};
   setTool('inspect'); select({kind: 'bld', id});
 }
+// Jump to a spot on the map, for an alert that wants to show where something
+// happened: a crash site, a fire, or a driver who could not park.
+function showSite(x, y) {
+  const tx = Math.round(x), ty = Math.round(y);
+  if (!inb(tx, ty)) return;
+  if (regionView) closeRegion();
+  const i = ty * MW + tx;
+  centerOn(i, Math.max(cam.z, 4));
+  flash = {i, until: performance.now() + 3000};
+}
 document.getElementById('gFailRow').onclick = () => { if (stats.lastFail) showBuilding(stats.lastFail); else toast('No parking problems yet.'); };
+document.getElementById('gIncidentRow').onclick = () => {
+  const s = stats.lastSite;
+  if (s) showSite(s.x, s.y); else toast('No fires or crashes yet.');
+};
 
 // =====================================================================
 // Inspector

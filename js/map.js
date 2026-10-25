@@ -177,8 +177,10 @@ const Hi = new Int32Array(N * 4), Hf = new Float32Array(N * 4); let Hn = 0;
 function hpush(i, f) { if (Hn >= Hi.length) return; let k = Hn++; while (k > 0) { const p = (k - 1) >> 1; if (Hf[p] <= f) break; Hi[k] = Hi[p]; Hf[k] = Hf[p]; k = p; } Hi[k] = i; Hf[k] = f; }
 function hpop() { const top = Hi[0]; const n = --Hn; if (n > 0) { const li = Hi[n], lf = Hf[n]; let k = 0; for (;;) { let c = 2 * k + 1; if (c >= n) break; if (c + 1 < n && Hf[c + 1] < Hf[c]) c++; if (Hf[c] >= lf) break; Hi[k] = Hi[c]; Hf[k] = Hf[c]; k = c; } Hi[k] = li; Hf[k] = lf; } return top; }
 
-function carCost(u, v, d) {
+function carCost(u, v, d, ignoreClosed) {
   if (!isRoad(v) || !(cmask[u] & bit(d))) return -1;
+  // a street shut by a crash is impassable, but crews answering it still get in
+  if (!ignoreClosed && roadClosed[v] > simTime) return -1;
   const ou = eow(u), ov = eow(v);
   if ((ou && d === OPP[ou]) || (ov && d === OPP[ov])) return -1;
   let c = tile[v] === 2 ? 0.55 : 1;
@@ -193,7 +195,7 @@ function walkCost(u, v) {
   const b = bldAt[v]; if (b) { const ty = B(b).type; if (ty === 'park' || ty === 'metro') return 0.75; }
   return -1;
 }
-function findPath(s, g, mode, maxCost = Infinity) {
+function findPath(s, g, mode, maxCost = Infinity, ignoreClosed = false) {
   if (s < 0 || g < 0) return null;
   if (s === g) return [s];
   stampId++; Hn = 0;
@@ -211,14 +213,14 @@ function findPath(s, g, mode, maxCost = Infinity) {
       let vx = ux + DX[d], vy = uy + DY[d];
       if (vx < 0 || vy < 0 || vx >= MW || vy >= MH) continue;
       let v = vy * MW + vx;
-      let c = car ? carCost(u, v, d) : walkCost(u, v);
+      let c = car ? carCost(u, v, d, ignoreClosed) : walkCost(u, v);
       if (c < 0) continue;
       let skip = 0;
       if (car && overpass[v]) {
         // overpasses can only be driven straight across, so jump to the far side
         while (overpass[v]) {
           const w = nb(v, d); if (w < 0) { v = -1; break; }
-          const cc = carCost(v, w, d); if (cc < 0) { v = -1; break; }
+          const cc = carCost(v, w, d, ignoreClosed); if (cc < 0) { v = -1; break; }
           c += cc; v = w; skip++;
         }
         if (v < 0) continue;

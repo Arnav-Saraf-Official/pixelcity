@@ -136,6 +136,11 @@ let agents = [], cars = [], peds = [], planes = [], boats = [], metros = [], shi
 let ports = [], yards = [], hubs = [];
 const metroWait = new Map();        // station id -> pedestrians waiting on the platform
 const carById = new Map();
+// A street can be shut by a crash. The array answers "is this tile closed" in
+// the router's inner loop; the map lists the closures so they can be drawn and
+// pruned without scanning every tile.
+const roadClosed = new Float32Array(N);   // simTime at which each tile reopens
+const streetClosures = new Map();         // tile -> simTime it reopens
 let simTime = 0, gameMin = 6.5 * 60, speed = 1;
 let destCom = [], destPark = [], destWork = [], stations = [], docks = [], airports = [], busStops = [];
 let stats = {trips: [], modes: [], frustrated: 0, stranded: 0, ti: 0, tiAcc: 0, tiN: 0, waitN: 0, hist: [], lastFrustToast: -1e9};

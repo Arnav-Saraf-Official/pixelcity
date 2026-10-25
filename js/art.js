@@ -123,6 +123,57 @@ function drawTruck(c, x, y, horiz, col) {
   TEX.draw(c, 'vehicles', horiz ? 'truck_h' : 'truck_v', x, y, {color: col});
 }
 
+// Emergency units turn like the traffic: a truck heading north uses the upright
+// sprite, so it never points the wrong way down a street.
+function drawEmergencyUnit(c, u) {
+  const hz = u.d === 2 || u.d === 4;
+  const name = (u.kind === 'firetruck' ? 'firetruck' : 'ambulance') + (hz ? '_h' : '_v');
+  TEX.draw(c, 'vehicles', name,
+    Math.round(u.x * T - (hz ? 3.5 : 1.5)), Math.round(u.y * T - (hz ? 1.5 : 3.5)), {});
+}
+
+// A fire on a building: three painted frames flicker in turn.
+function drawFire(c, x, y, frame) {
+  TEX.draw(c, 'vehicles', 'fire', x - 4, y - 8, {f: frame % 3});
+}
+
+// A street shut by a crash: a striped barrier across the carriageway, laid
+// across the road's own axis so it blocks the lane instead of running along it.
+function drawStreetClosure(c, x0, y0, acrossEastWest) {
+  TEX.draw(c, 'roads', 'closure', x0, y0, {v: acrossEastWest ? 0 : 1});
+}
+
+// A crash site: scorched ground, the burnt hull lying on it, and a plume of
+// smoke that keeps climbing for the first minute or so after the fall.
+function drawWreck(c, w, t) {
+  const px = Math.round(w.x * T) - 6, py = Math.round(w.y * T) - 6;
+  TEX.draw(c, 'vehicles', 'scorch', px, py, {});
+  TEX.draw(c, 'vehicles', 'wreck', px, py, {v: w.v});
+  const age = t - w.t;
+  if (age > 75) return;             // the fire is out, the hull just sits there
+  for (let k = 0; k < 4; k++) {
+    const rise = (age / 2.4 + k / 4) % 1;
+    const a = 0.7 * (1 - rise) * (1 - rise);
+    if (a < 0.04) continue;
+    const prev = c.globalAlpha;
+    c.globalAlpha = prev * a;
+    // the puffs drift as they climb, so the plume bends instead of stacking
+    const sx = Math.round(w.x * T - 4 + Math.sin(rise * 3.4 + k * 1.7 + w.x) * 6);
+    const sy = Math.round(w.y * T - 5 - rise * 20 + k);
+    TEX.draw(c, 'vehicles', 'wreck_smoke', sx, sy, {f: Math.min(2, Math.floor(rise * 3))});
+    c.globalAlpha = prev;
+  }
+}
+
+// The shadow a plane throws on the ground, offset from the aircraft and fainter
+// the higher it climbs.
+function drawPlaneShadow(c, p, alpha) {
+  const prev = c.globalAlpha;
+  c.globalAlpha = prev * alpha;
+  TEX.draw(c, 'vehicles', 'plane_shadow', Math.round(p.x) - 4, Math.round(p.y) - 4, {});
+  c.globalAlpha = prev;
+}
+
 function drawFreightCar(c, x, y, horiz, kind) {
   const col = kind === 'passenger' ? '#4d96ff' : kind === 'liquid' ? '#b8c4cc' : kind === 'gas' ? '#e8a23a' : '#9a6b45';
   TEX.draw(c, 'vehicles', horiz ? 'wagon_h' : 'wagon_v', x, y, {kind, color: col});

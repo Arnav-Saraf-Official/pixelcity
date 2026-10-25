@@ -128,14 +128,21 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
     }
   }
 
-  // emergency units and the incidents they are working
+  // streets shut by a crash: a red and white barrier across the carriageway
+  for (const [i, until] of streetClosures) {
+    if (until <= simTime) continue;
+    const tx = i % MW, ty = i / MW | 0;
+    if (tx < vx0 || tx > vx1 || ty < vy0 || ty > vy1) continue;
+    drawStreetClosure(f, tx * T, ty * T, (cmask[i] & 10) !== 0);
+  }
+  // crash sites: the scorch and hull outlive the incident, the smoke fades
+  for (const w of wrecks) if (inP(w.x * T, w.y * T)) drawWreck(f, w, simTime);
+  // emergency units and the incidents they are working. A unit sitting in its
+  // station is parked inside the building, so only the ones on the road show.
   for (const u of units) {
-    if (!inP(u.x * T, u.y * T)) continue;
+    if (u.state === 'idle' || !inP(u.x * T, u.y * T)) continue;
     const px = Math.round(u.x * T), py = Math.round(u.y * T);
-    f.fillStyle = u.kind === 'firetruck' ? '#d92b2b' : '#f4f7fb';
-    f.fillRect(px - 3, py - 2, 6, 4);
-    f.fillStyle = u.kind === 'firetruck' ? '#ffd75e' : '#d92b2b';
-    f.fillRect(px - 1, py - 1, 2, 2);
+    drawEmergencyUnit(f, u);
     if (u.state === 'onscene') {
       f.fillStyle = (performance.now() / 300 | 0) % 2 ? '#ff5050' : '#6fb3ff';
       f.fillRect(px - 1, py - 8, 2, 2);
@@ -145,12 +152,15 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
     if (!inP(inc.x * T, inc.y * T)) continue;
     const px = Math.round(inc.x * T), py = Math.round(inc.y * T);
     if (inc.kind === 'fire') {
-      const k = (performance.now() / 120 | 0) % 3;
-      f.fillStyle = '#ff6a00'; f.fillRect(px - 3, py - 6 + k, 6, 6 - k);
-      f.fillStyle = '#ffd24a'; f.fillRect(px - 1, py - 4 + k, 2, 4 - k);
-    } else {
-      f.fillStyle = '#3a3a44'; f.fillRect(px - 3, py - 2, 2, 2); f.fillRect(px + 1, py - 1, 2, 2);
-      f.fillStyle = '#ff9b3d'; f.fillRect(px, py - 2, 1, 1);
+      drawFire(f, px, py, (performance.now() / 140 | 0) % 3);
+      // a blinking alert over the burning building, in the same spirit as the
+      // no-parking sign drivers raise
+      if ((performance.now() / 420 | 0) % 2) {
+        const ax = px - 2, ay = py - 19;
+        f.fillStyle = '#ffffff'; f.fillRect(ax - 1, ay - 1, 9, 12);
+        f.fillStyle = '#ff3b3b'; f.fillRect(ax, ay, 7, 10);
+        f.fillStyle = '#ffffff'; f.fillRect(ax + 3, ay + 2, 1, 4); f.fillRect(ax + 3, ay + 7, 1, 1);
+      }
     }
   }
   for (const b of boats) if (inP(b.x, b.y)) drawBoat(f, b);
@@ -193,10 +203,14 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
   // segment its own centre is on, not from the engine at the front.
   const CAR_GAP = 1; // tiles between wagon centres
   for (const t of freight) {
-    if (!t.path || t.state === 'dwell') continue;
+    if (!t.path) continue;
+    // A train in a yard still has its wagons on the way in; `ex` is how far
+    // the locomotive has run past the buffers, so the tail follows it out of
+    // sight one wagon at a time instead of the whole consist blinking away.
+    const tail = t.state === 'dwell' ? (t.ex || 0) : 0;
     for (let k = 0; k < t.consist.length; k++) {
-      let odo = t.i + t.t - k * CAR_GAP;
-      if (odo < 0) continue;
+      let odo = t.i + t.t + tail - k * CAR_GAP;
+      if (odo < 0 || odo >= t.path.length - 1) continue;
       let idx = Math.floor(odo), frac = odo - idx;
       if (idx >= t.path.length - 1) { idx = t.path.length - 2; frac = 1; }
       if (idx < 0) continue;
@@ -284,6 +298,10 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
     f.fillStyle = LCOL[lightState(L, 1)]; f.fillRect(x0 + 8, y0, 1, 1); f.fillRect(x0, y0 + 8, 1, 1);
   }
   // the sky layer owns aircraft in flight; anything on a runway or parked stays visible
+  for (const p of planes) {
+    if (!inP(p.x, p.y) || !(overlays.sky || p.alt < 1)) continue;
+    if (p.alt > 0.5) drawPlaneShadow(f, p, clamp(0.72 - p.alt * 0.02, 0.30, 0.72));
+  }
   for (const p of planes) if (inP(p.x, p.y) && (overlays.sky || p.alt < 1)) drawPlane(f, p, dark > 0.2);
   // congestion map: dim the city, paint a smooth green-to-red field, then color each road tile
   if (overlays.heat) {
@@ -328,16 +346,82 @@ function drawWeather(f, sx0, sy0, sx1, sy1) {
     if (k.wet && weatherSnowAt(cell.x, cell.y)) drawSnow(f, cell, R, sx0, sy0, sx1, sy1);
     else if (k.wet) drawRain(f, cell, R, sx0, sy0, sx1, sy1);
     else if (cell.kind === 'snow') drawSnow(f, cell, R, sx0, sy0, sx1, sy1);
+    if (cell.kind === 'storm') drawLightning(f, cell, cx, cy, R, sx0, sy0, sx1, sy1);
   }
+}
+
+// A thunderstorm throws bolts: a jagged line from the cloud down to the ground,
+// stroked three times (wide faint halo, mid glow, white core) with a flash where
+// it lands. Everything is seeded off a time slot, so a bolt stays put while it is
+// on screen and is gone 180ms later.
+const BOLT_MS = 180;
+function strokePath(f, pts, width, style) {
+  f.strokeStyle = style; f.lineWidth = width;
+  f.lineCap = 'round'; f.lineJoin = 'round';
+  f.beginPath();
+  f.moveTo(pts[0][0], pts[0][1]);
+  for (let k = 1; k < pts.length; k++) f.lineTo(pts[k][0], pts[k][1]);
+  f.stroke();
+}
+function drawLightning(f, cell, cx, cy, R, sx0, sy0, sx1, sy1) {
+  const now = performance.now();
+  const slot = Math.floor(now / BOLT_MS);
+  if (hash(slot, 91, cell.id) > 0.06) return;          // a strike every few seconds
+  const a = 1 - (now - slot * BOLT_MS) / BOLT_MS;      // fade out over the slot
+  if (a <= 0.05) return;
+  const px = cx + (hash(slot, 92, cell.id) - 0.5) * R * 1.5;
+  const py = cy + (hash(slot, 93, cell.id) - 0.5) * R * 1.5;
+  // The world is drawn in world pixels and then scaled by the zoom, so a fixed
+  // bolt would be a hairline zoomed out and a thick bar zoomed in. Size it in
+  // screen pixels instead: the same strike reads the same at every zoom.
+  const zf = 1 / Math.max(0.4, cam.z);
+  if (px < sx0 - 80 || px > sx1 + 80 || py < sy0 - 200 * zf || py > sy1 + 80) return;
+  const top = py - (90 + hash(slot, 94, cell.id) * 130) * zf;
+  // the main channel, jagged at every step
+  const pts = [[px, top]];
+  const steps = 7;
+  for (let k = 1; k <= steps; k++) {
+    const t = k / steps;
+    const j = k === steps ? 0 : (hash(slot, 100 + k, cell.id) - 0.5) * 24 * zf;
+    pts.push([px + j * (1 - t * 0.4), top + (py - top) * t]);
+  }
+  // a fork partway down
+  const forkAt = 2 + (hash(slot, 130, cell.id) * 3 | 0);
+  const f0 = pts[forkAt], side = hash(slot, 131, cell.id) < 0.5 ? -1 : 1;
+  const fork = [[f0[0], f0[1]]];
+  const flen = (30 + hash(slot, 132, cell.id) * 50) * zf;
+  for (let k = 1; k <= 4; k++) {
+    fork.push([f0[0] + side * (8 + hash(slot, 140 + k, cell.id) * 26) * zf * (k / 4),
+      f0[1] + flen * (k / 4) * (0.4 + hash(slot, 150 + k, cell.id) * 0.5)]);
+  }
+  // the flash on the ground: a soft pool of light, brightest right under the bolt
+  const gr = f.createRadialGradient(px, py, 0, px, py, 90 * zf);
+  gr.addColorStop(0, `rgba(215,232,255,${(0.4 * a).toFixed(3)})`);
+  gr.addColorStop(0.45, `rgba(180,205,255,${(0.16 * a).toFixed(3)})`);
+  gr.addColorStop(1, 'rgba(160,190,255,0)');
+  f.fillStyle = gr;
+  f.beginPath(); f.arc(px, py, 90 * zf, 0, Math.PI * 2); f.fill();
+  // the glow around the channel, then the channel itself
+  strokePath(f, pts, 11 * zf, `rgba(150,185,255,${(0.10 * a).toFixed(3)})`);
+  strokePath(f, pts, 6 * zf, `rgba(185,210,255,${(0.26 * a).toFixed(3)})`);
+  strokePath(f, pts, 2.5 * zf, `rgba(235,244,255,${(0.85 * a).toFixed(3)})`);
+  strokePath(f, fork, 5 * zf, `rgba(170,200,255,${(0.18 * a).toFixed(3)})`);
+  strokePath(f, fork, 1.5 * zf, `rgba(230,240,255,${(0.6 * a).toFixed(3)})`);
+  // the strike point itself
+  f.fillStyle = `rgba(255,255,255,${(0.9 * a).toFixed(3)})`;
+  f.beginPath(); f.arc(px, py, Math.max(1, 3 * zf), 0, Math.PI * 2); f.fill();
+  f.fillRect(px - 16 * zf, py - Math.max(0.5, zf), 32 * zf * a, Math.max(1, zf));
 }
 function drawRain(f, cell, R, sx0, sy0, sx1, sy1) {
   const t = performance.now() / 1000;
   const cx = cell.x * T, cy = cell.y * T, heavy = cell.kind === 'storm';
-  const n = heavy ? 390 : 255, speed = heavy ? 430 : 365;
+  // A shower is a scatter of drops; a thunderstorm is a dense sheet driven
+  // sideways, so the two never look like the same weather at two strengths.
+  const n = heavy ? 1100 : 220, speed = heavy ? 560 : 330, slant = heavy ? 0.34 : 0.13;
   for (let k = 0; k < n; k++) {
     const ang = hash(k, 11, cell.id) * Math.PI * 2, rr = Math.sqrt(hash(k, 12, cell.id)) * R;
     const fall = (t * speed + hash(k, 13, cell.id) * 900) % 210;
-    const x = cx + Math.cos(ang) * rr + fall * 0.18, y = cy + Math.sin(ang) * rr + fall * 0.55;
+    const x = cx + Math.cos(ang) * rr + fall * slant, y = cy + Math.sin(ang) * rr + fall * 0.55;
     if (x < sx0 - 3 || x > sx1 + 3 || y < sy0 - 3 || y > sy1 + 3) continue;
     const dx = x - cx, dy = y - cy;
     if (dx * dx + dy * dy > R * R) continue;
@@ -351,8 +435,8 @@ function drawRain(f, cell, R, sx0, sy0, sx1, sy1) {
       f.fillRect(px - 1, py, 1, 1); f.fillRect(px, py - 1, 1, 1); f.fillRect(px + 1, py, 1, 1);
       f.fillRect(px - 2, py + 1, 1, 1); f.fillRect(px + 2, py + 1, 1, 1);
     } else {
-      f.fillStyle = heavy ? 'rgba(178,205,255,.7)' : 'rgba(190,220,255,.55)';
-      f.fillRect(px, py, 1, 2);
+      f.fillStyle = heavy ? 'rgba(178,205,255,.78)' : 'rgba(190,220,255,.5)';
+      f.fillRect(px, py, 1, heavy ? 3 : 2);
     }
   }
 }

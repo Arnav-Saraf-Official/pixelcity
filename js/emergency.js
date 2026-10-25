@@ -11,7 +11,7 @@ const WEATHER_KINDS = {
   sunny:  {name: 'Sunny',       speed: 1,    crash: 1,    fire: 1,   wet: 0, tint: null},
   cloudy: {name: 'Cloudy',      speed: 1,    crash: 1.15, fire: 1,   wet: 0, tint: [125, 135, 150, 0.1]},
   rain:   {name: 'Rainy',       speed: 0.85, crash: 2.2,  fire: 0.6, wet: 1, tint: [60, 105, 165, 0.25]},
-  storm:  {name: 'Thunderstorm',speed: 0.7,  crash: 3.2,  fire: 2.4, wet: 2, tint: [16, 26, 52, 0.32]},
+  storm:  {name: 'Thunderstorm',speed: 0.68, crash: 3.4,  fire: 2.6, wet: 2, tint: [10, 16, 38, 0.34]},
   snow:   {name: 'Snow',        speed: 0.9,  crash: 1.25, fire: 0.5, wet: 0, tint: [185, 205, 225, 0.2]},
 };
 // The weather is a field of 90-tile circles. Each cell drifts slowly around its
@@ -25,11 +25,21 @@ let weatherSeeded = false;
 function newWeatherCell(bx, by, k) {
   return {id: k, bx, by, x: bx, y: by, tx: bx, ty: by, retarget: 0, kind: 'sunny', until: gameMin + 120};
 }
-function weatherKindRoll(r) {
-  if (r > 0.94) return 'storm';
-  if (r > 0.78) return 'rain';
-  if (r > 0.7) return 'snow';
-  return r > 0.35 ? 'cloudy' : 'sunny';
+// The sky mostly drifts one step at a time along this chain, so a clear spell
+// clouds over before it rains and a shower can build into a thunderstorm. The
+// rest of the roll jumps anywhere, so nothing settles into a pattern.
+const WX_CHAIN = ['sunny', 'cloudy', 'rain', 'storm'];
+function weatherKindRoll(r, prev) {
+  if (r < 0.05) return 'snow';
+  const i = prev ? WX_CHAIN.indexOf(prev) : -1;
+  if (i >= 0 && r < 0.45) {
+    // a spell mostly drifts one step, and builds up far more often than it
+    // breaks, so rain can turn into a thunderstorm but rarely the reverse
+    if (r < 0.24) return WX_CHAIN[Math.max(0, i - 1)];
+    return WX_CHAIN[i + (r < 0.282 ? 1 : 0)] || WX_CHAIN[i];
+  }
+  const t = (r - 0.45) / 0.5;
+  return t > 0.95 ? 'storm' : t > 0.72 ? 'rain' : t > 0.30 ? 'cloudy' : 'sunny';
 }
 // Ideal is a sandbox: the sky never turns, so nothing outside the player's
 // control slows traffic or starts fires.
@@ -42,7 +52,7 @@ function initWeather() {
     const bx = (gx + 0.5) * MW / WX_COLS, by = (gy + 0.5) * MH / WX_ROWS;
     const c = newWeatherCell(bx, by, k++);
     c.kind = idealWeather() ? 'sunny' : weatherKindRoll(rng());
-    c.until = gameMin + (idealWeather() ? 1e9 : 150 + rng() * 420);
+    c.until = gameMin + (idealWeather() ? 1e9 : 75 + rng() * 300);
     weatherCells.push(c);
   }
   weatherSeeded = true;
@@ -58,6 +68,16 @@ const weatherCellAt = (tx, ty) => {
   return best;
 };
 const weatherAt = (tx, ty) => weatherCellAt(tx, ty).kind;
+// The storm a player can see is the disc painted around a cell's centre, so a
+// flight is only inside one when it is inside that disc.
+function stormAt(tx, ty) {
+  if (!weatherCells.length) initWeather();
+  for (const c of weatherCells) {
+    if (c.kind !== 'storm') continue;
+    if (Math.hypot(c.x - tx, c.y - ty) < WX_R * 0.92) return true;
+  }
+  return false;
+}
 function weatherSnowAt(tx, ty) {
   const cell = weatherCellAt(tx, ty), x = Math.floor(tx), y = Math.floor(ty);
   return cell.kind === 'rain' || cell.kind === 'storm' ? (inb(x, y) && biome[y * MW + x] === 4) : false;
@@ -76,15 +96,20 @@ function syncWeatherLabel() {
 }
 function rollWeather(cell) {
   const c = cell || weatherCellAt(cameraTile().x, cameraTile().y);
-  c.kind = idealWeather() ? 'sunny' : weatherKindRoll(Math.random());
-  c.until = gameMin + (idealWeather() ? 1e9 : 180 + Math.random() * 360);   // 3-9 game hours
+  c.kind = idealWeather() ? 'sunny' : weatherKindRoll(Math.random(), c.kind);
+  c.until = gameMin + (idealWeather() ? 1e9 : 75 + Math.random() * 300);   // 1-6 game hours
   syncWeatherLabel();
 }
 function weatherTick() {
   if (!weatherCells.length) initWeather();
-  for (const c of weatherCells) if (gameMin >= c.until) {
-    c.kind = idealWeather() ? 'sunny' : weatherKindRoll(Math.random());
-    c.until = gameMin + (idealWeather() ? 1e9 : 180 + Math.random() * 360);
+  for (const c of weatherCells) {
+    if (gameMin >= c.until) {
+      c.kind = idealWeather() ? 'sunny' : weatherKindRoll(Math.random(), c.kind);
+      c.until = gameMin + (idealWeather() ? 1e9 : 75 + Math.random() * 300);
+    } else if (!idealWeather() && Math.random() < 0.003) {
+      // the sky can also just turn, so a long spell never feels scripted
+      rollWeather(c);
+    }
   }
   syncWeatherLabel();
 }
@@ -107,6 +132,9 @@ function stepWeather(dt) {
 // Incidents
 // ---------------------------------------------------------------------
 const incidents = [];
+// Wreck sites that outlive the incident: the scorched patch and the hull stay
+// on the ground long after the smoke has stopped, until the city clears them.
+const wrecks = [];
 let units = [];
 let nextIncident = 1;
 
@@ -126,8 +154,8 @@ function syncUnits() {
     for (let k = have; k < spec.n; k++) {
       const b = B(home);
       if (!b) break;
-      units.push({id: nextIncident++, kind: spec.kind, home, x: b.cx, y: b.cy,
-        state: 'idle', path: null, i: 0, target: 0, timer: 0});
+      units.push({id: nextIncident++, kind: spec.kind, home, x: b.cx, y: b.cy, d: 2,
+        state: 'idle', path: null, i: 0, target: 0, timer: 0, blocked: 0});
     }
   }
 }
@@ -139,10 +167,10 @@ function unitTile(u) {
   const per = perimeter(b.x, b.y, b.w, b.h);
   return per.find(i => isRoad(i)) ?? -1;
 }
-function nearestRoadTile(x, y) {
+function nearestRoadTile(x, y, within = 12) {
   const tx = Math.round(x), ty = Math.round(y);
   let best = -1, bd = Infinity;
-  for (let r = 0; r <= 12 && best < 0; r++) {
+  for (let r = 0; r <= within && best < 0; r++) {
     for (let yy = ty - r; yy <= ty + r; yy++) for (let xx = tx - r; xx <= tx + r; xx++) {
       if (!inb(xx, yy)) continue;
       const i = yy * MW + xx;
@@ -162,9 +190,9 @@ function dispatch(inc) {
     if (d < bd) { bd = d; best = u; }
   }
   if (!best) return false;
-  const from = unitTile(best), to = nearestRoadTile(inc.x, inc.y);
+  const from = unitTile(best), to = nearestRoadTile(inc.x, inc.y, inc.roadMax || 12);
   if (from < 0 || to < 0) return false;
-  const path = from === to ? [from] : findPath(from, to, 'car');
+  const path = from === to ? [from] : findPath(from, to, 'car', Infinity, true);
   if (!path) return false;
   best.state = 'enroute';
   best.path = path; best.i = 0;
@@ -175,11 +203,170 @@ function dispatch(inc) {
   return true;
 }
 
-function raiseIncident(kind, x, y, buildingId) {
+function raiseIncident(kind, x, y, buildingId, extra) {
   const inc = {id: nextIncident++, kind, x, y, b: buildingId || 0, age: 0, state: 'open', unit: 0, progress: 0};
+  if (extra) Object.assign(inc, extra);
   incidents.push(inc);
-  dispatch(inc);
+  stats.lastSite = {x: Math.round(x), y: Math.round(y)};
+  if (kind === 'fire') {
+    evacuate(B(buildingId));
+    // a fire alert carries the same jump-to-it offer as a parking failure
+    const b = B(buildingId);
+    if (b) toastAction(`Fire at ${BT[b.type].name} in ${DISTRICTS[districtOf(x, y)]}.`,
+      'Take me there', () => showSite(Math.round(x), Math.round(y)));
+  }
+  dispatch(inc);   // after `extra`, so a wreck's short reach is already known
   return inc;
+}
+
+// ---------------------------------------------------------------------
+// Street closures
+// ---------------------------------------------------------------------
+const CLOSE_SECONDS = 240;
+// Shut the street tiles around a crash so traffic has to go around it. Cars
+// already routed through them are re-planned at once; crews answering the call
+// are not blocked (their paths ignore closures).
+function closeStreetAround(x, y, seconds = CLOSE_SECONDS) {
+  const tx = Math.round(x), ty = Math.round(y), near = [];
+  for (let yy = ty - 3; yy <= ty + 3; yy++) for (let xx = tx - 3; xx <= tx + 3; xx++) {
+    if (!inb(xx, yy)) continue;
+    const i = yy * MW + xx;
+    if (!isRoad(i) || overpass[i]) continue;
+    near.push({i, d: Math.abs(xx - tx) + Math.abs(yy - ty)});
+  }
+  near.sort((a, b) => a.d - b.d);
+  const until = simTime + seconds;
+  let n = 0;
+  for (const f of near.slice(0, 4)) {
+    roadClosed[f.i] = until;
+    streetClosures.set(f.i, until);
+    n++;
+  }
+  if (n) { validateMovers(); markDirty(tx - 3, ty - 3, tx + 3, ty + 3); }
+  return n;
+}
+function pruneClosures() {
+  for (const [i, until] of streetClosures) {
+    if (until > simTime) continue;
+    streetClosures.delete(i);
+    roadClosed[i] = 0;
+  }
+}
+
+// ---------------------------------------------------------------------
+// Aircraft lost in a storm
+//
+// A flight that flies into a thunderstorm can be brought down. The odds are
+// per storm entered and climb with the difficulty, so a sandbox never loses an
+// aircraft: a slight risk on Easy, a real one on Insane.
+// ---------------------------------------------------------------------
+const PLANE_CRASH = {ideal: 0, easy: 0.004, normal: 0.015, hard: 0.035, insane: 0.07};
+const planeCrashChance = () => PLANE_CRASH[worldSettings.difficulty] ?? 0.015;
+// A wreck is only attended if a street runs close enough for the crews to get to it.
+const CRASH_ROAD_RANGE = 8;
+
+const WRECK_VARIANTS = 4;
+function planeCrash(x, y) {
+  stats.planeCrashes = (stats.planeCrashes || 0) + 1;
+  const tx = Math.round(x), ty = Math.round(y);
+  stats.lastSite = {x: tx, y: ty};
+  if (!inb(tx, ty) || water[ty * MW + tx]) {   // down in the water: nothing to fight
+    toast('A flight went down in the water.');
+    return;
+  }
+  wrecks.push({x: tx, y: ty, v: (Math.random() * WRECK_VARIANTS) | 0, t: simTime, until: gameMin + 720});
+  const shut = closeStreetAround(tx, ty);
+  toastAction(`A flight went down in the storm in ${DISTRICTS[districtOf(tx, ty)]}.` +
+    (shut ? ' The street around the wreck is closed.' : ''), 'Take me there', () => showSite(tx, ty));
+  // the wreck burns and there are casualties, so a truck and an ambulance come
+  const site = {roadMax: CRASH_ROAD_RANGE, wreck: true};
+  raiseIncident('fire', tx, ty, 0, site);
+  raiseIncident('crash', tx, ty, 0, site);
+  markDirty(tx - 8, ty - 8, tx + 8, ty + 8);
+}
+
+// The nearest tile a pedestrian can actually stand on, outside a footprint.
+function nearestWalkTile(x, y) {
+  const tx = Math.round(x), ty = Math.round(y);
+  let best = -1, bd = Infinity;
+  for (let r = 0; r <= 14 && best < 0; r++) {
+    for (let yy = ty - r; yy <= ty + r; yy++) for (let xx = tx - r; xx <= tx + r; xx++) {
+      if (!inb(xx, yy)) continue;
+      const i = yy * MW + xx;
+      if (!isWalk(i)) continue;
+      const d = Math.abs(xx - tx) + Math.abs(yy - ty);
+      if (d < bd) { bd = d; best = i; }
+    }
+  }
+  return best;
+}
+
+// Anywhere to run to when the place they were standing is the one on fire.
+function nearestShelter(b) {
+  let best = null, bd = Infinity;
+  for (const o of buildings.values()) {
+    if (o.id === b.id || o.walk < 0) continue;
+    const d = distB(o, b);
+    if (d < bd) { bd = d; best = o; }
+  }
+  return best;
+}
+
+// A walkable tile roughly `want` tiles from `from`, so somebody leaving a
+// burning building has room to run instead of standing in the doorway.
+function fleeTile(from, want) {
+  const fx = from % MW, fy = from / MW | 0;
+  const near = [];
+  for (let r = 3; r <= want + 6; r++) {
+    for (let y = fy - r; y <= fy + r; y++) for (let x = fx - r; x <= fx + r; x++) {
+      if (!inb(x, y)) continue;
+      const d = Math.abs(x - fx) + Math.abs(y - fy);
+      if (d < 3 || d > want + 6) continue;
+      const i = y * MW + x;
+      if (!isWalk(i)) continue;
+      near.push({i, cost: Math.abs(d - want)});
+    }
+  }
+  near.sort((a, b) => a.cost - b.cost);
+  for (const c of near.slice(0, 24)) {
+    const p = findPath(from, c.i, 'walk', 24);
+    if (p && p.length > 1) return {tile: c.i, path: p};
+  }
+  return null;
+}
+
+// Everybody inside a burning building gets out on foot: through the door, a few
+// tiles clear of the smoke, then on to wherever they sleep tonight. The car
+// stays parked where it was, so the street fills with abandoned cars while they
+// run.
+function evacuate(b) {
+  if (!b) return;
+  const inside = agents.filter(a => !a.dead && a.state === 'idle' && a.loc === b.id);
+  if (!inside.length) return;
+  const from = nearestWalkTile(b.cx, b.cy);
+  if (from < 0) return;
+  const shelter = nearestShelter(b);
+  for (const a of inside) {
+    if (a.car) { a.car.dead = true; releaseAll(a.car); carById.delete(a.car.id); a.car = null; }
+    if (a.ped) { a.ped.dead = true; a.ped = null; }
+    const H = B(a.home);
+    const dest = H && H.id !== b.id && H.walk >= 0 ? H : shelter;
+    const legs = [];
+    const run = fleeTile(from, 7);
+    if (run) legs.push({path: run.path});
+    const start = run ? run.tile : from;
+    if (dest && dest.walk >= 0) {
+      const p = findPath(start, dest.walk, 'walk', 90);
+      if (p && p.length > 1) legs.push({path: p});
+    }
+    if (!legs.length) {
+      const p = findPath(from, dest && dest.walk >= 0 ? dest.walk : from, 'walk', 90);
+      if (p && p.length > 1) legs.push({path: p});
+    }
+    depart(a, b, 'walk');
+    if (!legs.length) { a.state = 'idle'; a.loc = 0; continue; }   // out, but nowhere to go
+    spawnPed(a, legs, dest ? dest.id : 0, 'walk');
+  }
 }
 
 // A crash between moving cars: money for the tow, a trip to hospital for the hurt.
@@ -226,15 +413,46 @@ function maybeFire(hourly) {
   }
 }
 
+// Is there something in the road just ahead of a unit? Crews queue in traffic
+// rather than driving through it, though after a few seconds they edge forward
+// so a jam can never trap an ambulance for good.
+function unitBlocked(u) {
+  const hx = DX[u.d || 2], hy = DY[u.d || 2];
+  const fx = u.x * T + hx * 5, fy = u.y * T + hy * 5;
+  const arr = bucket.get(tileAt(fx, fy));
+  if (!arr) return false;
+  for (const o of arr) {
+    if (o.unit) continue;
+    if (Math.abs(o.x - fx) + Math.abs(o.y - fy) < 4.5) return true;
+  }
+  return false;
+}
+
+// Back at the station the crew parks inside the building, out of sight.
+function parkUnit(u) {
+  u.state = 'idle'; u.path = null; u.blocked = 0; u.from = null; u.target = 0; u.timer = 0;
+  const h = B(u.home);
+  if (h) { u.x = h.cx; u.y = h.cy; }
+}
+
 function stepIncidents(dt) {
   // units drive, work, then go home
   for (const u of units) {
     if (u.state === 'idle') continue;
     if (u.state === 'enroute' || u.state === 'returning') {
       const p = u.path;
-      if (!p || p.length < 2) { u.state = u.state === 'enroute' ? 'onscene' : 'idle'; u.timer = 0; continue; }
+      if (!p || p.length < 2) {
+        if (u.state === 'enroute') { u.state = 'onscene'; u.timer = 0; }
+        else parkUnit(u);
+        continue;
+      }
       const speed = (u.kind === 'firetruck' ? 30 : 34);
-      u.i += speed * dt / T;
+      // the segment the unit is on also gives it a facing for the sprite
+      const k0 = Math.min(p.length - 1, Math.floor(u.i));
+      const facing = dirOf(p[k0], p[Math.min(p.length - 1, k0 + 1)]);
+      if (facing) u.d = facing;
+      if (unitBlocked(u)) u.blocked = (u.blocked || 0) + dt; else u.blocked = 0;
+      if (!u.blocked || u.blocked > 4) u.i += speed * dt / T;
       const k = Math.min(p.length - 1, Math.floor(u.i));
       const a = p[k], b = p[Math.min(p.length - 1, k + 1)];
       const ax = a % MW, ay = a / MW | 0, bx = b % MW, by = b / MW | 0;
@@ -243,13 +461,13 @@ function stepIncidents(dt) {
       u.y = ay + (by - ay) * t + 0.5;
       if (u.i >= p.length - 1) {
         if (u.state === 'enroute') { u.state = 'onscene'; u.timer = 0; }
-        else { u.state = 'idle'; u.path = null; }
+        else parkUnit(u);   // home again, out of sight inside the station
       }
       continue;
     }
     if (u.state === 'onscene') {
       const inc = incidents.find(i => i.id === u.target && i.state !== 'done');
-      if (!inc) { u.state = 'returning'; u.path = u.from != null ? findPath(nearestRoadTile(u.x, u.y), u.from, 'car') : null; u.i = 0; continue; }
+      if (!inc) { u.state = 'returning'; u.path = u.from != null ? findPath(nearestRoadTile(u.x, u.y), u.from, 'car', Infinity, true) : null; u.i = 0; continue; }
       inc.progress += dt;
       const need = inc.kind === 'fire' ? 6 : 5;
       if (inc.progress >= need) resolveIncident(inc, u);
@@ -266,11 +484,15 @@ function stepIncidents(dt) {
   for (let k = incidents.length - 1; k >= 0; k--) {
     if (incidents[k].state === 'done') incidents.splice(k, 1);
   }
+  for (let k = wrecks.length - 1; k >= 0; k--) {
+    if (gameMin > wrecks[k].until) wrecks.splice(k, 1);
+  }
+  pruneClosures();
 }
 function resolveIncident(inc, u) {
   inc.state = 'done';
   u.state = 'returning';
-  u.path = u.from != null ? findPath(nearestRoadTile(u.x, u.y), u.from, 'car') : null;
+  u.path = u.from != null ? findPath(nearestRoadTile(u.x, u.y), u.from, 'car', Infinity, true) : null;
   u.i = 0;
   if (inc.kind === 'fire') stats.firesOut = (stats.firesOut || 0) + 1;
   else stats.crashesCleared = (stats.crashesCleared || 0) + 1;
@@ -278,11 +500,10 @@ function resolveIncident(inc, u) {
 function burnDown(inc) {
   inc.state = 'done';
   const b = B(inc.b);
-  if (b) {
-    for (const a of agents) if (a.home === b.id) a.mood = Math.max(0, a.mood - 0.3);
-    removeBuilding(b);
-    markDirty(inc.x - 6, inc.y - 6, inc.x + 6, inc.y + 6);
-    stats.burned = (stats.burned || 0) + 1;
-    toast('A building burned down.');
-  }
+  if (!b) return;               // a wreck with no building left to lose
+  for (const a of agents) if (a.home === b.id) a.mood = Math.max(0, a.mood - 0.3);
+  removeBuilding(b);
+  markDirty(inc.x - 6, inc.y - 6, inc.x + 6, inc.y + 6);
+  stats.burned = (stats.burned || 0) + 1;
+  toast('A building burned down.');
 }

@@ -241,6 +241,15 @@ const bucket = new Map();
 function buildBuckets() {
   bucket.clear();
   for (const c of cars) { if (c.dead) continue; const k = tileAt(c.x, c.y); const arr = bucket.get(k); if (arr) arr.push(c); else bucket.set(k, [c]); }
+  // A fire engine or ambulance standing in the road is an obstacle like any
+  // other vehicle, so traffic queues behind it instead of driving through.
+  if (typeof units !== 'undefined') for (const u of units) {
+    if (u.state === 'idle') continue;
+    const k = tileAt(u.x * T, u.y * T);
+    const e = {x: u.x * T, y: u.y * T, d: u.d || 2, speed: 0, unit: true};
+    const arr = bucket.get(k);
+    if (arr) arr.push(e); else bucket.set(k, [e]);
+  }
 }
 let aheadDist = 0;
 // Inside an intersection a car only queues behind cars heading the same way,
@@ -573,11 +582,14 @@ function minuteTick() {
     const f = (h >= 7 && h < 9.5) || (h >= 16 && h < 19) ? 1.6 : (h >= 6 && h < 22) ? 1 : 0.25;
     for (let r = 0.06 * Math.min(12, connections.length) * f; r > 0; r--) if (Math.random() < r) spawnThrough();
   }
-  if (h > 5.5 && h < 23.5) {
+  if (h > 5.5 && h < 23.5 && airports.length && planes.length < planeCap()) {
+    // A lone airport is a quiet airfield: a flight every few game hours, and
+    // almost never a visitor. Two or more airports keep each other busy.
+    const busy = airports.length > 1;
     for (const ap of airports) {
-      if (planes.length >= 14) break;
-      if (Math.random() < 1 / 22) spawnDeparture(ap);
-      if (Math.random() < (airports.length > 1 ? 1 / 90 : 1 / 22)) spawnArrival(ap);  // flights from outside the region
+      if (planes.length >= planeCap()) break;
+      if (Math.random() < (busy ? 1 / 60 : 1 / 260)) spawnDeparture(ap);
+      if (Math.random() < (busy ? 1 / 240 : 1 / 900)) spawnArrival(ap);  // flights from outside the region
     }
   }
   for (const dk of docks) {
@@ -620,55 +632,220 @@ function minuteTick() {
 // Planes and boats
 // =====================================================================
 function wrapAng(a) { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; }
+// Crews steer around a thunderstorm instead of flying through it. When a cell
+// blocks the way to where an aircraft is going, it is given a point on the far
+// side of the cell, well clear of its edge, and flies that instead: it slips
+// past the storm and then carries on toward its goal. This never turns into an
+// orbit, because the goal, not the aircraft's own heading, picks the side.
+function stormAim(p, goal) {
+  if (!weatherCells.length) return null;
+  const R = WX_R * T;
+  let ux = goal.x - p.x, uy = goal.y - p.y;
+  const ul = Math.hypot(ux, uy);
+  if (ul < 1) return null;
+  ux /= ul; uy /= ul;
+  let best = null, bd = Infinity;
+  for (const c of weatherCells) {
+    if (c.kind !== 'storm') continue;
+    const dx = c.x * T - p.x, dy = c.y * T - p.y;
+    const along = ux * dx + uy * dy;
+    if (along < 0 || along > ul) continue;        // not between us and the goal
+    const side = ux * dy - uy * dx;
+    if (Math.abs(side) > R) continue;             // this track passes clear
+    if (along < bd) { bd = along; best = {cx: c.x * T, cy: c.y * T, side}; }
+  }
+  if (!best) return null;
+  // step around the cell on the free side, a little beyond its middle, but
+  // never aim outside the region: a detour must not fly an aircraft off the map
+  const lat = R * 1.7 * (best.side >= 0 ? -1 : 1);
+  return {x: clamp(best.cx + ux * R * 0.2 - uy * lat, 300, FW - 300),
+          y: clamp(best.cy + uy * R * 0.2 + ux * lat, 300, FH - 300)};
+}
 function turnToward(p, target, dt, rate = 0.9) { p.ang += clamp(wrapAng(target - p.ang), -rate * dt, rate * dt); }
 function runway(ap) { return {x0: ap.x * T + 6, x1: ap.x * T + 84, y: ap.y * T + 8.5}; }
-function spawnDeparture(ap) {
-  const r = runway(ap);
-  if (planes.some(p => p.ap === ap.id && (p.phase === 'roll' || p.phase === 'landroll'))) return;
-  // with more than one airport, most flights go to another airport in the region
-  const others = airports.filter(a => a !== ap);
-  const dest = others.length && Math.random() < 0.85 ? others[Math.floor(Math.random() * others.length)] : null;
-  planes.push({x: r.x0, y: r.y, ang: 0, speed: 0, alt: 0, phase: 'roll', ap: ap.id, dest: dest ? dest.id : 0, cruise: (Math.random() - 0.5) * 2 * Math.PI, dead: false});
+let nextPlaneId = 1;
+// The most aircraft allowed in the air at once. One airport is a quiet
+// airfield; more airports means a busier sky.
+const planeCap = () => airports.length > 1 ? 3 + airports.length * 2 : 2;
+const onRunway = q => q.phase === 'roll' || q.phase === 'landroll' || q.phase === 'final';
+const wantsToLand = q => q.phase === 'inbound' || q.phase === 'hold';
+function runwayFree(apId, except) {
+  return !planes.some(q => q !== except && q.ap === apId && onRunway(q));
 }
-function setApproach(p, ap) { const r = runway(ap); p.ap = ap.id; p.tx = r.x0 - 40 * T; p.ty = r.y; }
+// Who may land next: among the aircraft actually waiting at this airport, the
+// one that got here first. An aircraft still crossing the region is not in the
+// queue yet, so it can never hold up one that is already circling.
+function firstToLand(apId) {
+  let best = null;
+  for (const q of planes) {
+    if (!wantsToLand(q) || q.ap !== apId || !q.queued) continue;
+    if (!best || q.arrived < best.arrived || (q.arrived === best.arrived && q.id < best.id)) best = q;
+  }
+  return best;
+}
+// Somewhere over the region, well clear of where the aircraft already is, and
+// not under a thunderstorm: a crew would not pick a storm to fly into.
+function pickWaypoint(p) {
+  for (let k = 0; k < 16; k++) {
+    const x = 300 + Math.random() * Math.max(1, FW - 600);
+    const y = 300 + Math.random() * Math.max(1, FH - 600);
+    if (Math.hypot(x - p.x, y - p.y) <= 600) continue;
+    if (weatherCells.length && weatherAt(x / T, y / T) === 'storm') continue;
+    return {x, y};
+  }
+  return {x: Math.random() * FW, y: Math.random() * FH};
+}
+// A flight starts as a departure roll from a runway. With a second airport in
+// the region most flights cross to it; otherwise the aircraft tours the city and
+// comes back to the airport it left from.
+function spawnDeparture(ap) {
+  if (!ap || ap.type !== 'airport') return null;
+  const r = runway(ap);
+  if (!runwayFree(ap.id, null)) return null;
+  // at most one aircraft of its own out and one on the way in
+  if (planes.filter(q => q.ap === ap.id && q.phase !== 'landroll').length >= 2) return null;
+  const others = airports.filter(a => a.id !== ap.id);
+  const cross = others.length > 0 && Math.random() < 0.85;
+  const dest = cross ? others[(Math.random() * others.length) | 0] : ap;
+  const p = {id: nextPlaneId++, x: r.x0, y: r.y, ang: 0, speed: 0, alt: 0, phase: 'roll',
+    ap: ap.id, from: ap.id, dest: dest.id, cross, wp: null, legs: 0, queued: false, finalT: 0,
+    tour: 1 + (Math.random() * 2 | 0), air: 0, arrived: 0, t0: simTime, dead: false};
+  planes.push(p);
+  return p;
+}
+function setApproach(p, ap) {
+  const r = runway(ap);
+  p.ap = ap.id; p.tx = r.x0 - 40 * T; p.ty = r.y;
+  p.queued = false; p.arrived = 0;   // joins the landing queue on reaching the pattern
+}
+// A visitor from outside the region joins the same queue as everybody else.
 function spawnArrival(ap) {
-  if (planes.some(p => p.ap === ap.id && (p.phase === 'inbound' || p.phase === 'final' || p.phase === 'landroll'))) return; // one landing at a time
+  if (!ap || ap.type !== 'airport') return null;
   const r = runway(ap), side = Math.floor(Math.random() * 4);
-  const x = side === 0 ? -40 : side === 1 ? FW + 40 : Math.random() * FW, y = side === 2 ? -40 : side === 3 ? FH + 40 : Math.random() * FH;
-  const tx = r.x0 - 40 * T;
-  planes.push({x, y, ang: Math.atan2(r.y - y, tx - x), speed: 62, alt: 22, phase: 'inbound', ap: ap.id, tx, ty: r.y, dead: false});
+  const x = side === 0 ? -40 : side === 1 ? FW + 40 : Math.random() * FW;
+  const y = side === 2 ? -40 : side === 3 ? FH + 40 : Math.random() * FH;
+  const p = {id: nextPlaneId++, x, y, ang: Math.atan2(r.y - y, r.x0 - 40 * T - x), speed: 62, alt: 22,
+    phase: 'inbound', ap: ap.id, from: 0, dest: ap.id, cross: false, wp: null, legs: 0, tour: 1,
+    air: 0, arrived: 0, queued: false, finalT: 0, t0: simTime, dead: false};
+  setApproach(p, ap);
+  planes.push(p);
+  return p;
+}
+// Holding: fly a circle around the approach fix, staying a fixed distance out,
+// until it is this aircraft's turn to land.
+function holdCircle(p, dt) {
+  const R = 110, speed = 55;
+  // chase a point that walks around the circle at the aircraft's own speed, so
+  // the turn radius stays R and the pattern never drifts off the fix
+  const a = Math.atan2(p.y - p.ty, p.x - p.tx) + speed / R * dt;
+  const tx = p.tx + Math.cos(a) * R, ty = p.ty + Math.sin(a) * R;
+  turnToward(p, Math.atan2(ty - p.y, tx - p.x), dt, 2.2);
+  p.speed = speed;
+  p.alt = Math.min(22, p.alt + 4 * dt);
+  p.x += Math.cos(p.ang) * p.speed * dt;
+  p.y += Math.sin(p.ang) * p.speed * dt;
 }
 function stepPlanes(dt) {
   for (const p of planes) {
     const ap = B(p.ap), r = ap && ap.type === 'airport' ? runway(ap) : null;
     const move = () => { p.x += Math.cos(p.ang) * p.speed * dt; p.y += Math.sin(p.ang) * p.speed * dt; };
+    // last resort: a flight that never finds a way down is diverted away
+    if (p.t0 && simTime - p.t0 > 420 && p.phase !== 'fall') { p.dead = true; continue; }
+    // Thunderstorms are dangerous to fly through. The roll happens once per
+    // storm entered, not once per frame, so the odds are the same whether the
+    // aircraft clips an edge or spends a minute inside.
+    if (p.phase !== 'fall' && p.phase !== 'landroll' && p.alt > 2) {
+      const stormy = stormAt(p.x / T, p.y / T);
+      if (stormy && !p.inStorm) {
+        p.inStorm = true;
+        if (Math.random() < planeCrashChance()) { p.phase = 'fall'; p.fallT = 0; continue; }
+      } else if (!stormy) p.inStorm = false;
+    }
+    if (p.phase === 'fall') {
+      // a spinning dive, then the wreck on the ground below
+      p.fallT += dt;
+      p.alt = Math.max(0, p.alt - (10 + p.fallT * 26) * dt);
+      p.ang += (2.6 + p.fallT) * dt;
+      p.speed = Math.max(26, p.speed - 6 * dt);
+      move();
+      if (p.alt <= 0) { planeCrash(p.x / T, p.y / T); p.dead = true; }
+      continue;
+    }
     if (p.phase === 'roll') {
       if (!r) { p.dead = true; continue; }
       p.speed = Math.min(50, p.speed + 13 * dt); p.x += p.speed * dt;
       if (p.speed >= 42 || p.x > r.x1) p.phase = 'climb';
     } else if (p.phase === 'climb') {
       p.speed = Math.min(64, p.speed + 8 * dt); p.alt = Math.min(22, p.alt + 6 * dt);
-      let dap = p.dest ? B(p.dest) : null;
-      if (dap && dap.type !== 'airport') { dap = null; p.dest = 0; }
-      if (p.alt > 8) { if (dap) { const rr = runway(dap); turnToward(p, Math.atan2(rr.y - p.y, rr.x0 - 40 * T - p.x), dt, 0.5); } else turnToward(p, p.cruise, dt, 0.5); }
       move();
-      if (p.alt >= 22) { if (dap) { setApproach(p, dap); p.phase = 'inbound'; } else p.phase = 'cruise'; }
+      if (p.alt >= 22) {
+        const dap = p.cross ? B(p.dest) : null;
+        if (!dap || dap.type !== 'airport') { p.cross = false; p.dest = p.ap; }
+        p.wp = pickWaypoint(p);
+        p.phase = 'cruise';
+      }
     } else if (p.phase === 'cruise') {
-      turnToward(p, p.cruise, dt, 0.5); move();
-      if (p.x < -200 || p.y < -200 || p.x > FW + 200 || p.y > FH + 200) p.dead = true;
+      p.air += dt;
+      // a tour of the city does not last forever: head home once it is long enough
+      if (!p.cross && p.air > 70) {
+        const home = B(p.ap);
+        if (home && home.type === 'airport') { setApproach(p, home); p.phase = 'inbound'; continue; }
+        p.dead = true; continue;
+      }
+      const dap = p.cross ? B(p.dest) : null;
+      if (p.cross && (!dap || dap.type !== 'airport')) { p.cross = false; p.dest = p.ap; }
+      let tgt = p.wp;
+      if (p.cross && dap) { const rr = runway(dap); tgt = {x: rr.x0 - 40 * T, y: rr.y}; }
+      if (!tgt) { tgt = p.wp = pickWaypoint(p); }
+      const detour = stormAim(p, tgt) || tgt;
+      turnToward(p, Math.atan2(detour.y - p.y, detour.x - p.x), dt, detour === tgt ? 0.6 : 1);
+      move();
+      if (p.x < -400 || p.y < -400 || p.x > FW + 400 || p.y > FH + 400) { p.dead = true; continue; }
+      if (Math.hypot(tgt.x - p.x, tgt.y - p.y) < 130) {
+        if (p.cross && dap) { setApproach(p, dap); p.phase = 'inbound'; continue; }
+        p.legs++;
+        p.wp = null;
+        if (p.legs >= p.tour || p.air > 70) {
+          const home = B(p.ap);
+          if (home && home.type === 'airport') { setApproach(p, home); p.phase = 'inbound'; }
+          else p.dead = true;
+        }
+      }
     } else if (p.phase === 'inbound') {
-      if (!r) { p.phase = 'cruise'; p.cruise = p.ang; continue; }
+      if (!r) { p.phase = 'cruise'; p.cross = false; p.wp = null; continue; }
       const d = Math.hypot(p.tx - p.x, p.ty - p.y);
-      const busy = planes.some(q => q !== p && q.ap === p.ap && (q.phase === 'final' || q.phase === 'landroll' || q.phase === 'roll'));
-      if (busy && d < 80) { p.ang += 0.6 * dt; move(); continue; }   // hold in a circle until the runway is clear
-      turnToward(p, Math.atan2(p.ty - p.y, p.tx - p.x), dt); move();
-      if (d < 30) p.phase = 'final';
+      // reaching the pattern is what puts an aircraft in the landing queue
+      if (!p.queued && d < 260) { p.queued = true; p.arrived = simTime; }
+      const first = firstToLand(p.ap);
+      const busy = !runwayFree(p.ap, p) || (first !== null && first !== p);
+      if (busy && d < 300) { p.phase = 'hold'; p.queued = true; p.arrived = p.arrived || simTime; continue; }
+      // slow and tighten the turn on the last stretch, or the aircraft can end
+      // up flying circles around the fix it is trying to reach
+      p.speed = d < 150 ? 46 : 64;
+      // far from the airport an arrival still has room to vector around weather;
+      // on the last stretch it has to stay on the centreline
+      const detour = d > 350 ? stormAim(p, {x: p.tx, y: p.ty}) : null;
+      turnToward(p, Math.atan2((detour ? detour.y : p.ty) - p.y, (detour ? detour.x : p.tx) - p.x), dt, detour ? 1 : d < 150 ? 1.6 : 0.9);
+      p.alt = Math.min(22, p.alt + 4 * dt);
+      move();
+      if (d < 55) { p.phase = busy ? 'hold' : 'final'; p.finalT = 0; }
+    } else if (p.phase === 'hold') {
+      if (!r) { p.phase = 'cruise'; p.cross = false; p.wp = null; continue; }
+      if (runwayFree(p.ap, p) && firstToLand(p.ap) === p) { p.phase = 'inbound'; continue; }
+      holdCircle(p, dt);
     } else if (p.phase === 'final') {
-      if (!r) { p.phase = 'cruise'; p.cruise = p.ang; continue; }
-      turnToward(p, Math.atan2(r.y - p.y, r.x0 + 30 - p.x), dt, 1.4);
-      p.speed = Math.max(42, p.speed - 6 * dt); move();
+      if (!r) { p.phase = 'cruise'; p.cross = false; p.wp = null; continue; }
+      p.finalT = (p.finalT || 0) + dt;
+      // aim well past the threshold: pure pursuit of a near point makes an
+      // aircraft snake down the approach instead of settling on the centreline
+      turnToward(p, Math.atan2(r.y - p.y, r.x1 + 120 - p.x), dt, 1.2);
+      p.speed = Math.max(40, p.speed - 6 * dt); move();
       p.alt = clamp((r.x0 - p.x) / (40 * T) * 22, 0, 22);
-      if (p.x >= r.x0) { p.y = r.y; p.ang = 0; p.alt = 0; p.phase = 'landroll'; }
+      if (p.x >= r.x0 && p.x <= r.x1 + 20 && Math.abs(p.y - r.y) < 34) { p.y = r.y; p.ang = 0; p.alt = 0; p.phase = 'landroll'; }
+      // overshot the runway, or never got lined up: climb away and come round again
+      else if (p.x > r.x1 + 20 || p.finalT > 22) {
+        p.phase = 'inbound'; p.speed = 64; p.alt = 12; p.finalT = 0; p.queued = false;
+      }
     } else if (p.phase === 'landroll') {
       p.speed = Math.max(0, p.speed - 16 * dt); p.x += p.speed * dt;
       if (p.speed <= 2 || (r && p.x > r.x1)) p.dead = true;

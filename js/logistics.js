@@ -683,7 +683,7 @@ function retireFreight(t) {
 function newFreightTrain(yard, lineId) {
   return {
     id: nextIncident++, home: yard.id, line: lineId || 0, consist: freightConsist(),
-    path: null, i: 0, t: 0, x: yard.cx * T, y: yard.cy * T, d: 2,
+    path: null, i: 0, t: 0, ex: 0, x: yard.cx * T, y: yard.cy * T, d: 2,
     state: 'dwell', wait: 2 + Math.random() * 2, at: yard.id, target: 0,
     plan: [], leg: 0, reserved: [], cargo: {material: 0, liquid: 0, gas: 0},
     riders: [], lastStop: -1, dead: false,
@@ -859,6 +859,10 @@ function stepFreight(dt) {
     if (t.dead) continue;
     if (t.state === 'dwell') {
       t.wait -= dt;
+      // The locomotive has already run into the yard; the wagons keep rolling
+      // in behind it and each one sinks out of sight as it reaches the buffers,
+      // so a train arrives wagon by wagon exactly the way it leaves.
+      if (t.path && t.ex < 60) t.ex = Math.min(60, t.ex + FREIGHT_SPEED * dt);
       if (t.wait > 0) continue;
       if (!t.plan.length || t.leg >= t.plan.length) {
         if (!planFreight(t)) { t.wait = 3; continue; }
@@ -873,7 +877,7 @@ function stepFreight(dt) {
       // The whole leg is claimed before the train moves, so a block is only
       // ever held in one direction. A red signal means another train owns it.
       if (!reservePath(t, path)) { t.wait = 1.5; continue; }
-      t.path = path; t.i = 0; t.t = 0; t.state = 'run'; t.year = (t.year || 0) + 1;
+      t.path = path; t.i = 0; t.t = 0; t.ex = 0; t.state = 'run'; t.year = (t.year || 0) + 1;
       t.lastStop = -1;
       t.stops = stops;
       t.recent = null;              // next yard may load anything again
@@ -909,7 +913,10 @@ function stepFreight(dt) {
         releaseBlocks(t);
         t.leg++;
         t.target = t.leg < t.plan.length ? t.plan[t.leg] : 0;
-        t.state = 'dwell'; t.wait = 3; t.path = null; t.i = 0; t.t = 0; t.lastStop = -1; t.stops = null;
+        // Keep the leg until the last wagon is in, and stay in the yard long
+        // enough that no car has to jump when the next leg begins.
+        t.state = 'dwell'; t.wait = 3 + t.consist.length / FREIGHT_SPEED;
+        t.i = t.path.length - 1; t.t = 0; t.ex = 0; t.lastStop = -1; t.stops = null;
         const y = B(t.at);
         if (y) { t.x = y.cx * T; t.y = y.cy * T; }
         break;
