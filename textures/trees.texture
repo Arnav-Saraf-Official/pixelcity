@@ -123,6 +123,51 @@
             "#62503a"
           ],
           "rows": [".........","....12...","....322..",".2..312..",".231322..",".22232...","....32...","...422...","........."]
+        },
+        "cactusPrickly": {
+          "palette": [
+            "transparent",
+            {"color":["def","cactusLight"]},
+            {"color":["def","cactusDark"]},
+            {"color":["def","cactus"]},
+            "#e8705a",
+            "#c9a96a"
+          ],
+          "rows": [".........","....4....","...131...","..13331..","..13331..",".1311331.",".1333331.","..23332..","...555..."]
+        },
+        "cactusBarrel": {
+          "palette": [
+            "transparent",
+            {"color":["def","cactusLight"]},
+            {"color":["def","cactusDark"]},
+            {"color":["def","cactus"]},
+            "#f0a03c",
+            "#c9a96a"
+          ],
+          "rows": [".........",".........","...434...","..13331..",".1331331.",".1333331.",".2333332.","..22222..","...555..."]
+        },
+        "cactusOrgan": {
+          "palette": [
+            "transparent",
+            {"color":["def","cactusLight"]},
+            {"color":["def","cactusDark"]},
+            {"color":["def","cactus"]},
+            "#e05252",
+            "#c9a96a"
+          ],
+          "rows": [".4.....4.",".1.....1.",".1..2..1.",".1.232.1.",".1.232.1.",".1.232.1.",".1.232.1.",".2.232.2.","..55555.."]
+        },
+        "boulderSmall": {
+          "palette": ["transparent","#cfcbc2","#43403a","#8f8a82"],
+          "rows": [".........",".........",".........","....11...","...1332..","..133332.","..222222.",".........","........."]
+        },
+        "boulder": {
+          "palette": ["transparent","#cfcbc2","#43403a","#8f8a82"],
+          "rows": [".........","...11....","..13321..",".1333221.",".1333321.",".1332221.","..222222.",".........","........."]
+        },
+        "boulderBig": {
+          "palette": ["transparent","#cfcbc2","#43403a","#8f8a82"],
+          "rows": ["..11.....",".13321...","1333321..","13333321.","13333321.","13333221.",".2222222.",".........","........."]
         }
       },
       "conditions": [
@@ -132,7 +177,13 @@
         {"when":"v = 5","design":"palm"},
         {"when":"v = 6","design":"jungle"},
         {"when":"v = 7","design":"autumn"},
-        {"when":"v = 8","design":"cactus"}
+        {"when":"v = 8","design":"cactus"},
+        {"when":"v = 9","design":"cactusPrickly"},
+        {"when":"v = 10","design":"cactusBarrel"},
+        {"when":"v = 11","design":"cactusOrgan"},
+        {"when":"v = 12","design":"boulderSmall"},
+        {"when":"v = 13","design":"boulder"},
+        {"when":"v = 14","design":"boulderBig"}
       ]
     },
     "pine": {

@@ -10,11 +10,14 @@ const MIN_PER_SEC = 2.5;                   // game minutes per sim second
 const YEL = 2;                             // yellow light seconds
 const SAVE_KEY = 'pixelCity.v5';
 const LEGACY_SAVE_KEY = 'pixelTrafficCity.v5';
-const DISTRICTS = ['North-West', 'North', 'North-East', 'West', 'Downtown', 'East', 'South-West', 'South', 'South-East'];
+const DISTRICTS = ['Northwestern lands', 'Northern lands', 'Northeastern lands', 'Western lands', 'Mainland', 'Eastern lands', 'Southwestern lands', 'Southern lands', 'Southeastern lands'];
 
 const tile = new Uint8Array(N);     // 0 grass, 1 street, 2 highway, 3 footpath, 4 plaza
 const water = new Uint8Array(N);
-const tree = new Uint8Array(N);     // 0 none, 1 pine, 2 oak, 3 cedar, 4 birch, 5 palm, 6 jungle, 7 autumn, 8 cactus
+// 0 none, 1 pine, 2 oak, 3 cedar, 4 birch, 5 palm, 6 jungle, 7 autumn,
+// 8-11 desert cacti, 12-14 boulders on rocky ground.
+const tree = new Uint8Array(N);
+const TREE_MAXV = 14;
 const platform = new Uint8Array(N); // player-built island surface: 1 concrete, 2 steel, 3 dirt
 const biome = new Uint8Array(N);    // 0 water, 1 plains, 2 jungle, 3 desert, 4 snow, 5 rock
 const oilField = new Float32Array(N);   // 0..1, x5-10 under rock
@@ -66,6 +69,7 @@ const heat = new Float32Array(N), heatAcc = new Float32Array(N);
 const resv = new Int32Array(N);
 const areaHeat = new Float32Array(N), areaPres = new Float32Array(N);
 const lights = new Map();           // tile -> {ns, ew, off}
+const gates = new Set();            // grade-crossing tiles with a crossing gate
 let connections = [], overpassList = [];
 let worldSeed = 12345;
 let regionView = false, regionHover = -1, regionLayout = null;
@@ -117,6 +121,10 @@ const BT = {
   solarPlant:{name:'Solar Farm',    cat:'work', w:3,h:2,  homes:0,  cap:4,  jobs:8,  power:'solar', label:'Power', desc:'Panels on open plains. Weak but clean.'},
   nuclearPlant:{name:'Nuclear Plant',cat:'civic',w:3,h:3, homes:0,  cap:6,  jobs:40, power:'nuclear', label:'Power', desc:'Enormous output. Needs a mine and several research labs.'},
   port:     {name:'Cargo Port',     cat:'work', w:4,h:3,  homes:0,  cap:6,  jobs:26, shore:true, label:'Logistics', desc:'A deep-water quay. Cargo ships carry goods to other ports and islands, while trucks bring cargo in from your industries.'},
+  riverWharf:{name:'River Wharf',   cat:'work', w:2,h:2,  homes:0,  cap:4,  jobs:10, shore:true, label:'Logistics', desc:'A trading post on a river bank. Barges carry cargo down the waterway to the sea or on to another wharf, so a river is a trade route of its own.'},
+  boardwalk:{name:'Boardwalk',      cat:'ped',  w:4,h:1,  homes:0,  cap:0,  jobs:0,  shore:true, label:'Waterfront', desc:'A plank promenade along the water. People stroll here instead of driving to a park inland. No parking: they walk in.'},
+  aquarium: {name:'Aquarium',       cat:'civic',w:3,h:2,  homes:0,  cap:12, jobs:16, shore:true, label:'Waterfront', desc:'A waterfront attraction. Visitors spend an afternoon here, so put it where the shore is easy to reach.'},
+  ferrisWheel:{name:'Ferris Wheel', cat:'ped',  w:2,h:2,  homes:0,  cap:0,  jobs:0,  shore:true, label:'Waterfront', desc:'A waterfront landmark and a leisure destination. People walk along the shore to ride it.'},
   distribution:{name:'Distribution Terminal', cat:'work', w:3,h:3, homes:0, cap:8, jobs:18, hub:true, label:'Logistics', desc:'Sorts cargo from trucks onto trains and ships. Must be next to a port or freight track, with a street for the trucks.'},
   railyard: {name:'Train Yard',     cat:'work', w:4,h:3,  homes:0,  cap:8,  jobs:22, rail:true, label:'Logistics', desc:'Freight trains load and unload here. It needs a freight track alongside and a street for the trucks. Oil rigs and gas wells have to be within 5 blocks of a yard.'},
   platformConcrete:{name:'Concrete Platform', cat:'world', w:1,h:1, homes:0, cap:0, jobs:0, platform:1, desc:'Raises one water tile into a permanent concrete island tile. Costs 1 stone and 1 concrete.'},
@@ -155,9 +163,16 @@ function nb(i, d) { const x = i % MW + DX[d], y = (i / MW | 0) + DY[d]; return i
 function dirOf(a, b) { const d = b - a; return d === -MW ? 1 : d === 1 ? 2 : d === MW ? 3 : d === -1 ? 4 : 0; }
 const roadMask = i => cmask[i];
 const eow = i => oneway[i] || autoOw[i];
+// Waterfront leisure: the same job parks and plazas do inland, but the plot has
+// to sit on a shoreline. Boardwalks and the wheel are open ground people walk
+// onto; the aquarium is a building with a forecourt.
+const LEISURE = new Set(['park', 'boardwalk', 'aquarium', 'ferrisWheel']);
+const LEISURE_WALK = new Set(['park', 'boardwalk', 'ferrisWheel']);
+const isLeisure = type => LEISURE.has(type);
+const isLeisureWalk = type => LEISURE_WALK.has(type);
 function isWalk(i) {
   const t = tile[i]; if (t === 3 || t === 4 || (t === 1 && walkway[i])) return true;
-  const b = bldAt[i]; if (b) { const ty = B(b).type; return ty === 'park' || ty === 'metro'; }
+  const b = bldAt[i]; if (b) { const ty = B(b).type; return isLeisureWalk(ty) || ty === 'metro'; }
   return false;
 }
 function walkMask(i) { let m = 0; for (let d = 1; d <= 4; d++) { const j = nb(i, d); if (j >= 0 && isWalk(j)) m |= bit(d); } return m; }
@@ -189,12 +204,33 @@ const NULLC = {fillStyle: '', fillRect() {}};  // lets building art be measured 
 // =====================================================================
 // Terrain generation (deterministic from the seed, in region coordinates)
 // =====================================================================
-// Land is a mainland plus 2-4 islands, with a noisy coastline. Biomes come from
-// latitude (snow grows toward the north), moisture and a rock field.
+// Walking distance from every tile to the nearest water, in tiles. Terrain
+// generation follows this field downhill, so a channel always finds the sea.
+const wdField = new Int32Array(N), wdQueue = new Int32Array(N);
+function waterDistance(wArr, seedMask) {
+  wdField.fill(-1);
+  let qh = 0, qt = 0;
+  for (let i = 0; i < N; i++) if (seedMask ? seedMask[i] : wArr[i]) { wdField[i] = 0; wdQueue[qt++] = i; }
+  while (qh < qt) {
+    const u = wdQueue[qh++], next = wdField[u] + 1;
+    for (let d = 1; d <= 4; d++) {
+      const v = nb(u, d);
+      if (v >= 0 && wdField[v] < 0) { wdField[v] = next; wdQueue[qt++] = v; }
+    }
+  }
+  return wdField;
+}
+
+// Land is a mainland plus 2-4 islands, with a noisy coastline, or - nearly as
+// often - an island world whose biggest landmass is itself an island, so the
+// starter city grows up offshore. Biomes come from latitude (snow grows toward
+// the north), moisture and a rock field.
 function genTerrainInto(seed, wArr, tArr) {
   wArr.fill(0); tArr.fill(0); biome.fill(0); oilField.fill(0); gasField.fill(0);
-  const islandCount = 3 + (seed % 2);              // 3 or 4 islands: a little more land than before
-  const cxM = MW * 0.5, cyM = MH * 0.5, rxM = MW * 0.33, ryM = MH * 0.36;
+  const islandWorld = hash(seed, 21, 907) < 0.42;
+  const islandCount = islandWorld ? 7 + (seed % 4) : 3 + (seed % 2);
+  const cxM = MW * 0.5, cyM = MH * 0.5;
+  const rxM = MW * (islandWorld ? 0.19 : 0.33), ryM = MH * (islandWorld ? 0.21 : 0.36);
   // the mainland alone first, so islands can be placed in open water
   const mainOnly = new Uint8Array(N);
   for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
@@ -224,9 +260,10 @@ function genTerrainInto(seed, wArr, tArr) {
   // Every region gets one island in the north half and one in the south half.
   placeIsland(0, Math.floor(MH * 0.5), 0);
   placeIsland(Math.ceil(MH * 0.5), MH, 1);
-  // The rest go wherever open water allows, so the count is always 3 or 4.
+  // The rest go wherever open water allows. Island worlds get more of them and
+  // larger ones, so their biggest landmass is a proper place to build.
   for (let k = 2; k < islandCount; k++) {
-    const r = 20 + Math.round(14 * hash(k, 7, seed));
+    const r = islandWorld ? 22 + Math.round(18 * hash(k, 7, seed)) : 20 + Math.round(14 * hash(k, 7, seed));
     let spot = null;
     for (let tries = 0; tries < 600 && !spot; tries++) {
       const cx = r + 4 + Math.round(hash(tries, k, seed + 11) * (MW - 2 * r - 8));
@@ -256,9 +293,10 @@ function genTerrainInto(seed, wArr, tArr) {
     else if (moist < 0.33) b = 3;
     biome[i] = b;
   }
-  // Add deterministic inland ponds and short stream reaches. They only cut a
-  // small channel into land, leaving each landmass connected around the water.
-  const lakeCount = 4 + (seed % 3);
+  // Deterministic inland ponds. They only cut a small hole into land, leaving
+  // each landmass connected around the water; the rivers below carry the water
+  // from these ponds down to the sea.
+  const lakeCount = 6 + (seed % 4);
   for (let lake = 0; lake < lakeCount; lake++) {
     let cx = -1, cy = -1;
     for (let attempt = 0; attempt < 300; attempt++) {
@@ -272,11 +310,67 @@ function genTerrainInto(seed, wArr, tArr) {
       const x = cx + dx, y = cy + dy;
       if (inb(x, y) && dx * dx + dy * dy <= radius * radius) { const i = y * MW + x; wArr[i] = 1; biome[i] = 0; tArr[i] = 0; }
     }
-    let sy = cy - 36, sx = cx - 20;
-    for (let step = 0; step < 40; step++) {
-      const x = sx + step, y = sy + Math.round(Math.sin(step * 0.25 + lake) * 4);
-      if (!inb(x, y) || wArr[y * MW + x]) continue;
-      const i = y * MW + x; wArr[i] = 1; biome[i] = 0; tArr[i] = 0;
+  }
+  // Rivers: long, meandering channels that run from well inland all the way to
+  // the open sea. They follow a distance field measured from the ocean only,
+  // not from any water, so a channel can never give up at a lake: it keeps
+  // going through the lake and downhill until it opens into the sea. Every
+  // channel is at least two tiles wide, and the last stretch widens to three.
+  const ocean = new Uint8Array(N);
+  {
+    let qh = 0, qt = 0;
+    for (let i = 0; i < N; i++) {
+      if (!wArr[i]) continue;
+      const x = i % MW, y = i / MW | 0;
+      if (x === 0 || y === 0 || x === MW - 1 || y === MH - 1) { ocean[i] = 1; wdQueue[qt++] = i; }
+    }
+    while (qh < qt) {
+      const u = wdQueue[qh++];
+      for (let d = 1; d <= 4; d++) {
+        const v = nb(u, d);
+        if (v >= 0 && wArr[v] && !ocean[v]) { ocean[v] = 1; wdQueue[qt++] = v; }
+      }
+    }
+  }
+  const wd = waterDistance(wArr, ocean);
+  const riverTiles = new Uint8Array(N);
+  const riverCount = 8 + (seed % 4);
+  for (let r = 0; r < riverCount; r++) {
+    // Start at the most inland spot of a handful of tries: a river should have
+    // some distance to run before it reaches the sea.
+    let start = -1, startD = 0;
+    for (let t = 0; t < 240; t++) {
+      const x = 6 + Math.floor(hash(t, r, seed + 81) * (MW - 12));
+      const y = 6 + Math.floor(hash(t, r + 7, seed + 82) * (MH - 12));
+      const i = y * MW + x;
+      if (wArr[i] || riverTiles[i]) continue;
+      if (wd[i] > startD) { startD = wd[i]; start = i; }
+    }
+    if (start < 0 || startD < 10) continue;
+    const carve = (j) => {
+      if (j < 0 || wArr[j]) return;
+      wArr[j] = 1; biome[j] = 0; tArr[j] = 0; riverTiles[j] = 1;
+    };
+    let cur = start, prev = -1;
+    for (let step = 0; step < 2000; step++) {
+      if (ocean[cur] || wd[cur] === 0) break;      // the mouth: it reached the sea
+      let next = -1, nextScore = Infinity, nextD = 0;
+      for (let d = 1; d <= 4; d++) {
+        const j = nb(cur, d);
+        if (j < 0 || j === prev) continue;
+        // downhill, with enough jitter that the channel meanders instead of
+        // running in a straight staircase (never enough to climb uphill)
+        const sc = wd[j] + hash(j, r, seed + 83) * 0.9;
+        if (sc < nextScore) { nextScore = sc; next = j; nextD = d; }
+      }
+      if (next < 0) break;
+      const perp = (nextD === 1 || nextD === 3) ? 2 : 1;
+      // A two-tile-wide channel: each step carries a matching pair of tiles,
+      // so a bend never pinches the river down to a single tile.
+      carve(cur); carve(next);
+      carve(nb(cur, perp)); carve(nb(next, perp));
+      if (wd[cur] < 20) { carve(nb(cur, OPP[perp])); carve(nb(next, OPP[perp])); }
+      prev = cur; cur = next;
     }
   }
   // Two majority passes remove single-tile specks, so each biome is one broad
@@ -293,19 +387,21 @@ function genTerrainInto(seed, wArr, tArr) {
       if (cnt[best] >= 6) biome[i] = best;
     }
   }
-  // Trees follow the smoothed map and choose species suited to each biome.
+  // Trees follow the smoothed map and choose species suited to each biome. Rock
+  // grows nothing at all: it gets boulders instead, so a mountain reads as stone
+  // rather than a darker forest. The desert mixes several cacti.
   tArr.fill(0);
   for (let i = 0; i < N; i++) {
     if (wArr[i]) continue;
     const x = i % MW, y = i / MW | 0, b = biome[i];
-    const dens = b === 2 ? 0.55 : b === 1 ? 0.18 : b === 3 ? 0.035 : b === 4 ? 0.11 : b === 5 ? 0.08 : 0;
+    const dens = b === 2 ? 0.55 : b === 1 ? 0.18 : b === 3 ? 0.07 : b === 4 ? 0.11 : b === 5 ? 0.14 : 0;
     if (hash(x, y, seed + 3) >= dens) continue;
-    const kind = hash(x, y, seed + 4);
+    const kind = hash(x, y, seed + 4), roll = hash(x, y, seed + 5);
     if (b === 1) tArr[i] = kind < 0.42 ? 2 : kind < 0.68 ? 3 : kind < 0.87 ? 4 : 7;
     else if (b === 2) tArr[i] = kind < 0.25 ? 5 : 6;
-    else if (b === 3) tArr[i] = 8;
+    else if (b === 3) tArr[i] = kind < 0.34 ? 8 : kind < 0.6 ? 9 : kind < 0.82 ? 10 : 11;
     else if (b === 4) tArr[i] = kind < 0.58 ? 1 : kind < 0.82 ? 3 : 4;
-    else if (b === 5) tArr[i] = kind < 0.68 ? 1 : 3;
+    else if (b === 5) tArr[i] = 12 + (roll < 0.45 ? 0 : roll < 0.8 ? 1 : 2);
   }
   // Resource fields: perlin-ish noise, far richer under rock.
   for (let i = 0; i < N; i++) {
@@ -315,8 +411,8 @@ function genTerrainInto(seed, wArr, tArr) {
     oilField[i] = Math.min(10, vnoise(x / 22, y / 22, seed + 21) * rock);
     gasField[i] = Math.min(10, vnoise(x / 26, y / 26, seed + 22) * rock);
   }
-  // Coastal noise can leave specks offshore. Keep the mainland and the planned
-  // islands, and sink anything else, so the count is always 1 + 2..4 landmasses.
+  // Coastal noise can leave specks offshore. Keep the mainland, the planned
+  // islands and any sizeable piece a river left behind, and sink the rest.
   const label = new Uint8Array(N), st = new Int32Array(N), comps = [];
   for (let s0 = 0; s0 < N; s0++) {
     if (wArr[s0] || label[s0]) continue;
@@ -327,9 +423,13 @@ function genTerrainInto(seed, wArr, tArr) {
     }
     comps.push({tile: s0, size: qt, cx: sx / qt, cy: sy / qt, keep: false});
   }
+  if (!comps.length) return;            // no land at all: nothing to keep or sink
   let biggest = comps[0];
   for (const c of comps) if (c.size > biggest.size) biggest = c;
   biggest.keep = true;
+  // A river mouth can leave a sizeable piece of land across the water. Keep it
+  // as its own island rather than sinking it; only specks and slivers go.
+  for (const c of comps) if (c.size >= 320) c.keep = true;
   // one component per planned island: the nearest one to its centre
   for (const s of isles) {
     let best = null, bd = Infinity;

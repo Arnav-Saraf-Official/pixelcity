@@ -25,6 +25,13 @@ function makeIcon(id) {
     case 'rail': aw = ah = 9; drawRailTile(t, 0, 0, 15, 'junction'); break;
     case 'track': aw = ah = 9; grass(); drawTrackTile(t, 0, 0, 10, false); break;
     case 'signal': aw = ah = 9; grass(); drawTrackTile(t, 0, 0, 10, false); t.fillStyle = '#24282e'; t.fillRect(6, 4, 2, 3); t.fillStyle = '#e5484d'; t.fillRect(6, 4, 2, 2); break;
+    case 'gate': aw = ah = 18; grass();
+      drawRoadTile(t, 0, 6, 10, 0, 0, 0, 1, 0); drawRoadTile(t, 9, 6, 10, 0, 0, 0, 1, 0);
+      drawTrackTile(t, 6, 0, 5, false); drawTrackTile(t, 6, 9, 5, false);
+      t.fillStyle = '#24282e'; t.fillRect(4, 4, 2, 2); t.fillRect(12, 4, 2, 2);
+      t.fillStyle = '#f4f5f7'; t.fillRect(5, 5, 1, 8); t.fillRect(12, 5, 1, 8);
+      t.fillStyle = '#e5484d'; for (let k = 0; k < 8; k += 2) { t.fillRect(5, 5 + k, 1, 1); t.fillRect(12, 5 + k, 1, 1); }
+      t.fillStyle = '#ff4848'; t.fillRect(12, 6, 2, 2); break;
     case 'freightline': aw = ah = 9; grass(); drawTrackTile(t, 0, 0, 10, false); t.fillStyle = '#f2c14e'; t.fillRect(1, 1, 2, 2); t.fillStyle = '#4d96ff'; t.fillRect(6, 6, 2, 2); break;
     case 'road': grass(); drawRoadTile(t, 0, 0, 4, 0, 0, 0, 1, 0); drawRoadTile(t, 0, 9, 3, 0, 0, 0, 1, 0); drawRoadTile(t, 9, 9, 8, 0, 0, 0, 1, 0); break;
     case 'country': grass(); drawRoadTile(t, 0, 4, 10, 0, 0, 0, 0, 0); drawRoadTile(t, 9, 4, 10, 0, 0, 0, 0, 0); break;
@@ -330,6 +337,7 @@ function inspectAt(t) {
   const i = t.y * MW + t.x;
   if (bldAt[i]) select({kind: 'bld', id: bldAt[i]});
   else if (lights.has(i)) select({kind: 'light', i});
+  else if (trackOn[i] && isRoad(i)) select({kind: 'crossing', i});
   else if (isRoad(i)) select({kind: 'road', i});
   else select(null);
 }
@@ -344,7 +352,7 @@ function select(sel) {
     html = `<div class="ih"><span id="iIcon"></span><div class="t">${d.name}<small>${d.label || CATLABEL[d.cat]} · ${DISTRICTS[districtOf(b.cx, b.cy)]}</small></div><button id="iClose">✕</button></div>`;
     if (d.homes) html += row('Residents', 'ivRes') + row('Home right now', 'ivHome') + row('Asleep', 'ivSleep') + row('Happy with traffic', 'ivMood');
     if (d.jobs) html += row('Workers', 'ivJobs') + row('People inside', 'ivPeople');
-    if (b.type === 'park') html += row('Visitors', 'ivPeople');
+    if (isLeisure(b.type)) html += row('Visitors', 'ivPeople');
     if (d.efficiencyBase) html += row('Industry efficiency', 'ivEfficiency');
     if (b.type === 'billboard') html += `<label for="billboardPolicy">Policy advertisement</label><select id="billboardPolicy"><option value="driving">Driving</option><option value="tax">Tax</option><option value="environment">Environment</option><option value="birth">Birth rate</option></select><label for="billboardTone">Public response</label><select id="billboardTone"><option value="positive">Positive</option><option value="negative">Negative</option></select><p class="note">Policy effects on mood are a future system.</p>`;
     if (b.type === 'warehouse') html += row('Mixed inventory', 'ivInventory');
@@ -352,7 +360,7 @@ function select(sel) {
     if (b.type === 'metro') html += row('Riders nearby', 'ivRiders');
     if (b.type === 'airport') html += row('Planes in the air', 'ivPlanes');
     if (b.type === 'dock') html += row('Boats on the water', 'ivBoats');
-    if (b.type === 'port') html += row('Ships at sea', 'ivShips') + row('Cargo at the quay', 'ivStock');
+    if (b.type === 'port' || b.type === 'riverWharf') html += row('Ships at sea', 'ivShips') + row('Cargo at the quay', 'ivStock');
     if (b.type === 'distribution' || b.type === 'railyard') html += row('Cargo waiting', 'ivStock');
     if (typeof producerOf === 'function' && producerOf(b)) html += row('Stock in the yard', 'ivStock');
     if (BT[b.type].cat === 'com') html += row('Goods on the shelf', 'ivStock');
@@ -373,11 +381,15 @@ function select(sel) {
     html = `<div class="ih"><span id="iIcon"></span><div class="t" id="ivRoadName">Road<small></small></div><button id="iClose">✕</button></div>
       ${row('Type', 'ivType')}${row('Connections', 'ivDeg')}${row('Congestion', 'ivHeat')}${row('Cars here', 'ivHere')}
       <div class="btns" id="iRoadBtns"></div>`;
+  } else if (sel.kind === 'crossing') {
+    html = `<div class="ih"><span id="iIcon"></span><div class="t">Level Crossing<small>street over freight track</small></div><button id="iClose">✕</button></div>
+      ${row('Crossing gate', 'ivGate')}${row('Nearest train', 'ivTrain')}${row('Trains held', 'ivBlock')}${row('Cars here', 'ivHere')}${row('Congestion', 'ivHeat')}
+      <div class="btns" id="iCrossBtns"></div>`;
   }
   inspEl.innerHTML = html;
   const ic = document.getElementById('iIcon');
   if (sel.kind === 'bld') ic.append(icon('b:' + B(sel.id).type));
-  else ic.append(icon(sel.kind === 'light' ? 'light' : overpass[sel.i] ? 'overpass' : tile[sel.i] === 2 ? 'highway' : oneway[sel.i] ? 'oneway' : walkway[sel.i] ? 'road' : 'country'));
+  else ic.append(icon(sel.kind === 'light' ? 'light' : sel.kind === 'crossing' ? 'gate' : overpass[sel.i] ? 'overpass' : tile[sel.i] === 2 ? 'highway' : oneway[sel.i] ? 'oneway' : walkway[sel.i] ? 'road' : 'country'));
   document.getElementById('iClose').onclick = () => select(null);
   if (sel.kind === 'bld') document.getElementById('iDel').onclick = () => { const b = B(sel.id); if (b) { removeBuilding(b); mapChanged(); } select(null); };
   if (sel.kind === 'light') {
@@ -387,6 +399,7 @@ function select(sel) {
     document.getElementById('iRmLight').onclick = () => { lights.delete(sel.i); select({kind: 'road', i: sel.i}); };
   }
   if (sel.kind === 'road') buildRoadButtons();
+  if (sel.kind === 'crossing') buildCrossButtons();
   if (sel.kind === 'bld' && B(sel.id).type === 'billboard') {
     const b = B(sel.id); b.policy ||= {message: 'driving', tone: 'positive'};
     const msg = document.getElementById('billboardPolicy'), tone = document.getElementById('billboardTone');
@@ -411,6 +424,24 @@ function buildRoadButtons() {
   const del = document.createElement('button'); del.className = 'danger'; del.textContent = 'Bulldoze';
   del.onclick = () => { tile[i] = 0; oneway[i] = 0; walkway[i] = 0; overpass[i] = 0; lights.delete(i); markTiles([i]); mapChanged(); select(null); };
   box.append(del);
+}
+// A crossing can only carry a gate where the rails run straight across the
+// street, not beside it.
+const canGate = i => trackOn[i] && isRoad(i) && bits(track[i]) === 2 && !(cmask[i] & ((track[i] & 1) ? 5 : 10));
+function buildCrossButtons() {
+  const i = selection.i, box = document.getElementById('iCrossBtns');
+  box.innerHTML = '';
+  if (canGate(i)) {
+    const b = document.createElement('button');
+    b.textContent = gates.has(i) ? 'Remove crossing gate' : 'Add crossing gate';
+    b.onclick = () => { if (gates.has(i)) gates.delete(i); else gates.add(i); mapChanged(); select({kind: 'crossing', i}); };
+    box.append(b);
+  } else {
+    const p = document.createElement('p'); p.className = 'note'; p.textContent = 'Gates need a straight piece of track crossing the street.'; box.append(p);
+  }
+  const road = document.createElement('button'); road.textContent = 'Road tools';
+  road.onclick = () => select({kind: 'road', i});
+  box.append(road);
 }
 function setT(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
 const CATEXTRA = {rural: 'Agriculture', resource: 'Resource', power: 'Power', transit: 'Transit'};
@@ -440,7 +471,7 @@ function updateInspector() {
     if (b.type === 'metro') { let r = 0; for (const p of peds) if (p.mode === 'metro') r++; setT('ivRiders', r); }
     if (b.type === 'airport') setT('ivPlanes', planes.filter(p => p.ap === b.id).length);
     if (b.type === 'dock') setT('ivBoats', boats.length);
-    if (b.type === 'port') setT('ivShips', ships.length);
+    if (b.type === 'port' || b.type === 'riverWharf') setT('ivShips', ships.length);
     setT('ivStock', Math.floor(b.stock || 0));
     if (d.efficiencyBase) setT('ivEfficiency', `${Math.round((b.efficiency || industryEfficiency(b.type, b.x, b.y)) * 100)}%`);
     if (b.type === 'warehouse') {
@@ -463,6 +494,16 @@ function updateInspector() {
     const nm = ['GREEN', 'YELLOW', 'RED'];
     setT('ivNS', nm[lightState(L, 0)]); setT('ivEW', nm[lightState(L, 1)]);
     setT('ivHeat', heatLabel(heat[s.i]));
+  } else if (s.kind === 'crossing') {
+    const i = s.i;
+    if (!isRoad(i)) { select(null); return; }
+    if (!trackOn[i]) { select({kind: 'road', i}); return; }
+    setT('ivGate', gates.has(i) ? (railBusyAt(i) || railSoonAt(i) ? 'closed' : 'open') : 'none');
+    setT('ivTrain', railBusyAt(i) ? 'passing' : railSoonAt(i) ? 'approaching' : 'clear');
+    const block = blockOf[i];
+    setT('ivBlock', block && blockBusy(block) ? 'yes' : 'no');
+    setT('ivHeat', heatLabel(heat[i]));
+    let n = 0; const arr = bucket.get(i); if (arr) n = arr.length; setT('ivHere', n);
   } else if (s.kind === 'road') {
     const i = s.i; if (!isRoad(i)) { select(null); return; }
     const type = overpass[i] ? 'Overpass' : autoOw[i] ? `Highway, 2 lanes ${DIRNAME[autoOw[i]]}` : tile[i] === 2 ? 'Highway' : oneway[i] ? `One-way ${DIRNAME[oneway[i]]}` : walkway[i] ? 'Street with sidewalks' : 'Country road';
@@ -568,11 +609,11 @@ function updateHover() {
     txt = d.name;
     if (d.homes) txt += ` · home ${b.people}/${b.residents}` + (b.residents ? ` · ${MOODWORD[moodFace(b.mood)]} about traffic` : '');
     else if (d.jobs) txt += ` · inside ${b.people}`;
-    else if (b.type === 'park') txt += ` · visitors ${b.people}`;
+    else if (isLeisure(b.type)) txt += ` · visitors ${b.people}`;
     if (d.cap) txt += ` · parked ${b.cars}/${d.cap}`;
     if (b.road < 0 && b.walk < 0) txt += ' · NO ACCESS';
   } else if (isRoad(i)) {
-    txt = (overpass[i] ? 'Overpass' : deg[i] >= 3 ? (lights.has(i) ? 'Signal' : 'Intersection') : tile[i] === 2 ? (autoOw[i] ? 'Highway (2 lanes)' : 'Highway') : water[i] ? 'Bridge' : oneway[i] ? 'One-way' : walkway[i] ? 'Street' : 'Country road') + ' · ' + heatLabel(heat[i]);
+    txt = (overpass[i] ? 'Overpass' : deg[i] >= 3 ? (lights.has(i) ? 'Signal' : 'Intersection') : trackOn[i] ? 'Level crossing' : tile[i] === 2 ? (autoOw[i] ? 'Highway (2 lanes)' : 'Highway') : water[i] ? 'Bridge' : oneway[i] ? 'One-way' : walkway[i] ? 'Street' : 'Country road') + ' · ' + heatLabel(heat[i]);
     if (connections.includes(i)) txt += ' · leaves the region';
   } else if (tile[i] === 3) txt = 'Footpath';
   else if (tile[i] === 4) txt = 'Plaza';

@@ -112,7 +112,7 @@ let truckTimer = 0, shipTimer = 0;
 let logisticsReady = false;
 
 const stockLimit = b => b.type === 'warehouse' ? WAREHOUSE_CAP
-  : (b.type === 'port' || b.type === 'distribution' || b.type === 'railyard') ? HUB_STOCK_CAP
+  : (b.type === 'port' || b.type === 'riverWharf' || b.type === 'distribution' || b.type === 'railyard') ? HUB_STOCK_CAP
   : BT[b.type].cat === 'com' ? SHOP_STOCK_CAP : ((PRODUCER[b.type] && PRODUCER[b.type].cap) || 40);
 const producerOf = b => PRODUCER[b.type] || null;
 // Trucks already on the road toward a building, so two dispatches never race
@@ -159,7 +159,7 @@ function resetLogistics() {
   freight.length = 0;
   freightLines = [];
   nextLineId = 1;
-  blockRes.clear();
+  railRes.fill(0); blockHold.fill(0);
   sigNode.fill(0);
   cargoStats.deliveries = 0; cargoStats.shipped = 0; cargoStats.moved = 0; cargoStats.trainRuns = 0;
   truckTimer = 0; shipTimer = 0;
@@ -169,8 +169,10 @@ function resetLogistics() {
 // A shop takes whatever is on the shelf; a distributed "goods" load is welcome
 // anywhere. Raw goods only go to the shops that sell that produce.
 function acceptsGood(b, good) {
-  if (good === 'goods') return BT[b.type].cat === 'com';
-  if (b.type === 'distribution' || b.type === 'port' || b.type === 'warehouse' || b.type === 'railyard') return true;
+  // A river wharf takes sorted goods straight off the trucks, so a river can be
+  // fed by road at one end and ship the cargo out at the other.
+  if (good === 'goods') return BT[b.type].cat === 'com' || b.type === 'riverWharf';
+  if (b.type === 'distribution' || b.type === 'port' || b.type === 'riverWharf' || b.type === 'warehouse' || b.type === 'railyard') return true;
   const t = b.type;
   if (good === 'fish') return t === 'seafoodMarket' || t === 'market' || t === 'mall' || t === 'shop';
   if (good === 'produce') return t === 'market' || t === 'mall' || t === 'shop' || t === 'seafoodMarket';
@@ -213,7 +215,7 @@ function relinkTrack() {
 }
 const tqPath = new Int32Array(N), tqPrev = new Int32Array(N), tqSeen = new Uint32Array(N);
 let tqGen = 0;
-function trackPath(from, to) {
+function trackPath(from, to, avoid) {
   if (from === to) return [from];
   if (!track[from] || !track[to]) return null;
   tqGen++;
@@ -226,7 +228,7 @@ function trackPath(from, to) {
     for (let d = 1; d <= 4; d++) {
       if (!(m & bit(d))) continue;
       const v = nb(u, d);
-      if (v < 0 || tqSeen[v] === tqGen || !track[v]) continue;
+      if (v < 0 || tqSeen[v] === tqGen || !track[v] || (avoid && avoid(v))) continue;
       tqSeen[v] = tqGen; tqPrev[v] = u; tqPath[qt++] = v;
     }
   }
@@ -247,7 +249,7 @@ function findCustomer(p, good, excludeWarehouses = false, inbound = null) {
   const from = roadTileOf(p);
   if (from < 0) return null;
   const comp = compR[from];
-  let best = null, bd = Infinity, bestPri = 99;
+  let best = null, bestScore = -Infinity;
   for (const b of buildings.values()) {
     if (b === p || excludeWarehouses && b.type === 'warehouse' || !acceptsGood(b, good)) continue;
     if (freeRoomOf(b, inbound) <= 0) continue;
@@ -258,9 +260,16 @@ function findCustomer(p, good, excludeWarehouses = false, inbound = null) {
     // Sorted goods prefer shops, so a terminal does not bounce a load to
     // another terminal forever; raw goods prefer the shop that sells them.
     const isShop = BT[b.type].cat === 'com';
-    const isHub = b.type === 'distribution' || b.type === 'port' || b.type === 'warehouse' || b.type === 'railyard';
-    const pri = good === 'goods' ? (isShop ? 0 : 1) : (isHub ? 1 : 0);
-    if (pri < bestPri || (pri === bestPri && d < bd)) { bestPri = pri; bd = d; best = b; }
+    const isHub = b.type === 'distribution' || b.type === 'port' || b.type === 'riverWharf' || b.type === 'warehouse' || b.type === 'railyard';
+    const preferred = good === 'goods' ? isShop : !isHub;
+    // The emptiest shelves get the load. Without this the nearest shop keeps
+    // winning until it is heaped with food, while a corner shop that has never
+    // been served is passed over for being a little farther away.
+    const cap = stockLimit(b);
+    const have = b.type === 'warehouse' ? warehouseTotal(b) : Math.max(0, b.stock || 0);
+    const fill = cap > 0 ? clamp((have + ((inbound && inbound.get(b.id)) || 0)) / cap, 0, 1) : 1;
+    const score = (1 - fill) * 100 + (preferred ? 12 : 0) - d * 0.18;
+    if (score > bestScore) { bestScore = score; best = b; }
   }
   return best;
 }
@@ -386,7 +395,7 @@ function dispatchTrucks() {
   // terminals and ports send sorted goods on to the shops
   for (const b of buildings.values()) {
     if (b.road < 0 || b.truckCd > 0) continue;
-    if (b.type !== 'distribution' && b.type !== 'port' && b.type !== 'railyard') continue;
+    if (b.type !== 'distribution' && b.type !== 'port' && b.type !== 'riverWharf' && b.type !== 'railyard') continue;
     if (b.stock < 12) continue;
     const to = findCustomer(b, 'goods', false, inbound);
     if (!to) continue;
@@ -530,7 +539,36 @@ const FREIGHT_SPEED = 7;
 // own train; yards without a line keep an automatic demand tour.
 let freightLines = [];
 let nextLineId = 1;
-const blockRes = new Map();          // block id -> train id holding the leg
+// Which train holds which tile of track. Reserving tiles rather than whole
+// signal blocks is what lets two tracks laid side by side work as a two-way
+// line: opposing trains pass on their own track instead of taking turns.
+const railRes = new Int32Array(N);   // tile -> train id holding it
+const blockHold = new Int32Array(N); // block id -> how many of its tiles are held
+let trackSignals = [];               // flat [tile, direction, block] triples at block boundaries
+const blockNode = new Uint8Array(N);  // control point tiles: a block each, never flooded through
+let railBusyGen = 1;
+const railBusy = new Uint32Array(N), railSoon = new Uint32Array(N);  // tiles a train covers / is about to cover
+const railBusyAt = i => railBusy[i] === railBusyGen;
+const railSoonAt = i => railSoon[i] === railBusyGen;
+// Road traffic and crossing gates read this: everything the consist covers,
+// plus the stretch of track ahead of it that it will reach in a few seconds.
+function markRailBusy() {
+  railBusyGen++;
+  for (const t of freight) {
+    if (t.dead || !t.path) continue;
+    const last = t.path.length - 1;
+    // A train in a yard is inside the buffers: as its wagons roll in, fewer of
+    // the approach tiles stay blocked, so a street beside the yard reopens.
+    const behind = Math.max(0, Math.ceil(t.consist.length - (t.state === 'dwell' ? (t.ex || 0) : 0)));
+    const tail = Math.max(0, Math.floor(t.i) - behind);
+    // Traffic needs warning, not just the tiles under the train: mark about a
+    // second of track ahead as well, or a car noses onto the crossing first.
+    const head = Math.min(last, Math.ceil(t.i + FREIGHT_SPEED * 1.2));
+    for (let k = tail; k <= head; k++) railBusy[t.path[k]] = railBusyGen;
+    const soon = Math.min(last, Math.ceil(t.i + FREIGHT_SPEED * 3.5));
+    for (let k = head; k <= soon; k++) railSoon[t.path[k]] = railBusyGen;
+  }
+}
 function freightConsist() {
   const total = 3 * (4 + Math.floor(Math.random() * 3));   // 12, 15 or 18 cars
   // One group of each kind is guaranteed, so every train can move people as
@@ -551,7 +589,7 @@ function yardTrack(b) {
 // so two trains can never occupy the same stretch in opposite directions.
 function relinkBlocks() {
   blockOf.fill(0);
-  blockRes.clear();
+  railRes.fill(0); blockHold.fill(0);
   for (const t of freight) t.reserved = [];
   const node = i => {
     if (sigNode[i]) return true;
@@ -566,57 +604,62 @@ function relinkBlocks() {
     }
     return false;
   };
+  // A control point is a block of its own and a wall between the runs on
+  // either side: that is what lets a single signal split a straight line into
+  // two blocks instead of the two floods meeting at an unmarked spot.
+  blockNode.fill(0);
   let id = 0;
+  for (let i = 0; i < N; i++) if (trackOn[i] && node(i)) { blockNode[i] = 1; blockOf[i] = ++id; }
+  // A plain run between control points, and a closed loop with no node in it,
+  // both fall out of the same flood over non-node track.
   const queue = new Int32Array(N);
-  let qh = 0, qt = 0;
-  for (let i = 0; i < N; i++) if (trackOn[i] && node(i)) { blockOf[i] = ++id; queue[qt++] = i; }
-  while (qh < qt) {
-    const u = queue[qh++];
-    for (let d = 1; d <= 4; d++) {
-      const v = nb(u, d);
-      if (v < 0 || !trackOn[v] || blockOf[v]) continue;
-      blockOf[v] = blockOf[u];
-      queue[qt++] = v;
-    }
-  }
-  // A closed loop with no junction in it is still one block.
   for (let i = 0; i < N; i++) {
     if (!trackOn[i] || blockOf[i]) continue;
-    blockOf[i] = ++id;
-    qh = 0; qt = 0; queue[qt++] = i;
+    let qh = 0, qt = 0;
+    blockOf[i] = ++id; queue[qt++] = i;
     while (qh < qt) {
       const u = queue[qh++];
       for (let d = 1; d <= 4; d++) {
         const v = nb(u, d);
-        if (v < 0 || !trackOn[v] || blockOf[v]) continue;
+        if (v < 0 || !trackOn[v] || blockNode[v] || blockOf[v]) continue;
         blockOf[v] = id;
         queue[qt++] = v;
       }
     }
   }
-}
-// A block is red while a train holds the whole leg that runs through it.
-function blockBusy(id) { return id > 0 && blockRes.has(id); }
-function pathBlocks(path) {
-  const out = [];
-  let last = 0;
-  for (const i of path) {
-    const b = blockOf[i];
-    if (b && b !== last) { out.push(b); last = b; }
+  // Where one block hands over to another, one signal stands: record the east
+  // and south edges only, so every boundary gets exactly one lamp.
+  trackSignals = [];
+  for (let i = 0; i < N; i++) {
+    if (!trackOn[i] || !blockOf[i]) continue;
+    const e = nb(i, 2), s = nb(i, 3);
+    if (e >= 0 && trackOn[e] && blockOf[e] && blockOf[e] !== blockOf[i]) trackSignals.push(i, 2, blockOf[e]);
+    if (s >= 0 && trackOn[s] && blockOf[s] && blockOf[s] !== blockOf[i]) trackSignals.push(i, 3, blockOf[s]);
   }
-  return out;
 }
-// Reserve every block of a leg in one go. All-or-nothing avoids the classic
-// single-track stand-off where two trains each hold a block the other wants.
+// A block is red while a train holds any tile in it.
+function blockBusy(id) { return id > 0 && blockHold[id] > 0; }
+// Reserve every tile of a leg in one go. All-or-nothing still avoids the
+// classic stand-off where two trains each hold a piece the other wants, but a
+// second track alongside is a separate set of tiles, so opposing trains can
+// use it without waiting for each other.
 function reservePath(t, path) {
-  const blocks = pathBlocks(path);
-  for (const b of blocks) if (blockRes.has(b) && blockRes.get(b) !== t.id) return false;
-  for (const b of blocks) blockRes.set(b, t.id);
-  t.reserved = blocks;
+  for (const i of path) if (railRes[i] && railRes[i] !== t.id) return false;
+  for (const i of path) {
+    if (railRes[i]) continue;
+    railRes[i] = t.id;
+    const b = blockOf[i];
+    if (b) blockHold[b]++;
+  }
+  t.reserved = path.slice();
   return true;
 }
 function releaseBlocks(t) {
-  for (const b of t.reserved || []) if (blockRes.get(b) === t.id) blockRes.delete(b);
+  for (const i of t.reserved || []) if (railRes[i] === t.id) {
+    railRes[i] = 0;
+    const b = blockOf[i];
+    if (b && blockHold[b] > 0) blockHold[b]--;
+  }
   t.reserved = [];
 }
 function freightStopScore(y) {
@@ -870,13 +913,19 @@ function stepFreight(dt) {
       const here = B(t.at), next = B(t.target);
       const from = yardTrack(here), to = yardTrack(next);
       if (from < 0 || to < 0) { t.plan = []; t.wait = 3; continue; }
-      const path = trackPath(from, to);
+      let path = trackPath(from, to);
       if (!path || path.length < 2) { t.plan = []; t.wait = 3; continue; }
-      const stops = stationsAlong(path);
       loadFreight(t);
-      // The whole leg is claimed before the train moves, so a block is only
-      // ever held in one direction. A red signal means another train owns it.
-      if (!reservePath(t, path)) { t.wait = 1.5; continue; }
+      // The whole leg is claimed before the train moves, so no train is ever
+      // stranded half way holding track. If another train already holds part
+      // of the direct route, try a second track alongside it: a two-way line
+      // where each direction has its own rails. Otherwise wait for the line.
+      if (!reservePath(t, path)) {
+        const alt = trackPath(from, to, i => railRes[i] && railRes[i] !== t.id);
+        if (!alt || alt.length < 2 || alt.length > path.length + 40 || !reservePath(t, alt)) { t.wait = 1.5; continue; }
+        path = alt;
+      }
+      const stops = stationsAlong(path);
       t.path = path; t.i = 0; t.t = 0; t.ex = 0; t.state = 'run'; t.year = (t.year || 0) + 1;
       t.lastStop = -1;
       t.stops = stops;
@@ -931,6 +980,7 @@ function stepFreight(dt) {
     t.d = dirOf(a, b);
   }
   if (freight.some(t => t.dead)) freight = freight.filter(t => !t.dead);
+  markRailBusy();
 }
 
 // ---------------------------------------------------------------------
@@ -997,7 +1047,7 @@ function stepLogistics(dt) {
         const id = bldAt[i];
         if (!id) continue;
         const b = B(id);
-        if (!b || b.type !== 'port') continue;
+        if (!b || (b.type !== 'port' && b.type !== 'riverWharf')) continue;
         const n = Math.min(h.stock, 40, Math.max(0, stockLimit(b) - (b.stock || 0)));
         if (n <= 0) break;
         b.stock = (b.stock || 0) + n;

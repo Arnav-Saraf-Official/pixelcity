@@ -3,7 +3,11 @@
 // =====================================================================
 const CW = 40, CHH = 30, NCX = MW / CW, NCY = MH / CHH, MAX_CHUNKS = 220;
 const chunks = new Map();
-let chunkBudget = 0;
+// Chunk building is capped by time, not by a count: a pan or a zoom then costs
+// the same few milliseconds every frame instead of a long freeze whenever eight
+// fresh chunks happen to land in the same frame.
+const CHUNK_MS = 7;
+let chunkDeadline = 0, chunkBuilt = 0;
 function invalidate(x0, y0, x1, y1) {
   for (let cy = Math.max(0, Math.floor(y0 / CHH)); cy <= Math.min(NCY - 1, Math.floor(y1 / CHH)); cy++)
     for (let cx = Math.max(0, Math.floor(x0 / CW)); cx <= Math.min(NCX - 1, Math.floor(x1 / CW)); cx++) chunks.delete(cy * NCX + cx);
@@ -20,8 +24,8 @@ function getChunk(cx, cy) {
   const k = cy * NCX + cx;
   let c = chunks.get(k);
   if (c) { chunks.delete(k); chunks.set(k, c); return c; }
-  if (chunkBudget <= 0) return null;
-  chunkBudget--;
+  if (chunkBuilt && performance.now() > chunkDeadline) return null;
+  chunkBuilt++;
   c = buildChunk(cx, cy);
   chunks.set(k, c);
   if (chunks.size > MAX_CHUNKS) chunks.delete(chunks.keys().next().value);
@@ -38,58 +42,139 @@ const BIOME_PAL = {
 // How far a biome's colour reaches into the neighbouring tile, in art pixels.
 // The stored biome of each tile never changes; only the ground colour fades.
 const EDGE_BLEND = 3;
-function terrainColor(pal, n) {
-  if (n > 0.88) return (pal[3] << 16) | (pal[4] << 8) | pal[5];
-  if (n < 0.06) return (pal[6] << 16) | (pal[7] << 8) | pal[8];
-  if (n < 0.064) return (pal[9] << 16) | (pal[10] << 8) | pal[11];
-  if (n < 0.067) return (pal[12] << 16) | (pal[13] << 8) | pal[14];
-  return (pal[0] << 16) | (pal[1] << 8) | pal[2];
+// The five colours a pixel can take out of a biome palette — base, light
+// speckle, dark speckle and two flowers — packed the way the image data stores
+// them (RGBA, little endian, alpha included), so a painted pixel is one 32-bit
+// write instead of four clamped byte writes.
+const packRGBA = (r, g, b) => (r | (g << 8) | (b << 16) | 0xff000000) >>> 0;
+const PAL_RGB = {};
+for (const k of Object.keys(BIOME_PAL)) {
+  const p = BIOME_PAL[k];
+  PAL_RGB[k] = [
+    packRGBA(p[0], p[1], p[2]),
+    packRGBA(p[3], p[4], p[5]),
+    packRGBA(p[6], p[7], p[8]),
+    packRGBA(p[9], p[10], p[11]),
+    packRGBA(p[12], p[13], p[14]),
+  ];
 }
+// The noise thresholds, compared against the top 32 bits of the value instead of
+// a 0..1 float: one integer compare per pixel rather than a divide.
+const N_LIGHT = Math.floor(0.88 * 4294967296), N_DARK = Math.ceil(0.06 * 4294967296);
+const N_FLOWER1 = Math.ceil(0.064 * 4294967296), N_FLOWER2 = Math.ceil(0.067 * 4294967296);
+const N_W_MID = Math.floor(0.8 * 4294967296), N_W_LIGHT = Math.floor(0.95 * 4294967296);
+const W_BASE = packRGBA(46, 108, 180), W_MID = packRGBA(54, 120, 194);
+const W_LIGHT = packRGBA(104, 162, 224), W_SAND = packRGBA(214, 196, 140);
+// Blend weight for a pixel `bd` art pixels inside the tile's own border.
+const EDGE_W = [0.5, 1 / 3, 1 / 6, 0];
+// One scratch pixel buffer for every chunk: panning builds chunk after chunk, and
+// a fresh 388 KB image per chunk is a lot of allocation and zeroing for memory
+// that is overwritten pixel by pixel anyway.
+let chunkImg = null;
 function buildChunk(cx, cy) {
   const tx0 = cx * CW, ty0 = cy * CHH, pw = CW * T, ph = CHH * T;
   const cvs = mk(pw, ph), c = cvs.getContext('2d');
-  const img = c.createImageData(pw, ph), d = img.data;
-  for (let yy = 0; yy < ph; yy++) {
-    const y = ty0 * T + yy, ty = (y / T) | 0, ly = y - ty * T;
-    for (let xx = 0; xx < pw; xx++) {
-      const x = tx0 * T + xx, tx = (x / T) | 0, lx = x - tx * T, i = ty * MW + tx, n = hash(x, y, 7);
-      let r, g, b;
+  if (!chunkImg || chunkImg.width !== pw || chunkImg.height !== ph) chunkImg = c.createImageData(pw, ph);
+  const img = chunkImg, d = new Uint32Array(img.data.buffer);
+  // hash(x, y, 7) mixes three products; the x term depends only on the column and
+  // the y term only on the row, so a pixel costs one add plus the final mix.
+  const hx = new Int32Array(pw);
+  for (let xx = 0; xx < pw; xx++) hx[xx] = (tx0 * T + xx) * 374761393;
+  const hb = new Int32Array(ph);
+  for (let yy = 0; yy < ph; yy++) hb[yy] = (ty0 * T + yy) * 668265263 + 7 * 1442695041;
+  const bdH = new Int32Array(T), palH = new Array(T);
+  for (let ty = ty0; ty < ty0 + CHH; ty++) {
+    for (let tx = tx0; tx < tx0 + CW; tx++) {
+      const i = ty * MW + tx, px0 = (tx - tx0) * T, py0 = (ty - ty0) * T;
       if (water[i]) {
-        const shore = (lx === 0 && tx > 0 && !water[i - 1]) || (lx === T - 1 && tx < MW - 1 && !water[i + 1]) ||
-                      (ly === 0 && ty > 0 && !water[i - MW]) || (ly === T - 1 && ty < MH - 1 && !water[i + MW]);
-        if (shore) { r = 214; g = 196; b = 140; }
-        else { r = 46; g = 108; b = 180; if (n > 0.95) { r = 104; g = 162; b = 224; } else if (n > 0.8) { r = 54; g = 120; b = 194; } }
-      } else {
-        const bi = biome[i], pal = BIOME_PAL[bi] || BIOME_PAL[1];
-        const base = terrainColor(pal, n);
-        r = base >> 16; g = base >> 8 & 255; b = base & 255;
-        // Near a border, pick the closest land tile with another biome and fade
-        // the ground colour toward it. The tile keeps its own biome for every
-        // rule and simulation system; this is only what the pixels look like.
-        let bd = EDGE_BLEND + 1, bj = -1;
-        if (lx < bd && tx > 0) { const j = i - 1; if (!water[j] && biome[j] !== bi) { bd = lx; bj = biome[j]; } }
-        if (T - 1 - lx < bd && tx < MW - 1) { const j = i + 1; if (!water[j] && biome[j] !== bi) { bd = T - 1 - lx; bj = biome[j]; } }
-        if (ly < bd && ty > 0) { const j = i - MW; if (!water[j] && biome[j] !== bi) { bd = ly; bj = biome[j]; } }
-        if (T - 1 - ly < bd && ty < MH - 1) { const j = i + MW; if (!water[j] && biome[j] !== bi) { bd = T - 1 - ly; bj = biome[j]; } }
-        if (bj >= 0) {
-          // 50/50 exactly on the border and fading to 0 three pixels in, so the
-          // two sides meet on the same colour instead of swapping a hard edge.
-          const ww = 0.5 * (EDGE_BLEND - bd) / EDGE_BLEND;
-          const q = terrainColor(BIOME_PAL[bj] || BIOME_PAL[1], n);
-          r = Math.round(r + ((q >> 16) - r) * ww);
-          g = Math.round(g + ((q >> 8 & 255) - g) * ww);
-          b = Math.round(b + ((q & 255) - b) * ww);
+        const bW = tx > 0 && !water[i - 1], bE = tx < MW - 1 && !water[i + 1];
+        const bN = ty > 0 && !water[i - MW], bS = ty < MH - 1 && !water[i + MW];
+        // A waterway with land on both sides is a river, not a coast: its edges
+        // take the colour of the bank it runs through instead of a strip of sand.
+        const channel = (bW && bE) || (bN && bS);
+        // The bank takes the colour of the land beside it. A land tile that was
+        // painted over water can still carry biome 0, so fall back to plains.
+        const bank = (j) => (PAL_RGB[biome[j]] || PAL_RGB[1])[0];
+        const sW = bW ? (channel ? bank(i - 1) : W_SAND) : 0;
+        const sE = bE ? (channel ? bank(i + 1) : W_SAND) : 0;
+        const sN = bN ? (channel ? bank(i - MW) : W_SAND) : 0;
+        const sS = bS ? (channel ? bank(i + MW) : W_SAND) : 0;
+        for (let ly = 0; ly < T; ly++) {
+          const row = (py0 + ly) * pw + px0, h = hb[py0 + ly];
+          for (let lx = 0; lx < T; lx++) {
+            let col;
+            if (lx === 0 && bW) col = sW;
+            else if (lx === T - 1 && bE) col = sE;
+            else if (ly === 0 && bN) col = sN;
+            else if (ly === T - 1 && bS) col = sS;
+            else {
+              const v0 = (hx[px0 + lx] + h) | 0;
+              const v = Math.imul(v0 ^ (v0 >>> 13), 1274126177) ^ 0;
+              const n = (v ^ (v >>> 16)) >>> 0;
+              col = n > N_W_LIGHT ? W_LIGHT : n > N_W_MID ? W_MID : W_BASE;
+            }
+            d[row + lx] = col;
+          }
+        }
+        continue;
+      }
+      const bi = biome[i], pal = PAL_RGB[bi] || PAL_RGB[1];
+      // Near a border, pick the closest land tile with another biome and fade
+      // the ground colour toward it. The tile keeps its own biome for every
+      // rule and simulation system; this is only what the pixels look like.
+      const pW = tx > 0 && !water[i - 1] && biome[i - 1] !== bi ? PAL_RGB[biome[i - 1]] : null;
+      const pE = tx < MW - 1 && !water[i + 1] && biome[i + 1] !== bi ? PAL_RGB[biome[i + 1]] : null;
+      const pN = ty > 0 && !water[i - MW] && biome[i - MW] !== bi ? PAL_RGB[biome[i - MW]] : null;
+      const pS = ty < MH - 1 && !water[i + MW] && biome[i + MW] !== bi ? PAL_RGB[biome[i + MW]] : null;
+      const edge = pW || pE || pN || pS;
+      if (edge) {
+        for (let lx = 0; lx < T; lx++) {
+          let bd = EDGE_BLEND + 1, p = null;
+          if (lx < bd && pW) { bd = lx; p = pW; }
+          if (T - 1 - lx < bd && pE) { bd = T - 1 - lx; p = pE; }
+          bdH[lx] = bd; palH[lx] = p;
         }
       }
-      const o = (yy * pw + xx) * 4; d[o] = r; d[o + 1] = g; d[o + 2] = b; d[o + 3] = 255;
+      for (let ly = 0; ly < T; ly++) {
+        const row = (py0 + ly) * pw + px0, h = hb[py0 + ly];
+        const upBd = ly < EDGE_BLEND + 1 && pN ? ly : EDGE_BLEND + 1;
+        const dnBd = T - 1 - ly < EDGE_BLEND + 1 && pS ? T - 1 - ly : EDGE_BLEND + 1;
+        for (let lx = 0; lx < T; lx++) {
+          const v0 = (hx[px0 + lx] + h) | 0;
+          const v = Math.imul(v0 ^ (v0 >>> 13), 1274126177) ^ 0;
+          const n = (v ^ (v >>> 16)) >>> 0;
+          const k = n > N_LIGHT ? 1 : n < N_DARK ? 2 : n < N_FLOWER1 ? 3 : n < N_FLOWER2 ? 4 : 0;
+          let col = pal[k];
+          if (edge) {
+            let bd = bdH[lx], nb2 = palH[lx];
+            if (upBd < bd) { bd = upBd; nb2 = pN; }
+            if (dnBd < bd) { bd = dnBd; nb2 = pS; }
+            if (nb2 && bd < EDGE_BLEND) {
+              // 50/50 exactly on the border and fading to 0 three pixels in, so
+              // the two sides meet on the same colour instead of a hard edge.
+              const w = EDGE_W[bd], q = nb2[k];
+              const r = col & 255, g = col >> 8 & 255, b = col >> 16 & 255;
+              col = (Math.round(r + ((q & 255) - r) * w) |
+                (Math.round(g + ((q >> 8 & 255) - g) * w) << 8) |
+                (Math.round(b + ((q >> 16 & 255) - b) * w) << 16) | 0xff000000) >>> 0;
+            }
+          }
+          d[row + lx] = col;
+        }
+      }
     }
   }
   c.putImageData(img, 0, 0);
   // Translucent frost grains from the terrain texture keep snow legible without
-  // hiding the biome-edge blend underneath it.
+  // hiding the biome-edge blend underneath it. The pattern only depends on the
+  // low digits of the seed, so the grains are cached by those: 63 sprites for the
+  // whole map instead of one texture per tile, which used to make a snowy chunk
+  // several times more expensive to build than a temperate one.
   for (let ty = ty0; ty < ty0 + CHH; ty++) for (let tx = tx0; tx < tx0 + CW; tx++) {
     const i = ty * MW + tx;
-    if (!water[i] && biome[i] === 4) TEX.draw(c, 'terrain', 'snow_grass', tx * T - tx0 * T, ty * T - ty0 * T, {seed: i});
+    if (water[i] || biome[i] !== 4) continue;
+    const grain = (i % 7) + ':' + ((i / 11 | 0) % 9);
+    c.drawImage(sprite('terrain', 'snow_grass', {seed: i}, grain), tx * T - tx0 * T, ty * T - ty0 * T);
   }
   c.translate(-tx0 * T, -ty0 * T);
   for (let ty = ty0; ty < ty0 + CHH; ty++) for (let tx = tx0; tx < tx0 + CW; tx++) drawTile(c, ty * MW + tx);
@@ -109,13 +194,54 @@ function drawTile(c, i) {
   else if (tree[i] && !bldAt[i]) drawTree(c, x0, y0, tree[i]);
   // Surface freight track lies over whatever is underneath, so a line can
   // cross a street at grade and still leave the street intact for traffic.
-  if (trackOn[i]) {
-    drawTrackTile(c, x0, y0, track[i], water[i]);
-    // One signal per block boundary is enough: check the east and south edges.
-    const e = nb(i, 2), s = nb(i, 3);
-    if (e >= 0 && trackOn[e] && blockOf[e] && blockOf[e] !== blockOf[i]) drawTrackSignal(c, x0, y0, 2, blockBusy(blockOf[e]));
-    if (s >= 0 && trackOn[s] && blockOf[s] && blockOf[s] !== blockOf[i]) drawTrackSignal(c, x0, y0, 3, blockBusy(blockOf[s]));
+  // Signal lamps are not baked in here: they change whenever a train claims a
+  // block, so the frame draws them from the block boundary list instead.
+  if (trackOn[i]) drawTrackTile(c, x0, y0, track[i], water[i]);
+}
+// District paint, baked one chunk at a time. The district layer only changes
+// when the player draws a district, so a frame is one blit per visible chunk
+// instead of a fill per run of tiles plus a border check on every single tile.
+let districtVersion = 0;
+const districtChunks = new Map();
+function markDistrictsDirty() { districtVersion++; districtChunks.clear(); }
+function districtChunk(cx, cy) {
+  const k = cy * NCX + cx;
+  const hit = districtChunks.get(k);
+  if (hit && hit.v === districtVersion) return hit.c;
+  const tx0 = cx * CW, ty0 = cy * CHH, cvs = mk(CW * T, CHH * T), c = cvs.getContext('2d');
+  let any = false;
+  c.globalAlpha = 0.22;
+  for (let ty = ty0; ty < ty0 + CHH; ty++) {
+    let tx = tx0;
+    while (tx < tx0 + CW) {
+      const id = districtLayer[ty * MW + tx];
+      if (!id) { tx++; continue; }
+      let x2 = tx;
+      while (x2 + 1 < tx0 + CW && districtLayer[ty * MW + x2 + 1] === id) x2++;
+      const d = districts.get(id);
+      if (d) { c.fillStyle = d.color; c.fillRect((tx - tx0) * T, (ty - ty0) * T, (x2 - tx + 1) * T, T); any = true; }
+      tx = x2 + 1;
+    }
   }
+  if (any) {
+    c.globalAlpha = 0.7;
+    for (let ty = ty0; ty < ty0 + CHH; ty++) for (let tx = tx0; tx < tx0 + CW; tx++) {
+      const i = ty * MW + tx, id = districtLayer[i];
+      if (!id) continue;
+      const d = districts.get(id); if (!d) continue;
+      const up = ty > 0 ? districtLayer[i - MW] : 0, left = tx > 0 ? districtLayer[i - 1] : 0;
+      c.fillStyle = d.color;
+      if (up !== id) c.fillRect((tx - tx0) * T, (ty - ty0) * T, T, 1);
+      if (left !== id) c.fillRect((tx - tx0) * T, (ty - ty0) * T, 1, T);
+    }
+  }
+  const out = any ? cvs : null;
+  districtChunks.set(k, {v: districtVersion, c: out});
+  // A chunk canvas is 400x300, so the cap is about 30 MB of paint at worst; the
+  // whole map at the far zoom needs 48 of them, and they are only built when the
+  // districts overlay is actually on.
+  if (districtChunks.size > 64) districtChunks.delete(districtChunks.keys().next().value);
+  return out;
 }
 const miniCv = mk(MW, MH), mctx = miniCv.getContext('2d'), miniImg = mctx.createImageData(MW, MH);
 const MINIC = [[88, 156, 68], [215, 218, 224], [240, 200, 90], [219, 201, 159], [211, 201, 180]];
@@ -192,7 +318,7 @@ function walkCost(u, v) {
   const t = tile[v];
   if (t === 1) return walkway[v] ? 1.3 : -1;
   if (t === 3 || t === 4) return 0.75;
-  const b = bldAt[v]; if (b) { const ty = B(b).type; if (ty === 'park' || ty === 'metro') return 0.75; }
+  const b = bldAt[v]; if (b) { const ty = B(b).type; if (isLeisureWalk(ty) || ty === 'metro') return 0.75; }
   return -1;
 }
 function findPath(s, g, mode, maxCost = Infinity, ignoreClosed = false) {
@@ -272,7 +398,7 @@ function hubAdjacent(x, y, w, h) {
   for (const i of perimeter(x, y, w, h)) {
     if (trackOn[i]) return true;
     const id = bldAt[i];
-    if (id) { const b = B(id); if (b && b.type === 'port') return true; }
+    if (id) { const b = B(id); if (b && (b.type === 'port' || b.type === 'riverWharf')) return true; }
   }
   return false;
 }
@@ -286,7 +412,7 @@ function railyardNear(x, y, w, h) {
   }
   return false;
 }
-const needsRoad = type => type !== 'park' && type !== 'metro';
+const needsRoad = type => !isLeisureWalk(type) && type !== 'metro';
 // Why a plot cannot take a building. An empty string means it fits. The order
 // matters: an unmet research requirement is a more useful answer than a
 // shoreline complaint on a dam that is not unlocked yet.
@@ -392,13 +518,13 @@ function placeBuilding(type, x, y, seed) {
 function computeAccess(b) {
   const per = perimeter(b.x, b.y, b.w, b.h);
   b.road = per.find(i => tile[i] === 1 && !overpass[i]) ?? -1;
-  if (b.type === 'park' || b.type === 'metro') b.walk = b.y * MW + b.x;
+  if (isLeisureWalk(b.type) || b.type === 'metro') b.walk = b.y * MW + b.x;
   else b.walk = per.find(i => isWalk(i)) ?? -1;
   let ws = 0;
   for (let yy = b.y - 4; yy < b.y + b.h + 4; yy++) for (let xx = b.x - 4; xx < b.x + b.w + 4; xx++) {
     if (!inb(xx, yy)) continue; const i = yy * MW + xx;
     if (tile[i] === 3 || tile[i] === 4) ws++;
-    else if (bldAt[i] && bldAt[i] !== b.id && B(bldAt[i]).type === 'park') ws += 0.5;
+    else if (bldAt[i] && bldAt[i] !== b.id && isLeisureWalk(B(bldAt[i]).type)) ws += 0.5;
   }
   b.ws = Math.min(14, ws);
 }
@@ -507,18 +633,23 @@ function mapChanged() {
   computeComps(compR, isRoad);
   computeComps(compW, isWalk);
   for (const i of [...lights.keys()]) if (deg[i] < 3 || overpass[i]) lights.delete(i);
+  // A gate only makes sense where a straight piece of track still crosses a
+  // street, rather than running along beside it.
+  for (const i of [...gates]) {
+    if (!trackOn[i] || !isRoad(i) || bits(track[i]) !== 2 || (cmask[i] & ((track[i] & 1) ? 5 : 10))) gates.delete(i);
+  }
   destCom = []; destPark = []; destWork = []; stations = []; docks = []; airports = []; busStops = []; ports = []; yards = []; hubs = [];
   for (const b of buildings.values()) {
     computeAccess(b);
     const d = BT[b.type];
     if (d.cat === 'com') destCom.push(b);
     if (d.jobs > 0) destWork.push(b);
-    if (b.type === 'park') destPark.push(b);
+    if (isLeisure(b.type)) destPark.push(b);
     if (b.type === 'metro') stations.push(b);
     if (b.type === 'busstop') busStops.push(b);
     if (b.type === 'dock') docks.push(b);
     if (b.type === 'airport') airports.push(b);
-    if (b.type === 'port') ports.push(b);
+    if (b.type === 'port' || b.type === 'riverWharf') ports.push(b);
     if (b.type === 'railyard') yards.push(b);
     if (b.type === 'distribution') hubs.push(b);
   }

@@ -40,7 +40,7 @@ function arriveAgent(a, b, mode) {
   a.mood = a.mood * (1 - 0.3 * sensitivity) + score * (0.3 * sensitivity);
   if (b.id === a.home) a.stayUntil = 0;
   else if (b.id === a.job) a.stayUntil = gameMin + 450 + Math.random() * 90;
-  else if (b.type === 'park') a.stayUntil = gameMin + 50 + Math.random() * 110;
+  else if (isLeisure(b.type)) a.stayUntil = gameMin + 50 + Math.random() * 110;
   else a.stayUntil = gameMin + 30 + Math.random() * 90;
   // everyone heads home in time for bed
   if (b.id !== a.home) a.stayUntil = Math.min(a.stayUntil, Math.floor(gameMin / 1440) * 1440 + (a.bed - 0.6) * 60);
@@ -97,7 +97,7 @@ function planModes(a, from, to) {
   // short trips are walked; footpaths, plazas and parks nearby make longer walks attractive
   const full = capOf(to) > 0 && to.cars >= capOf(to) && to.id !== a.home;
   let pWalk = 0;
-  if (dist <= 22) pWalk = clamp(0.74 - dist * 0.043 + (from.ws + to.ws) * 0.035 + (to.type === 'park' ? 0.3 : 0) + (full ? 0.3 : 0), 0, 0.95);
+  if (dist <= 22) pWalk = clamp(0.74 - dist * 0.043 + (from.ws + to.ws) * 0.035 + (isLeisure(to.type) ? 0.3 : 0) + (full ? 0.3 : 0), 0, 0.95);
   if (!carOK) pWalk = dist <= 30 ? 1 : 0;
   // the metro is fast and skips traffic, so most people near two stations take it
   const sa = nearestStation(from), sb = nearestStation(to);
@@ -299,6 +299,14 @@ function stepCar(c, dt) {
   }
   if (target < c.speed) c.speed = target; else c.speed = Math.min(target, c.speed + 45 * dt);
   let ds = c.speed * dt / T;
+  // A grade crossing: the street runs over the rails, but the train has the
+  // right of way. Stop short of the rail while one is on it or about to be,
+  // so a car never pulls up onto the track in front of a train.
+  // (c.t runs between tile centres, so 0.4 stops the car with its nose just
+  // short of the crossing tile.)
+  if (trackOn[b] && !(track[b] & bit(c.d)) && c.t + ds > 0.4 && (railBusyAt(b) || (gates.has(b) && railSoonAt(b)))) {
+    ds = Math.max(0, 0.4 - c.t); if (ds < 0.002) c.speed = 0;
+  }
   if (c.t < 0.5 && deg[b] >= 3 && !overpass[b] && !freeflow[b]) {
     let cap = 2;
     const L = lights.get(b);
@@ -912,16 +920,22 @@ function heatRGB(v) {
   return v < 0.5 ? [60 + 380 * v, 200 + 20 * v, 90 - 60 * v] : [250 - 30 * (v - 0.5), 210 - 300 * (v - 0.5), 60 - 20 * (v - 0.5)];
 }
 function computeArea() {
-  for (let i = 0; i < N; i++) { const r = isRoad(i) ? 1 : 0; fR[i] = r; fA[i] = r ? heat[i] : 0; }
+  const tileArr = tile;
+  for (let i = 0; i < N; i++) { const r = tileArr[i] === 1 || tileArr[i] === 2 ? 1 : 0; fR[i] = r; fA[i] = r ? heat[i] : 0; }
   boxBlur(fA, 3); boxBlur(fA, 3); boxBlur(fR, 3); boxBlur(fR, 3);
+  // The colour ramp is inlined here: this loop runs over every tile twice a
+  // second, and building a three-entry array for each one was most of its cost.
   const d = areaImg.data;
   for (let i = 0; i < N; i++) {
-    const v = fR[i] > 0.002 ? fA[i] / fR[i] : 0, p = Math.min(1, fR[i] * 6);
+    const pres = fR[i], v = pres > 0.002 ? fA[i] / pres : 0;
+    const p = pres > 1 / 6 ? 1 : pres * 6;
     areaHeat[i] = v; areaPres[i] = p;
     const o = i * 4;
     if (p < 0.03) { d[o + 3] = 0; continue; }
-    const [r, g, b] = heatRGB(v / 1.2);
-    d[o] = r; d[o + 1] = g; d[o + 2] = b; d[o + 3] = Math.round(p * 165);
+    let w = v / 1.2; if (w < 0) w = 0; else if (w > 1) w = 1;
+    if (w < 0.5) { d[o] = 60 + 380 * w; d[o + 1] = 200 + 20 * w; d[o + 2] = 90 - 60 * w; }
+    else { const q = w - 0.5; d[o] = 250 - 30 * q; d[o + 1] = 210 - 300 * q; d[o + 2] = 60 - 20 * q; }
+    d[o + 3] = p * 165;   // the clamped array rounds the channel for us
   }
   actx.putImageData(areaImg, 0, 0);
 }

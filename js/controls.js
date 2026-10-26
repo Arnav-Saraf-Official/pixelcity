@@ -30,11 +30,14 @@ const TOOLS = {
   plaza:     {cat: 'transit', group: 'Walking & parking', name: 'Plaza', kind: 'rect', desc: 'Paved pedestrian square.'},
   'b:park': {cat: 'transit', group: 'Walking & parking'},
   'b:parking': {cat: 'transit', group: 'Walking & parking'}, 'b:garage': {cat: 'transit', group: 'Walking & parking'},
-  track:     {cat: 'transit', group: 'Freight', name: 'Freight Track', kind: 'line', key: 'I', desc: 'Drag to extend freight track. Bulldoze it to remove.'},
+  track:     {cat: 'transit', group: 'Freight', name: 'Freight Track', kind: 'line', key: 'I', desc: 'Drag to extend freight track. Lay a second track alongside for a two-way line, so trains pass each other instead of taking turns. Bulldoze it to remove.'},
   signal:    {cat: 'transit', group: 'Freight', name: 'Rail Signal', kind: 'click', key: 'E', desc: 'Click a piece of freight track to split it into signal blocks. Blocks turn red while a train has the leg.'},
+  gate:      {cat: 'transit', group: 'Freight', name: 'Crossing Gate', kind: 'click', desc: 'Click a street where track crosses it to add or remove a barrier. The arm lowers over the road while a train is coming and cars wait behind it.'},
   freightline:{cat: 'transit', group: 'Freight', name: 'Freight Line', kind: 'click', desc: 'Click two to four train yards to give them a dedicated train loop. Click the first yard again to finish.'},
   'b:railyard': {cat: 'transit', group: 'Freight'},
   'b:port': {cat: 'transit', group: 'Freight'}, 'b:distribution': {cat: 'transit', group: 'Freight'},
+  'b:riverWharf': {cat: 'transit', group: 'Freight'},
+  'b:boardwalk': {cat: 'transit', group: 'Waterfront'}, 'b:aquarium': {cat: 'transit', group: 'Waterfront'}, 'b:ferrisWheel': {cat: 'transit', group: 'Waterfront'},
   tree:      {cat: 'nature', name: 'Trees', kind: 'brush', desc: 'Paint varied tree canopies on empty land.'},
   water:     {cat: 'nature', name: 'Water', kind: 'rect', desc: 'Drag a box to flood land. Roads over water become bridges.'},
   land:      {cat: 'nature', name: 'Land', kind: 'rect', desc: 'Drag a box to fill water.'},
@@ -127,7 +130,7 @@ function commitRect(tool, sx, sy, ex, ey) {
       if (underground) { railOn[i] = 0; trackOn[i] = 0; continue; }
       if (bldAt[i]) kill.add(bldAt[i]);
       tile[i] = 0; oneway[i] = 0; walkway[i] = 0; tree[i] = 0;
-      trackOn[i] = 0; overpass[i] = 0; lights.delete(i);
+      trackOn[i] = 0; overpass[i] = 0; lights.delete(i); gates.delete(i);
       if (platform[i]) { platform[i] = 0; water[i] = 1; }
     }
     for (const id of kill) { const b = B(id); if (b) removeBuilding(b); }
@@ -150,6 +153,7 @@ function commitRect(tool, sx, sy, ex, ey) {
 }
 let activeDistrict = 0;
 function updateDistrictUI() {
+  markDistrictsDirty();
   const box = document.getElementById('districtList'); if (!box) return;
   box.replaceChildren();
   for (const d of districts.values()) {
@@ -216,6 +220,16 @@ function clickSignal(t) {
   sigNode[i] = sigNode[i] ? 0 : 1;
   markTiles([i]); mapChanged();
 }
+function clickGate(t) {
+  if (!inb(t.x, t.y)) return;
+  const i = t.y * MW + t.x;
+  if (gates.has(i)) { gates.delete(i); mapChanged(); return; }
+  if (!trackOn[i] || !isRoad(i) || bits(track[i]) !== 2 || (cmask[i] & ((track[i] & 1) ? 5 : 10))) {
+    toast('Crossing gates go where a straight run of track crosses a street.');
+    return;
+  }
+  gates.add(i);
+}
 const LINE_COLORS = ['#f2c14e', '#4d96ff', '#6bcb77', '#ff7eb6', '#c77dff'];
 let lineDraft = [];
 function clickFreightLine(t, e) {
@@ -253,6 +267,7 @@ function clickFreightLine(t, e) {
 function clickTool(tool, t, e) {
   if (tool === 'overpass') return clickOverpass(t);
   if (tool === 'signal') return clickSignal(t);
+  if (tool === 'gate') return clickGate(t);
   if (tool === 'freightline') return clickFreightLine(t, e);
   return clickLight(t);
 }
@@ -270,7 +285,9 @@ function copySel(cut) {
   }
   for (const b of buildings.values()) if (b.x >= x0 && b.y >= y0 && b.x + b.w - 1 <= x1 && b.y + b.h - 1 <= y1) blds.push([b.type, b.x - x0, b.y - y0]);
   for (const [i, L] of lights) { const x = i % MW, y = i / MW | 0; if (x >= x0 && x <= x1 && y >= y0 && y <= y1) lts.push([x - x0, y - y0, L.ns, L.ew, Math.round(L.off)]); }
-  clip = {v: 1, w, h, tiles, b: blds, l: lts};
+  const gts = [];
+  for (const i of gates) { const x = i % MW, y = i / MW | 0; if (x >= x0 && x <= x1 && y >= y0 && y <= y1) gts.push([x - x0, y - y0]); }
+  clip = {v: 1, w, h, tiles, b: blds, l: lts, g: gts};
   try { navigator.clipboard.writeText('PTCB1.' + b64(new TextEncoder().encode(JSON.stringify(clip)))).catch(() => {}); } catch (e) {}
   if (cut) { commitRect('bulldoze', x0, y0, x1, y1); toast(`Cut a ${w}×${h} area. Paste it with Ctrl+V.`); }
   else toast(`Copied a ${w}×${h} area with ${blds.length} buildings. Paste it with Ctrl+V.`);
@@ -289,6 +306,7 @@ function pasteAt(t) {
     else if (tr && !tile[i] && !water[i]) tree[i] = tr;
   }
   for (const [dx, dy, ns, ew, off] of clip.l) { const x = o.x + dx, y = o.y + dy; if (inb(x, y)) lights.set(y * MW + x, {ns, ew, off}); }
+  for (const [dx, dy] of clip.g || []) { const x = o.x + dx, y = o.y + dy; if (inb(x, y)) gates.add(y * MW + x); }
   for (const [type, dx, dy] of clip.b) { if (canPlace(type, o.x + dx, o.y + dy)) placeBuilding(type, o.x + dx, o.y + dy); else skipped++; }
   markDirty(o.x, o.y, o.x + clip.w - 1, o.y + clip.h - 1); mapChanged();
   if (skipped) toast(`Pasted. ${skipped} piece${skipped > 1 ? 's' : ''} didn't fit where something was already built.`);
@@ -301,6 +319,7 @@ function importClip(text) {
     for (const e of c.tiles) if (!Array.isArray(e) || !inBox(e[0], e[1]) || !isInt(e[2], 0, 4) || !isInt(e[3], 0, 4) || !isInt(e[4], 0, 1) || !isInt(e[5], 0, 1) || !isInt(e[6], 0, 8)) throw 0;
     for (const e of c.b) if (!Array.isArray(e) || !hasType(e[0]) || !inBox(e[1], e[2])) throw 0;
     for (const e of c.l) if (!Array.isArray(e) || !inBox(e[0], e[1]) || !isInt(e[2], 3, 25) || !isInt(e[3], 3, 25) || !isInt(e[4], 0, 60)) throw 0;
+    if (c.g !== undefined) { if (!Array.isArray(c.g) || c.g.length > c.w * c.h) throw 0; for (const e of c.g) if (!Array.isArray(e) || !inBox(e[0], e[1])) throw 0; }
     clip = c; startPaste(); toast(`Pasted area ready: ${c.w}×${c.h}. Click to place it.`);
   } catch (e) { toast('That copied area is damaged, so it was not pasted.'); }
 }
@@ -351,11 +370,11 @@ function drawPreview(f) {
     if (d.platform) { for (let y = 0; y < d.h; y++) for (let x = 0; x < d.w; x++) drawPlatform(f, (a.x + x) * T, (a.y + y) * T, d.platform); }
     else drawBuilding(f, type, a.x * T, a.y * T, 777, (tx, ty) => inb(a.x + tx, a.y + ty) && water[(a.y + ty) * MW + a.x + tx] === 1);
     f.globalAlpha = 1;
-    const conn = !d.platform && ok && (touchesStreet(type, a.x, a.y) || ((type === 'park' || type === 'metro') && perimeter(a.x, a.y, d.w, d.h).some(isWalk)));
+    const conn = !d.platform && ok && (touchesStreet(type, a.x, a.y) || ((isLeisureWalk(type) || type === 'metro') && perimeter(a.x, a.y, d.w, d.h).some(isWalk)));
     f.fillStyle = !ok ? 'rgba(255,60,60,.45)' : conn ? 'rgba(80,255,120,.18)' : 'rgba(255,190,60,.3)'; f.fillRect(a.x * T, a.y * T, d.w * T, d.h * T);
     outline(a.x * T, a.y * T, d.w * T, d.h * T, !ok ? '#ff5050' : conn ? '#7dff9a' : '#ffbe3c'); return;
   }
-  outline(hoverT.x * T, hoverT.y * T, T, T, curTool === 'bulldoze' ? '#ff5050' : (curTool === 'light' || curTool === 'overpass') ? '#ffd23f' : '#ffffff');
+  outline(hoverT.x * T, hoverT.y * T, T, T, curTool === 'bulldoze' ? '#ff5050' : (curTool === 'light' || curTool === 'overpass' || curTool === 'gate') ? '#ffd23f' : '#ffffff');
   if (selection && selection.kind !== 'bld') { const i = selection.i; outline((i % MW) * T, (i / MW | 0) * T, T, T, '#ffd75e'); }
 }
 

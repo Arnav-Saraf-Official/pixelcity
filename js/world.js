@@ -3,8 +3,8 @@
 // =====================================================================
 function clearWorld(keepClock) {
   tile.fill(0); water.fill(0); tree.fill(0); platform.fill(0); oneway.fill(0); walkway.fill(0); bldAt.fill(0); heat.fill(0); heatAcc.fill(0); resv.fill(0); overpass.fill(0); rail.fill(0); railOn.fill(0); track.fill(0); trackOn.fill(0);
-  lights.clear(); buildings.clear(); carById.clear(); chunks.clear();
-  districts.clear(); districtLayer.fill(0); nextDid = 1; units = []; incidents.length = 0; wrecks.length = 0;
+  lights.clear(); gates.clear(); buildings.clear(); carById.clear(); chunks.clear();
+  districts.clear(); districtLayer.fill(0); nextDid = 1; markDistrictsDirty(); units = []; incidents.length = 0; wrecks.length = 0;
   roadClosed.fill(0); streetClosures.clear();
   power.plants = []; power.capacity = 0; power.demand = 0;
   agents = []; cars = []; peds = []; planes = []; boats = []; metros = []; ships = []; freight = []; connections = []; busWait.clear(); metroWait.clear();
@@ -78,11 +78,19 @@ function mainLandBox(w, h) {
 function buildStarterTown() {
   starterTown = null;
   const rng = mulberry((worldSeed ^ 4242) >>> 0);
-  const box = mainLandBox(72, 50);
+  // A city needs a big, mostly dry site. The biggest landmass of an island
+  // world may be smaller than the mainland of a normal one, so step down to
+  // smaller footprints until one is properly covered in land.
+  let box = null, boxW = 72, boxH = 50;
+  for (const [bw, bh] of [[72, 50], [56, 40], [38, 28]]) {
+    const b = mainLandBox(bw, bh);
+    if (b && (!box || b.score > box.score + 0.05)) { box = b; boxW = bw; boxH = bh; }
+    if (box && box.score >= 0.95) break;
+  }
   if (box) {
     const xs = [], ys = [];
-    for (let x = box.x + 2; x <= box.x + 66; x += 13) xs.push(x);
-    for (let y = box.y + 2; y <= box.y + 44; y += 12) ys.push(y);
+    for (let x = box.x + 2; x <= box.x + boxW - 6; x += 13) xs.push(x);
+    for (let y = box.y + 2; y <= box.y + boxH - 6; y += 12) ys.push(y);
     for (const y of ys) lineRoadLand(xs[0], y, xs[xs.length - 1], y, y === ys[Math.floor(ys.length / 2)] ? 2 : 1);
     for (const x of xs) lineRoadLand(x, ys[0], x, ys[ys.length - 1], 1);
     for (let xi = 0; xi < xs.length - 1; xi++) for (let yi = 0; yi < ys.length - 1; yi++) {
@@ -90,13 +98,14 @@ function buildStarterTown() {
         : ['house', 'house', 'house', 'apartment', 'shop', 'house'];
       fillArea(xs[xi] + 1, ys[yi] + 1, xs[xi + 1] - 1, ys[yi + 1] - 1, list, rng);
     }
-    findSpot('school', box.x, box.y, box.x + 70, box.y + 48, 11);
-    findSpot('hospital', box.x, box.y, box.x + 70, box.y + 48, 12);
-    findSpot('parking', box.x, box.y, box.x + 70, box.y + 48, 13);
-    for (let k = 0; k < 3; k++) findSpot('park', box.x, box.y, box.x + 70, box.y + 48, 20 + k);
-    findSpot('metro', box.x, box.y, box.x + 70, box.y + 48, 31);
-    findSpot('metro', box.x, box.y, box.x + 70, box.y + 48, 32);
-    for (let k = 0; k < 4; k++) findSpot('busstop', box.x, box.y, box.x + 70, box.y + 48, 40 + k);
+    const bx1 = box.x + boxW - 2, by1 = box.y + boxH - 2;
+    findSpot('school', box.x, box.y, bx1, by1, 11);
+    findSpot('hospital', box.x, box.y, bx1, by1, 12);
+    findSpot('parking', box.x, box.y, bx1, by1, 13);
+    for (let k = 0; k < 3; k++) findSpot('park', box.x, box.y, bx1, by1, 20 + k);
+    findSpot('metro', box.x, box.y, bx1, by1, 31);
+    findSpot('metro', box.x, box.y, bx1, by1, 32);
+    for (let k = 0; k < 4; k++) findSpot('busstop', box.x, box.y, bx1, by1, 40 + k);
     starterTown = {x: Math.round(best2(xs)), y: Math.round(best2(ys))};
   }
   placeCoastalBuildings(rng);

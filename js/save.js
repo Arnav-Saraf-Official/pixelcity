@@ -206,6 +206,7 @@ function serialize() {
     tile: rle(tile), platform: rle(platform), oneway: rle(oneway), overpass: rle(overpass), walkway: rle(walkway), rail: rle(railOn), track: rle(trackOn), sig: rle(sigNode),
     water: diffEnc(water, gw), tree: diffEnc(tree, gt, i => tile[i] || bldAt[i]),
     lights: [...lights].map(([i, L]) => [i, L.ns, L.ew, Math.round(L.off)]),
+    gates: [...gates],
     b: savedBuildings.map(b => [b.type, b.x, b.y, b.seed >>> 0]),
     state: savedBuildings.map((b, i) => [i, Number.isFinite(b.stock) ? b.stock : null, b.inventory || null, b.byproducts || null, b.policy || null]),
     districts: [...districts.values()].map(d => [d.id, d.name, d.color]),
@@ -233,7 +234,7 @@ function applyDiff(s, arr, maxV) {
   let i = 0;
   for (const part of s.split(',')) {
     if (!part) continue;
-    const m = /^([0-9a-z]{1,6}):(\d)$/.exec(part);
+    const m = /^([0-9a-z]{1,6}):(\d{1,2})$/.exec(part);
     if (!m) throw new Error(BAD);
     i += parseInt(m[1], 36); const v = +m[2];
     if (i >= N || v > maxV) throw new Error(BAD);
@@ -245,6 +246,8 @@ function loadData(d) {
   if (!isInt(d.seed, 0, 1e9)) throw new Error(BAD);
   for (const k of ['tile', 'oneway', 'overpass', 'walkway', 'water', 'tree']) if (typeof d[k] !== 'string' || d[k].length > 5e6) throw new Error(BAD);
   if (!Array.isArray(d.b) || d.b.length > 40000 || !Array.isArray(d.lights) || d.lights.length > 40000) throw new Error(BAD);
+  if (d.gates !== undefined && (!Array.isArray(d.gates) || d.gates.length > N)) throw new Error(BAD);
+  if (Array.isArray(d.gates) && d.gates.some(i => !isInt(i, 0, N - 1))) throw new Error(BAD);
   if (d.state !== undefined && (!Array.isArray(d.state) || d.state.length > d.b.length)) throw new Error(BAD);
   if (d.resources !== undefined && (!d.resources || typeof d.resources !== 'object' || Array.isArray(d.resources) || Object.values(d.resources).some(v => !Number.isFinite(v) || v < 0 || v > 1e12))) throw new Error(BAD);
   // rail and track were added after the first v5 saves, so they may be missing:
@@ -260,7 +263,7 @@ function loadData(d) {
   if (typeof d.rail === 'string') unrleInto(d.rail, nra, 1);
   if (typeof d.track === 'string') unrleInto(d.track, ntk, 1);
   if (typeof d.sig === 'string') unrleInto(d.sig, nsig, 1);
-  genTerrainInto(d.seed, nwa, ntr); applyDiff(d.water, nwa, 1); applyDiff(d.tree, ntr, 8);
+  genTerrainInto(d.seed, nwa, ntr); applyDiff(d.water, nwa, 1); applyDiff(d.tree, ntr, TREE_MAXV);
   for (const e of d.b) if (!Array.isArray(e) || !hasType(e[0]) || !isInt(e[1], 0, MW - 1) || !isInt(e[2], 0, MH - 1) || !isInt(e[3], 0, 4294967295)) throw new Error(BAD);
   for (const e of d.lights) if (!Array.isArray(e) || !isInt(e[0], 0, N - 1) || !isInt(e[1], 3, 25) || !isInt(e[2], 3, 25) || !isInt(e[3], 0, 60)) throw new Error(BAD);
   // the save is valid: replace the region
@@ -303,6 +306,7 @@ function loadData(d) {
   }
   if (d.resources) for (const good of Object.keys(resources)) if (Number.isFinite(d.resources[good])) resources[good] = d.resources[good];
   for (const [i, ns, ew, off] of d.lights) lights.set(i, {ns, ew, off});
+  if (Array.isArray(d.gates)) for (const i of d.gates) gates.add(i);
   if (typeof d.dlayer === 'string') {
     const nd = new Int32Array(N); unrleInto(d.dlayer, nd, 4);
     districtLayer.set(nd);
@@ -312,6 +316,7 @@ function loadData(d) {
     districts.set(e[0], {id: e[0], name: e[1].slice(0, 24), color: e[2].slice(0, 16), policy: {}});
     nextDid = Math.max(nextDid, e[0] + 1);
   }
+  markDistrictsDirty();
   if (Array.isArray(d.wx) && WEATHER_KINDS[d.wx[0]]) { WEATHER.kind = d.wx[0]; WEATHER.until = d.wx[1]; }
   const settings = d.settings || {};
   worldSettings = {

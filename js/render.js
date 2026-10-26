@@ -5,6 +5,7 @@ let dpr = Math.max(1, window.devicePixelRatio || 1);
 const cam = {x: 0, y: 0, z: 3};
 const ZOOMS = [0.5, 0.75, 1, 1.5, 2, 3, 4, 5, 6, 8, 10];
 let flash = null; // {i, until} highlighted hotspot
+let frameLod = 1; // buffer pixels per world pixel for the frame being drawn
 function resize() {
   dpr = Math.max(1, window.devicePixelRatio || 1);
   cv.width = Math.floor(innerWidth * dpr); cv.height = Math.floor(innerHeight * dpr);
@@ -23,26 +24,49 @@ function darkness(h) {
   return 0.58;
 }
 const LCOL = ['#3ef06b', '#ffd23f', '#ff4848'];
+// The congestion colours, quantized into shades that are prepared once: the heat
+// overlay then never has to build a colour string inside its tile loop.
+const HEAT_BUCKETS = Array.from({length: 32}, (_, k) => {
+  const [r, g, b] = heatRGB((k + 0.5) / 32);
+  return { col: `rgba(${r | 0},${g | 0},${b | 0},.9)`, n: 0, a: [] };
+});
 const moodFace = m => m >= 0.7 ? 'happy' : m >= 0.5 ? 'ok' : m >= 0.3 ? 'sad' : 'angry';
 function render() {
   if (regionView) { renderRegion(); return; }
   const z = cam.z;
-  const fw = Math.ceil(innerWidth / z) + 2, fh = Math.ceil(innerHeight / z) + 2;
+  // Level of detail: the world is drawn into a frame buffer at one buffer pixel
+  // per world pixel, which is exactly right while the view is magnified. At the
+  // far zoom on a 1× display a world pixel lands on half a screen pixel, so the
+  // buffer is built at half size instead: a quarter of the fill, chunk and upload
+  // work, and every buffer pixel still gets at least one whole screen pixel. It
+  // only steps down when the buffer would otherwise be thrown away, so nothing
+  // on screen loses sharpness.
+  const lod = z * dpr <= 0.5 ? 0.5 : 1;
+  frameLod = lod;
+  const fw = Math.ceil(innerWidth / z * lod) + 2, fh = Math.ceil(innerHeight / z * lod) + 2;
+  const fwx = fw / lod, fhy = fh / lod;             // the same buffer, measured in world pixels
   if (frameCv.width !== fw || frameCv.height !== fh) { frameCv.width = fw; frameCv.height = fh; }
   const fx0 = Math.floor(cam.x), fy0 = Math.floor(cam.y), f = fctx;
   f.setTransform(1, 0, 0, 1, 0, 0); f.imageSmoothingEnabled = false;
   f.fillStyle = '#0d1018'; f.fillRect(0, 0, fw, fh);
-  f.setTransform(1, 0, 0, 1, -fx0, -fy0);
-  const sx0 = Math.max(0, fx0), sy0 = Math.max(0, fy0), sx1 = Math.min(FW, fx0 + fw), sy1 = Math.min(FH, fy0 + fh);
+  f.setTransform(lod, 0, 0, lod, -fx0 * lod, -fy0 * lod);
+  f.imageSmoothingEnabled = lod < 1;
+  const sx0 = Math.max(0, fx0), sy0 = Math.max(0, fy0), sx1 = Math.min(FW, fx0 + fwx), sy1 = Math.min(FH, fy0 + fhy);
   if (sx1 > sx0 && sy1 > sy0) {
     if (overlays.underground) drawUnderground(f, sx0, sy0, sx1, sy1);
     else drawWorld(f, sx0, sy0, sx1, sy1);
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.fillStyle = '#0d1018'; ctx.fillRect(0, 0, cv.width, cv.height);
-  ctx.imageSmoothingEnabled = z < 1;
   const zz = z * dpr;
-  ctx.drawImage(frameCv, 0, 0, fw, fh, Math.round((fx0 - cam.x) * zz), Math.round((fy0 - cam.y) * zz), Math.round(fw * zz), Math.round(fh * zz));
+  const dx = Math.round((fx0 - cam.x) * zz), dy = Math.round((fy0 - cam.y) * zz);
+  const dw = Math.round(fwx * zz), dh = Math.round(fhy * zz);
+  // The frame covers the viewport exactly, so clearing the screen first would be
+  // a wasted full-screen fill. Only do it when rounding leaves a gap.
+  if (dx > 0 || dy > 0 || dx + dw < cv.width || dy + dh < cv.height) {
+    ctx.fillStyle = '#0d1018'; ctx.fillRect(0, 0, cv.width, cv.height);
+  }
+  ctx.imageSmoothingEnabled = zz / lod < 1;
+  ctx.drawImage(frameCv, 0, 0, fw, fh, dx, dy, dw, dh);
   const ox = Math.round(-cam.x * zz), oy = Math.round(-cam.y * zz);
   // district borders
   ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = Math.max(1, dpr); ctx.setLineDash([6 * dpr, 6 * dpr]);
@@ -61,50 +85,22 @@ function render() {
     ctx.stroke();
   }
 }
-// District paint: one fill per run of tiles, and only inside the camera frame.
+// District paint: one blit per visible chunk of a layer that only changes when
+// the player edits a district (see districtChunk in map.js).
 function drawDistricts(f, vx0, vy0, vx1, vy1) {
-  const seen = new Set();
-  for (let y = vy0; y <= vy1; y++) {
-    let x = vx0;
-    while (x <= vx1) {
-      const id = districtLayer[y * MW + x];
-      if (!id) { x++; continue; }
-      let x2 = x;
-      while (x2 + 1 <= vx1 && districtLayer[y * MW + x2 + 1] === id) x2++;
-      const d = districts.get(id);
-      if (d) {
-        f.globalAlpha = 0.22;
-        f.fillStyle = d.color;
-        f.fillRect(x * T, y * T, (x2 - x + 1) * T, T);
-        f.globalAlpha = 1;
-        seen.add(d.id);
-      }
-      x = x2 + 1;
+  const cy1 = Math.floor(vy1 / CHH), cx1 = Math.floor(vx1 / CW);
+  for (let cy = Math.floor(vy0 / CHH); cy <= cy1; cy++)
+    for (let cx = Math.floor(vx0 / CW); cx <= cx1; cx++) {
+      const c = districtChunk(cx, cy);
+      if (c) f.drawImage(c, cx * CW * T, cy * CHH * T);
     }
-  }
-  // borders: a thin line wherever the district changes
-  f.globalAlpha = 0.7;
-  for (let y = vy0; y <= vy1; y++) {
-    for (let x = vx0; x <= vx1; x++) {
-      const id = districtLayer[y * MW + x];
-      if (!id) continue;
-      const d = districts.get(id);
-      if (!d) continue;
-      const up = y > 0 ? districtLayer[(y - 1) * MW + x] : 0;
-      const left = x > 0 ? districtLayer[y * MW + x - 1] : 0;
-      f.fillStyle = d.color;
-      if (up !== id) f.fillRect(x * T, y * T, T, 1);
-      if (left !== id) f.fillRect(x * T, y * T, 1, T);
-    }
-  }
-  f.globalAlpha = 1;
 }
 function drawWorld(f, sx0, sy0, sx1, sy1) {
   const sw = sx1 - sx0, sh = sy1 - sy0;
   const vx0 = Math.floor(sx0 / T), vy0 = Math.floor(sy0 / T), vx1 = Math.min(MW - 1, Math.floor((sx1 - 1) / T)), vy1 = Math.min(MH - 1, Math.floor((sy1 - 1) / T));
   const inV = b => !(b.x > vx1 || b.x + b.w <= vx0 || b.y > vy1 || b.y + b.h <= vy0);
   const inP = (x, y) => x >= sx0 - 12 && y >= sy0 - 30 && x <= sx1 + 12 && y <= sy1 + 12;
-  chunkBudget = 8;
+  chunkBuilt = 0; chunkDeadline = performance.now() + CHUNK_MS;
   for (let cy = Math.floor(vy0 / CHH); cy <= Math.floor(vy1 / CHH); cy++) for (let cx = Math.floor(vx0 / CW); cx <= Math.floor(vx1 / CW); cx++) {
     const ch = getChunk(cx, cy);
     if (ch) f.drawImage(ch, cx * CW * T, cy * CHH * T);
@@ -122,9 +118,15 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
       const n = b.cars > 0 ? Math.min(a.park.length, Math.max(1, Math.round(b.cars / d.cap * a.park.length))) : 0;
       for (let k = 0; k < n; k++) { const s = a.park[k]; drawCarSprite(f, s[0], s[1], !s[2], CARC[(b.id * 7 + k * 5) % CARC.length]); }
     }
-    if (b.type === 'park') {
-      const n = Math.min(a.win.length, b.people);
-      for (let k = 0; k < n; k++) { const w = a.win[a.order[k]]; f.fillStyle = SHIRT[(k * 3 + b.id) % SHIRT.length]; f.fillRect(w[0], w[1], 1, 1); }
+    // Leisure plots show their visitors as dots, the same way a park does:
+    // a promenade fills up along its boards, an attraction out front.
+    if (isLeisure(b.type)) {
+      const spots = a.spots || a.win;
+      const n = Math.min(spots.length, b.people);
+      for (let k = 0; k < n; k++) {
+        const s = a.spots ? spots[k] : spots[a.order[k]];
+        f.fillStyle = SHIRT[(k * 3 + b.id) % SHIRT.length]; f.fillRect(s[0], s[1], 1, 1);
+      }
     }
   }
 
@@ -197,6 +199,19 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
   }
   for (const i of overpassList) { const x = i % MW, y = i / MW | 0; if (x >= vx0 && x <= vx1 && y >= vy0 && y <= vy1) drawDeck(f, x * T, y * T, tile[i] === 2); }
   for (const c of onDeck) drawCar(c);
+  // rail signal lamps: red while a train holds the block beyond them. Drawn
+  // live, so a lamp changes the moment a block is claimed.
+  for (let k = 0; k < trackSignals.length; k += 3) {
+    const i = trackSignals[k], tx = i % MW, ty = i / MW | 0;
+    if (tx < vx0 || tx > vx1 || ty < vy0 || ty > vy1) continue;
+    drawTrackSignal(f, tx * T, ty * T, trackSignals[k + 1], blockBusy(trackSignals[k + 2]));
+  }
+  // crossing gates: the arm comes down while a train is on its way
+  for (const i of gates) {
+    const x = i % MW, y = i / MW | 0;
+    if (x < vx0 || x > vx1 || y < vy0 || y > vy1) continue;
+    drawCrossingGate(f, x * T, y * T, (track[i] & 10) !== 0, railBusyAt(i) || railSoonAt(i));
+  }
   // Freight trains: the engine moves continuously, and each wagon trails it
   // by a fixed distance along the same path, so the whole consist moves at
   // one speed. A wagon facing into a corner takes its orientation from the
@@ -240,16 +255,22 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
     }
   }
   if (dark > 0) { f.fillStyle = `rgba(8,12,40,${dark})`; f.fillRect(sx0, sy0, sw, sh); }
-  // lit windows (on top of darkness so they glow); sleepers turn their lights off
+  // lit windows (on top of darkness so they glow); sleepers turn their lights off.
+  // Every window in the city goes into one path, so this is a single fill rather
+  // than a few thousand one-pixel paint commands.
   f.fillStyle = dark > 0.2 ? '#ffe27a' : '#f5cf55';
+  f.beginPath();
   for (const b of vis) {
-    const a = b.art; if (!a || !a.win.length || b.type === 'park') continue;
+    // A leisure plot's marks are people spots rather than glass, except the
+    // aquarium, whose tank windows still glow after dark.
+    const a = b.art; if (!a || !a.win.length || (isLeisure(b.type) && b.type !== 'aquarium')) continue;
     const d = BT[b.type];
     const capP = d.homes || (d.jobs + d.cap) || 1;
     const awake = d.homes ? Math.max(0, b.people - b.asleep) : b.people;
     const n = awake > 0 ? Math.min(a.win.length, Math.max(1, Math.round(awake / capP * a.win.length))) : 0;
-    for (let k = 0; k < n; k++) { const w = a.win[a.order[k]]; f.fillRect(w[0], w[1], 1, 1); }
+    for (let k = 0; k < n; k++) { const w = a.win[a.order[k]]; f.rect(w[0], w[1], 1, 1); }
   }
+  f.fill();
   const blink = (performance.now() / 700 | 0) % 2;
   for (const b of vis) {
     const a = b.art; if (!a) continue;
@@ -291,11 +312,21 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
       f.fillRect(Math.round(c.x + hx * 3 - 1), Math.round(c.y + hy * 3 - 1), 2, 2);
     }
   }
-  for (const [i, L] of lights) {
-    const tx = i % MW, ty = i / MW | 0; if (tx < vx0 || tx > vx1 || ty < vy0 || ty > vy1) continue;
-    const x0 = tx * T, y0 = ty * T;
-    f.fillStyle = LCOL[lightState(L, 0)]; f.fillRect(x0, y0, 1, 1); f.fillRect(x0 + 8, y0 + 8, 1, 1);
-    f.fillStyle = LCOL[lightState(L, 1)]; f.fillRect(x0 + 8, y0, 1, 1); f.fillRect(x0, y0 + 8, 1, 1);
+  // Signal lamps: one path per colour instead of a fill and a colour change per
+  // lamp. Nothing about a four-lamp intersection changes but how it is recorded.
+  if (lights.size) {
+    const lamps = [[], [], []];
+    for (const [i, L] of lights) {
+      const tx = i % MW, ty = i / MW | 0; if (tx < vx0 || tx > vx1 || ty < vy0 || ty > vy1) continue;
+      const x0 = tx * T, y0 = ty * T, a = lamps[lightState(L, 0)], b = lamps[lightState(L, 1)];
+      a.push(x0, y0, x0 + 8, y0 + 8); b.push(x0 + 8, y0, x0, y0 + 8);
+    }
+    for (let k = 0; k < 3; k++) {
+      const p = lamps[k]; if (!p.length) continue;
+      f.fillStyle = LCOL[k]; f.beginPath();
+      for (let j = 0; j < p.length; j += 2) f.rect(p[j], p[j + 1], 1, 1);
+      f.fill();
+    }
   }
   // the sky layer owns aircraft in flight; anything on a runway or parked stays visible
   for (const p of planes) {
@@ -308,15 +339,28 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
     f.fillStyle = 'rgba(10,12,24,.55)'; f.fillRect(sx0, sy0, sw, sh);
     f.imageSmoothingEnabled = true;
     f.drawImage(areaCv, sx0 / T, sy0 / T, sw / T, sh / T, sx0, sy0, sw, sh);
-    f.imageSmoothingEnabled = false;
+    f.imageSmoothingEnabled = frameLod < 1;   // back to the frame's own setting
+    // Road heat, grouped by shade: one path and one fill per shade instead of a
+    // fresh colour string and five fills for every road tile in view. The rect
+    // lists are reused between frames, so drawing the overlay allocates nothing.
+    for (const e of HEAT_BUCKETS) e.n = 0;
     for (let ty = vy0; ty <= vy1; ty++) for (let tx = vx0; tx <= vx1; tx++) {
       const i = ty * MW + tx; if (!isRoad(i)) continue;
-      const [r, g, b] = heatRGB(heat[i] / 2);
-      f.fillStyle = `rgba(${r | 0},${g | 0},${b | 0},.9)`;
-      f.fillRect(tx * T + 1, ty * T + 1, 7, 7);
-      const m = cmask[i];
-      if (m & 1) f.fillRect(tx * T + 1, ty * T, 7, 1); if (m & 4) f.fillRect(tx * T + 1, ty * T + 8, 7, 1);
-      if (m & 8) f.fillRect(tx * T, ty * T + 1, 1, 7); if (m & 2) f.fillRect(tx * T + 8, ty * T + 1, 1, 7);
+      const e = HEAT_BUCKETS[Math.min(HEAT_BUCKETS.length - 1, heat[i] * 0.5 * HEAT_BUCKETS.length | 0)];
+      const x0 = tx * T, y0 = ty * T, m = cmask[i], a = e.a;
+      let n = e.n;
+      a[n] = x0 + 1; a[n + 1] = y0 + 1; a[n + 2] = 7; a[n + 3] = 7; n += 4;
+      if (m & 1) { a[n] = x0 + 1; a[n + 1] = y0; a[n + 2] = 7; a[n + 3] = 1; n += 4; }
+      if (m & 4) { a[n] = x0 + 1; a[n + 1] = y0 + 8; a[n + 2] = 7; a[n + 3] = 1; n += 4; }
+      if (m & 8) { a[n] = x0; a[n + 1] = y0 + 1; a[n + 2] = 1; a[n + 3] = 7; n += 4; }
+      if (m & 2) { a[n] = x0 + 8; a[n + 1] = y0 + 1; a[n + 2] = 1; a[n + 3] = 7; n += 4; }
+      e.n = n;
+    }
+    for (const e of HEAT_BUCKETS) {
+      if (!e.n) continue;
+      f.fillStyle = e.col; f.beginPath();
+      for (let j = 0; j < e.n; j += 4) f.rect(e.a[j], e.a[j + 1], e.a[j + 2], e.a[j + 3]);
+      f.fill();
     }
   }
   if (flash && performance.now() < flash.until) {
@@ -418,6 +462,10 @@ function drawRain(f, cell, R, sx0, sy0, sx1, sy1) {
   // A shower is a scatter of drops; a thunderstorm is a dense sheet driven
   // sideways, so the two never look like the same weather at two strengths.
   const n = heavy ? 1100 : 220, speed = heavy ? 560 : 330, slant = heavy ? 0.34 : 0.13;
+  // Drops are sorted into the three things they can look like while they are
+  // placed, so the whole shower is three path fills instead of a colour change
+  // and a separate paint command for every single drop.
+  const snow = [], splash = [], streak = [];
   for (let k = 0; k < n; k++) {
     const ang = hash(k, 11, cell.id) * Math.PI * 2, rr = Math.sqrt(hash(k, 12, cell.id)) * R;
     const fall = (t * speed + hash(k, 13, cell.id) * 900) % 210;
@@ -425,32 +473,48 @@ function drawRain(f, cell, R, sx0, sy0, sx1, sy1) {
     if (x < sx0 - 3 || x > sx1 + 3 || y < sy0 - 3 || y > sy1 + 3) continue;
     const dx = x - cx, dy = y - cy;
     if (dx * dx + dy * dy > R * R) continue;
-    const px = Math.round(x), py = Math.round(y), phase = (t * speed + hash(k, 13, cell.id) * 900) % 210;
+    const px = Math.round(x), py = Math.round(y), phase = fall;
     const tx = Math.floor(x / T), ty = Math.floor(y / T), ti = inb(tx, ty) ? ty * MW + tx : -1;
-    if (ti >= 0 && biome[ti] === 4) {
-      f.fillStyle = 'rgba(248,252,255,.85)'; f.fillRect(px, py, 1, 1);
-    } else if (phase > 196 && ti >= 0 && !water[ti]) {
-      // A drop breaks into tiny droplets when it reaches the ground.
-      f.fillStyle = 'rgba(205,230,255,.55)';
-      f.fillRect(px - 1, py, 1, 1); f.fillRect(px, py - 1, 1, 1); f.fillRect(px + 1, py, 1, 1);
-      f.fillRect(px - 2, py + 1, 1, 1); f.fillRect(px + 2, py + 1, 1, 1);
-    } else {
-      f.fillStyle = heavy ? 'rgba(178,205,255,.78)' : 'rgba(190,220,255,.5)';
-      f.fillRect(px, py, 1, heavy ? 3 : 2);
+    if (ti >= 0 && biome[ti] === 4) snow.push(px, py);
+    else if (phase > 196 && ti >= 0 && !water[ti]) splash.push(px, py);
+    else streak.push(px, py);
+  }
+  if (snow.length) {
+    f.fillStyle = 'rgba(248,252,255,.85)'; f.beginPath();
+    for (let j = 0; j < snow.length; j += 2) f.rect(snow[j], snow[j + 1], 1, 1);
+    f.fill();
+  }
+  if (splash.length) {
+    // A drop breaks into tiny droplets when it reaches the ground.
+    f.fillStyle = 'rgba(205,230,255,.55)'; f.beginPath();
+    for (let j = 0; j < splash.length; j += 2) {
+      const px = splash[j], py = splash[j + 1];
+      f.rect(px - 1, py, 1, 1); f.rect(px, py - 1, 1, 1); f.rect(px + 1, py, 1, 1);
+      f.rect(px - 2, py + 1, 1, 1); f.rect(px + 2, py + 1, 1, 1);
     }
+    f.fill();
+  }
+  if (streak.length) {
+    const h = heavy ? 3 : 2;
+    f.fillStyle = heavy ? 'rgba(178,205,255,.78)' : 'rgba(190,220,255,.5)';
+    f.beginPath();
+    for (let j = 0; j < streak.length; j += 2) f.rect(streak[j], streak[j + 1], 1, h);
+    f.fill();
   }
 }
 function drawSnow(f, cell, R, sx0, sy0, sx1, sy1) {
   const t = performance.now() / 1000, cx = cell.x * T, cy = cell.y * T;
   const n = cell.kind === 'storm' ? 170 : 120;
   f.fillStyle = 'rgba(248,252,255,.85)';
+  f.beginPath();
   for (let k = 0; k < n; k++) {
     const ang = hash(k, 31, cell.id) * Math.PI * 2, rr = Math.sqrt(hash(k, 32, cell.id)) * R;
     const fall = (t * 22 + hash(k, 33, cell.id) * 420) % 210;
     const x = cx + Math.cos(ang) * rr + Math.sin(t * 0.7 + k) * 2, y = cy + Math.sin(ang) * rr + fall * 0.35;
     const dx = x - cx, dy = y - cy;
-    if (x >= sx0 && x <= sx1 && y >= sy0 && y <= sy1 && dx * dx + dy * dy <= R * R) f.fillRect(Math.round(x), Math.round(y), 1, 1);
+    if (x >= sx0 && x <= sx1 && y >= sy0 && y <= sy1 && dx * dx + dy * dy <= R * R) f.rect(Math.round(x), Math.round(y), 1, 1);
   }
+  f.fill();
 }
 
 // Underground view: the city above is gone, so all that is left of the surface
