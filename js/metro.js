@@ -154,7 +154,58 @@ function railPath(from, to) {
   return path.reverse();
 }
 
+// Station ids reachable from a rail tile, with their distance in tiles. A
+// train may only be sent somewhere on the same rail network, so an odd station
+// that never got joined up cannot be the target of a ride.
+const rqDist = new Int32Array(N);
+function reachableStations(fromTile) {
+  const out = new Map();
+  if (!rail[fromTile]) return out;
+  rqGen++;
+  let qh = 0, qt = 0;
+  rqSeen[fromTile] = rqGen; rqDist[fromTile] = 0; rqPath[qt++] = fromTile;
+  const stationAt = new Map();
+  for (const s of stations) stationAt.set(stationTile(s), s.id);
+  while (qh < qt) {
+    const u = rqPath[qh++];
+    const id = stationAt.get(u);
+    if (id !== undefined) out.set(id, rqDist[u]);
+    const m = rail[u];
+    for (let d = 1; d <= 4; d++) {
+      if (!(m & bit(d))) continue;
+      const v = nb(u, d);
+      if (v < 0 || rqSeen[v] === rqGen || !rail[v]) continue;
+      rqSeen[v] = rqGen; rqDist[v] = rqDist[u] + 1; rqPath[qt++] = v;
+    }
+  }
+  return out;
+}
+
 const stationTile = s => s.y * MW + s.x;
+
+// A station only ever joins the network at one place: the rail tile under the
+// station itself. When a station is built, that tile is laid and a tunnel is
+// cut back to the nearest existing rail, so a station dropped in an odd spot
+// still becomes part of the network instead of sitting there unserved.
+function connectMetroStation(s) {
+  if (!s || s.type !== 'metro') return;
+  const here = stationTile(s);
+  railOn[here] = 1;
+  let best = -1, bd = Infinity;
+  const hx = here % MW, hy = (here / MW) | 0;
+  for (let i = 0; i < N; i++) {
+    if (!railOn[i] || i === here) continue;
+    const d = Math.abs(i % MW - hx) + Math.abs((i / MW | 0) - hy);
+    if (d < bd) { bd = d; best = i; }
+  }
+  // No limit on the tunnel here: a subway can run under anything, and a
+  // station that reaches another line is always better than an island.
+  if (best >= 0 && bd > 1) {
+    const path = railRoute(here, best);
+    if (path) for (const i of path) railOn[i] = 1;
+  }
+  relinkRail();
+}
 
 // ---------------------------------------------------------------------
 // Fleet
@@ -163,7 +214,7 @@ function newMetro(s) {
   return {
     id: nextMid++, home: s.id, at: s.id, target: 0,
     x: s.x * T + 4.5, y: s.y * T + 4.5, d: 2,
-    path: null, i: 0, t: 0, state: 'dwell', wait: 1 + Math.random() * 3,
+    path: null, i: 0, t: 0, state: 'dwell', wait: TRAIN_RIDE_GAP + Math.random() * 3,
     riders: [], dead: false
   };
 }
@@ -247,6 +298,9 @@ function metroDepart(m) {
   const here = B(m.at);
   if (!here) { retireMetro(m); return; }
   const waiting = (metroWait.get(m.at) || []).filter(p => !p.dead && !p.riding);
+  // Only stations on this train's own rails are valid destinations.
+  const reach = reachableStations(stationTile(here));
+  if (!reach.size) { m.wait = 2; return; }
 
   // Prefer the destination most riders here are heading for, so a train
   // leaving a busy platform is actually useful.
@@ -255,7 +309,7 @@ function metroDepart(m) {
   const counts = [];
   let total = 0;
   for (const p of waiting) {
-    if (!p.metroTo || p.metroTo === m.at || !B(p.metroTo)) continue;
+    if (!p.metroTo || p.metroTo === m.at || !B(p.metroTo) || !reach.has(p.metroTo)) continue;
     const hit = counts.find(c => c.id === p.metroTo);
     if (hit) { hit.n++; total++; }
     else { counts.push({ id: p.metroTo, n: 1 }); total++; }
@@ -266,13 +320,16 @@ function metroDepart(m) {
     for (const c of counts) { r -= c.n; if (r <= 0) { target = c.id; break; } }
     if (!target) target = counts[counts.length - 1].id;
   }
-  // Nothing to do here: go home, or from home make one round trip out.
+  // Nothing to do here: go home if it is reachable, otherwise take the nearest
+  // station on the network rather than picking one at random.
   if (!target) {
-    if (m.at !== m.home) target = m.home;
+    if (m.at !== m.home && reach.has(m.home)) target = m.home;
     else {
-      const others = stations.filter(s => s.id !== m.at);
-      if (!others.length) { m.wait = 2; return; }
-      target = others[Math.floor(Math.random() * others.length)].id;
+      let bestD = Infinity;
+      for (const [id, dist] of reach) {
+        if (id === m.at) continue;
+        if (dist < bestD) { bestD = dist; target = id; }
+      }
     }
   }
   if (target === m.at) { m.wait = 2; return; }
@@ -291,6 +348,7 @@ function metroDepart(m) {
   }
 
   m.path = path; m.i = 0; m.t = 0; m.target = target;
+  m.wait = 0;
   m.x = path[0] % MW * T + 4.5; m.y = (path[0] / MW | 0) * T + 4.5;
   m.at = 0;
   const nd = dirOf(path[0], path[1]);
@@ -303,7 +361,8 @@ function metroDepart(m) {
 
 function metroArrive(m) {
   const id = m.target, s = B(id);
-  m.at = id; m.state = 'dwell'; m.wait = METRO_DWELL; m.target = 0;
+  // Every train sits out at least half an hour of world time between rides.
+  m.at = id; m.state = 'dwell'; m.wait = Math.max(METRO_DWELL, TRAIN_RIDE_GAP); m.target = 0;
   m.path = null; m.i = 0; m.t = 0;
   if (s) { m.x = s.x * T + 4.5; m.y = s.y * T + 4.5; }
   const staying = [];

@@ -427,14 +427,17 @@ function buildRoadButtons() {
 }
 // A crossing can only carry a gate where the rails run straight across the
 // street, not beside it.
-const canGate = i => trackOn[i] && isRoad(i) && bits(track[i]) === 2 && !(cmask[i] & ((track[i] & 1) ? 5 : 10));
+const canGate = crossingTile;
 function buildCrossButtons() {
   const i = selection.i, box = document.getElementById('iCrossBtns');
   box.innerHTML = '';
   if (canGate(i)) {
     const b = document.createElement('button');
     b.textContent = gates.has(i) ? 'Remove crossing gate' : 'Add crossing gate';
-    b.onclick = () => { if (gates.has(i)) gates.delete(i); else gates.add(i); mapChanged(); select({kind: 'crossing', i}); };
+    b.onclick = () => {
+      if (gates.has(i)) { gates.delete(i); gateOff[i] = 1; } else { gateOff[i] = 0; gates.add(i); }
+      mapChanged(); select({kind: 'crossing', i});
+    };
     box.append(b);
   } else {
     const p = document.createElement('p'); p.className = 'note'; p.textContent = 'Gates need a straight piece of track crossing the street.'; box.append(p);

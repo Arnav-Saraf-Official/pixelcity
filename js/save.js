@@ -199,14 +199,15 @@ function deleteWorldSlot(id) {
 function rle(a) { let s = '', i = 0; while (i < a.length) { const v = a[i]; let j = i + 1; while (j < a.length && a[j] === v) j++; s += String.fromCharCode(48 + v) + (j - i).toString(36) + '.'; i = j; } return s; }
 // Water and trees are stored only where they differ from what the seed generates.
 function diffEnc(arr, gen, skip) { let s = '', last = 0; for (let i = 0; i < N; i++) { if (skip && skip(i)) continue; if (arr[i] !== gen[i]) { s += (i - last).toString(36) + ':' + arr[i] + ','; last = i; } } return s; }
+function listFlags(a) { const out = []; for (let i = 0; i < N; i++) if (a[i]) out.push(i); return out; }
 function serialize() {
   const gw = new Uint8Array(N), gt = new Uint8Array(N); genTerrainInto(worldSeed, gw, gt);
   const savedBuildings = [...buildings.values()];
   return {v: 5, seed: worldSeed, t: Math.round(gameMin), settings: {...worldSettings}, tax: {sales: worldSettings.taxSales || 0, income: worldSettings.taxIncome || 0}, resources: {...resources},
-    tile: rle(tile), platform: rle(platform), oneway: rle(oneway), overpass: rle(overpass), walkway: rle(walkway), rail: rle(railOn), track: rle(trackOn), sig: rle(sigNode),
+    tile: rle(tile), platform: rle(platform), oneway: rle(oneway), overpass: rle(overpass), walkway: rle(walkway), rail: rle(railOn), track: rle(trackOn), track2: rle(trackWide), sig: rle(sigNode),
     water: diffEnc(water, gw), tree: diffEnc(tree, gt, i => tile[i] || bldAt[i]),
     lights: [...lights].map(([i, L]) => [i, L.ns, L.ew, Math.round(L.off)]),
-    gates: [...gates],
+    gates: [...gates], gateOff: listFlags(gateOff),
     b: savedBuildings.map(b => [b.type, b.x, b.y, b.seed >>> 0]),
     state: savedBuildings.map((b, i) => [i, Number.isFinite(b.stock) ? b.stock : null, b.inventory || null, b.byproducts || null, b.policy || null]),
     districts: [...districts.values()].map(d => [d.id, d.name, d.color]),
@@ -248,20 +249,24 @@ function loadData(d) {
   if (!Array.isArray(d.b) || d.b.length > 40000 || !Array.isArray(d.lights) || d.lights.length > 40000) throw new Error(BAD);
   if (d.gates !== undefined && (!Array.isArray(d.gates) || d.gates.length > N)) throw new Error(BAD);
   if (Array.isArray(d.gates) && d.gates.some(i => !isInt(i, 0, N - 1))) throw new Error(BAD);
+  if (d.gateOff !== undefined && (!Array.isArray(d.gateOff) || d.gateOff.length > N)) throw new Error(BAD);
+  if (Array.isArray(d.gateOff) && d.gateOff.some(i => !isInt(i, 0, N - 1))) throw new Error(BAD);
   if (d.state !== undefined && (!Array.isArray(d.state) || d.state.length > d.b.length)) throw new Error(BAD);
   if (d.resources !== undefined && (!d.resources || typeof d.resources !== 'object' || Array.isArray(d.resources) || Object.values(d.resources).some(v => !Number.isFinite(v) || v < 0 || v > 1e12))) throw new Error(BAD);
   // rail and track were added after the first v5 saves, so they may be missing:
   // an old region simply has no tunnels or tracks until you draw some
   if (d.rail !== undefined && (typeof d.rail !== 'string' || d.rail.length > 5e6)) throw new Error(BAD);
   if (d.track !== undefined && (typeof d.track !== 'string' || d.track.length > 5e6)) throw new Error(BAD);
+  if (d.track2 !== undefined && (typeof d.track2 !== 'string' || d.track2.length > 5e6)) throw new Error(BAD);
   if (d.sig !== undefined && (typeof d.sig !== 'string' || d.sig.length > 5e6)) throw new Error(BAD);
-  const nt = new Uint8Array(N), npl = new Uint8Array(N), no = new Uint8Array(N), nov = new Uint8Array(N), nw = new Uint8Array(N), nwa = new Uint8Array(N), ntr = new Uint8Array(N), nra = new Uint8Array(N), ntk = new Uint8Array(N), nsig = new Uint8Array(N);
+  const nt = new Uint8Array(N), npl = new Uint8Array(N), no = new Uint8Array(N), nov = new Uint8Array(N), nw = new Uint8Array(N), nwa = new Uint8Array(N), ntr = new Uint8Array(N), nra = new Uint8Array(N), ntk = new Uint8Array(N), ntw = new Uint8Array(N), nsig = new Uint8Array(N);
   unrleInto(d.tile, nt, 4);
   if (d.platform !== undefined && typeof d.platform !== 'string') throw new Error(BAD);
   if (typeof d.platform === 'string') unrleInto(d.platform, npl, 3);
   unrleInto(d.oneway, no, 4); unrleInto(d.overpass, nov, 1); unrleInto(d.walkway, nw, 1);
   if (typeof d.rail === 'string') unrleInto(d.rail, nra, 1);
   if (typeof d.track === 'string') unrleInto(d.track, ntk, 1);
+  if (typeof d.track2 === 'string') unrleInto(d.track2, ntw, 2);
   if (typeof d.sig === 'string') unrleInto(d.sig, nsig, 1);
   genTerrainInto(d.seed, nwa, ntr); applyDiff(d.water, nwa, 1); applyDiff(d.tree, ntr, TREE_MAXV);
   for (const e of d.b) if (!Array.isArray(e) || !hasType(e[0]) || !isInt(e[1], 0, MW - 1) || !isInt(e[2], 0, MH - 1) || !isInt(e[3], 0, 4294967295)) throw new Error(BAD);
@@ -269,7 +274,10 @@ function loadData(d) {
   // the save is valid: replace the region
   clearWorld();
   worldSeed = d.seed;
-  tile.set(nt); platform.set(npl); oneway.set(no); overpass.set(nov); walkway.set(nw); water.set(nwa); tree.set(ntr); railOn.set(nra); trackOn.set(ntk); sigNode.set(nsig);
+  tile.set(nt); platform.set(npl); oneway.set(no); overpass.set(nov); walkway.set(nw); water.set(nwa); tree.set(ntr); railOn.set(nra); trackOn.set(ntk); trackWide.set(ntw); sigNode.set(nsig);
+  // Lanes remembered for a tile that no longer carries track would confuse the
+  // linker, so drop them.
+  for (let i = 0; i < N; i++) if (!trackOn[i]) trackWide[i] = 0;
   for (let i = 0; i < N; i++) if (tile[i] || water[i] || platform[i]) tree[i] = 0;
   const restoredBuildings = [];
   for (const [type, x, y, seed] of d.b) restoredBuildings.push(canPlace(type, x, y) || canPlaceLoose(type, x, y) ? placeBuilding(type, x, y, seed) : null);
@@ -307,6 +315,7 @@ function loadData(d) {
   if (d.resources) for (const good of Object.keys(resources)) if (Number.isFinite(d.resources[good])) resources[good] = d.resources[good];
   for (const [i, ns, ew, off] of d.lights) lights.set(i, {ns, ew, off});
   if (Array.isArray(d.gates)) for (const i of d.gates) gates.add(i);
+  if (Array.isArray(d.gateOff)) for (const i of d.gateOff) gateOff[i] = 1;
   if (typeof d.dlayer === 'string') {
     const nd = new Int32Array(N); unrleInto(d.dlayer, nd, 4);
     districtLayer.set(nd);

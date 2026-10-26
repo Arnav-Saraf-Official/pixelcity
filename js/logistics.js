@@ -203,13 +203,46 @@ function syncLogistics() {
 // can exchange a train. Track may cross a street at grade, so a line can reach
 // a yard on the far side of a road without breaking the road network.
 // ---------------------------------------------------------------------
+// Which track network each tile belongs to, one id per connected run. Used to
+// decide how many automatic trains a set of yards should have.
+const trackComp = new Int32Array(N), trackCompQ = new Int32Array(N);
+let trackCompCount = 0;
 function relinkTrack() {
   track.fill(0);
   for (let i = 0; i < N; i++) {
     if (!trackOn[i]) continue;
+    const lane = trackWide[i];
     let m = 0;
-    for (let d = 1; d <= 4; d++) { const j = nb(i, d); if (j >= 0 && trackOn[j]) m |= bit(d); }
+    for (let d = 1; d <= 4; d++) {
+      const j = nb(i, d);
+      if (j < 0 || !trackOn[j]) continue;
+      // A lane of a two-way line only joins tiles along its own axis: the two
+      // tracks of the pair never touch, so they read as two lines and not a
+      // ladder of loops. A single track may only join a lane end-on for the
+      // same reason.
+      if (lane === 1 && d !== 2 && d !== 4) continue;
+      if (lane === 2 && d !== 1 && d !== 3) continue;
+      const other = trackWide[j];
+      if (other && lane === 0 && ((other === 1 && d !== 2 && d !== 4) || (other === 2 && d !== 1 && d !== 3))) continue;
+      m |= bit(d);
+    }
     track[i] = m;
+  }
+  trackComp.fill(0);
+  trackCompCount = 0;
+  for (let s = 0; s < N; s++) {
+    if (!trackOn[s] || trackComp[s]) continue;
+    let qh = 0, qt = 0;
+    trackComp[s] = ++trackCompCount; trackCompQ[qt++] = s;
+    while (qh < qt) {
+      const u = trackCompQ[qh++], m = track[u];
+      for (let d = 1; d <= 4; d++) {
+        if (!(m & bit(d))) continue;
+        const v = nb(u, d);
+        if (v < 0 || trackComp[v] || !trackOn[v]) continue;
+        trackComp[v] = trackCompCount; trackCompQ[qt++] = v;
+      }
+    }
   }
   relinkBlocks();
 }
@@ -593,8 +626,10 @@ function relinkBlocks() {
   for (const t of freight) t.reserved = [];
   const node = i => {
     if (sigNode[i]) return true;
+    // Count connected neighbours from the link mask, not raw track tiles: the
+    // two lanes of a two-way line are not connected across the pair.
     let n = 0;
-    for (let d = 1; d <= 4; d++) { const j = nb(i, d); if (j >= 0 && trackOn[j]) n++; }
+    for (let d = 1; d <= 4; d++) if (track[i] & bit(d)) n++;
     if (n !== 2) return true;
     for (let d = 1; d <= 4; d++) {
       const j = nb(i, d), id = j >= 0 ? bldAt[j] : 0;
@@ -727,7 +762,7 @@ function newFreightTrain(yard, lineId) {
   return {
     id: nextIncident++, home: yard.id, line: lineId || 0, consist: freightConsist(),
     path: null, i: 0, t: 0, ex: 0, x: yard.cx * T, y: yard.cy * T, d: 2,
-    state: 'dwell', wait: 2 + Math.random() * 2, at: yard.id, target: 0,
+    state: 'dwell', wait: TRAIN_RIDE_GAP + Math.random() * 3, at: yard.id, target: 0,
     plan: [], leg: 0, reserved: [], cargo: {material: 0, liquid: 0, gas: 0},
     riders: [], lastStop: -1, dead: false,
   };
@@ -748,11 +783,18 @@ function syncFreight() {
     if (freight.length >= 32) break;
     freight.push(newFreightTrain(home, line.id));
   }
-  const autoHomed = new Set(freight.filter(t => !t.line).map(t => t.home));
+  // One automatic train per connected track network, not one per yard: a
+  // single line through six yards used to spawn six trains nose to tail.
+  const autoComps = new Set(freight.filter(t => !t.line).map(t => {
+    const y = B(t.home), tr = y ? yardTrack(y) : -1;
+    return tr >= 0 ? trackComp[tr] : 0;
+  }).filter(Boolean));
   for (const y of yards) {
-    if (autoHomed.has(y.id) || freight.length >= 32 || yardTrack(y) < 0) continue;
+    const tr = yardTrack(y);
+    if (freight.length >= 32 || tr < 0 || !trackComp[tr]) continue;
+    if (autoComps.has(trackComp[tr])) continue;
     freight.push(newFreightTrain(y, 0));
-    autoHomed.add(y.id);
+    autoComps.add(trackComp[tr]);
   }
 }
 const freightCap = (t, kind) => t.consist.filter(k => k === kind).length * 10;
@@ -902,9 +944,9 @@ function stepFreight(dt) {
     if (t.dead) continue;
     if (t.state === 'dwell') {
       t.wait -= dt;
-      // The locomotive has already run into the yard; the wagons keep rolling
-      // in behind it and each one sinks out of sight as it reaches the buffers,
-      // so a train arrives wagon by wagon exactly the way it leaves.
+      // The locomotive has already run into the yard; `ex` tracks how far the
+      // consist has cleared the approach, so the crossing beside the yard is
+      // released as the train settles on the yard track.
       if (t.path && t.ex < 60) t.ex = Math.min(60, t.ex + FREIGHT_SPEED * dt);
       if (t.wait > 0) continue;
       if (!t.plan.length || t.leg >= t.plan.length) {
@@ -964,7 +1006,8 @@ function stepFreight(dt) {
         t.target = t.leg < t.plan.length ? t.plan[t.leg] : 0;
         // Keep the leg until the last wagon is in, and stay in the yard long
         // enough that no car has to jump when the next leg begins.
-        t.state = 'dwell'; t.wait = 3 + t.consist.length / FREIGHT_SPEED;
+        t.state = 'dwell';
+        t.wait = Math.max(TRAIN_RIDE_GAP, 3 + t.consist.length / FREIGHT_SPEED);
         t.i = t.path.length - 1; t.t = 0; t.ex = 0; t.lastStop = -1; t.stops = null;
         const y = B(t.at);
         if (y) { t.x = y.cx * T; t.y = y.cy * T; }

@@ -7,6 +7,8 @@ const DW = 200, DH = 150, RW = 3, RH = 3;  // district size and region grid
 const MW = DW * RW, MH = DH * RH, N = MW * MH;
 const FW = MW * T, FH = MH * T;
 const MIN_PER_SEC = 2.5;                   // game minutes per sim second
+const TRAIN_RIDE_GAP_MIN = 30;             // world minutes between one train ride and the next
+const TRAIN_RIDE_GAP = TRAIN_RIDE_GAP_MIN / MIN_PER_SEC;
 const YEL = 2;                             // yellow light seconds
 const SAVE_KEY = 'pixelCity.v5';
 const LEGACY_SAVE_KEY = 'pixelTrafficCity.v5';
@@ -60,6 +62,11 @@ const railOn = new Uint8Array(N);   // underground metro rails the player has dr
 const rail = new Uint8Array(N);     // their connection mask, derived from railOn on every edit
 const trackOn = new Uint8Array(N);  // surface freight tracks the player has drawn
 const track = new Uint8Array(N);    // their connection mask, derived from trackOn on every edit
+// 0 = single track, 1 = one lane of a two-way line running east-west,
+// 2 = one lane of a two-way line running north-south. Lanes only link along
+// their own axis, so two tracks laid side by side stay two lines instead of
+// fusing into a ladder of loops.
+const trackWide = new Uint8Array(N);
 const sigNode = new Uint8Array(N);  // player-placed signal block boundaries on freight track
 const blockOf = new Int32Array(N);  // signal block id per track tile, rebuilt with the track
 const overpass = new Uint8Array(N); // grade-separated 4-way crossing
@@ -70,6 +77,7 @@ const resv = new Int32Array(N);
 const areaHeat = new Float32Array(N), areaPres = new Float32Array(N);
 const lights = new Map();           // tile -> {ns, ew, off}
 const gates = new Set();            // grade-crossing tiles with a crossing gate
+const gateOff = new Uint8Array(N);  // crossings the player deliberately removed a gate from
 let connections = [], overpassList = [];
 let worldSeed = 12345;
 let regionView = false, regionHover = -1, regionLayout = null;
@@ -105,8 +113,8 @@ const BT = {
   fishery:  {name:'Fishery',        cat:'work', w:2,h:2,  homes:0,  cap:3,  jobs:8,  shore:true, efficiencyBase:1, label:'Coastal', desc:'Boats land their catch here. Must sit on a shoreline.'},
   seafoodMarket:{name:'Seafood Market', cat:'com', w:2,h:2, homes:0, cap:9, jobs:5, shore:true, label:'Coastal', desc:'Sells the local catch. Must sit on a shoreline.'},
   seafoodPlant:{name:'Seafood Plant', cat:'work', w:3,h:2, homes:0, cap:4, jobs:14, shore:true, efficiencyBase:0.8, label:'Coastal', desc:'Processes and packs fish. Must sit on a shoreline.'},
-  oilRig:   {name:'Oil Rig',        cat:'work', w:2,h:2,  homes:0,  cap:3,  jobs:10, res:'oil', rig:true, efficiencyBase:1, label:'Resource', desc:'Drills an oil field. Must be within 5 blocks of a train yard; rocky ground yields more.'},
-  gasWell:  {name:'Gas Well',       cat:'work', w:2,h:2,  homes:0,  cap:3,  jobs:8,  res:'gas', rig:true, efficiencyBase:1, label:'Resource', desc:'Taps a gas field. Must be within 5 blocks of a train yard; rocky ground yields more.'},
+  oilRig:   {name:'Oil Rig',        cat:'work', w:2,h:2,  homes:0,  cap:3,  jobs:10, res:'oil', rig:true, efficiencyBase:1, label:'Resource', desc:'Drills an oil field. Must be within 5 blocks of a train yard or a warehouse; rocky ground yields more.'},
+  gasWell:  {name:'Gas Well',       cat:'work', w:2,h:2,  homes:0,  cap:3,  jobs:8,  res:'gas', rig:true, efficiencyBase:1, label:'Resource', desc:'Taps a gas field. Must be within 5 blocks of a train yard or a warehouse; rocky ground yields more.'},
   loggingCamp:{name:'Logging Camp', cat:'work', w:3,h:2,  homes:0,  cap:3,  jobs:9, logging:true, res:'timber', efficiencyBase:1, label:'Resource', desc:'Place in jungle, or near an orchard or greenhouse. Nearby jungle trees are exhaustible; jungle with both orchard and greenhouse sustains an infinite timber supply.'},
   greenhouse:{name:'Greenhouse',     cat:'rural',w:2,h:2,  homes:0,  cap:2,  jobs:5,  efficiencyBase:0.65, label:'Farm', desc:'Grows food and saplings. Slows forest loss caused by nearby logging camps.'},
   quarry:   {name:'Quarry',         cat:'work', w:3,h:2,  homes:0,  cap:3,  jobs:12, rock:true, efficiencyBase:1, label:'Industry', desc:'Cuts stone and ore out of rocky ground. Feeds the higher power plants.'},
@@ -126,7 +134,7 @@ const BT = {
   aquarium: {name:'Aquarium',       cat:'civic',w:3,h:2,  homes:0,  cap:12, jobs:16, shore:true, label:'Waterfront', desc:'A waterfront attraction. Visitors spend an afternoon here, so put it where the shore is easy to reach.'},
   ferrisWheel:{name:'Ferris Wheel', cat:'ped',  w:2,h:2,  homes:0,  cap:0,  jobs:0,  shore:true, label:'Waterfront', desc:'A waterfront landmark and a leisure destination. People walk along the shore to ride it.'},
   distribution:{name:'Distribution Terminal', cat:'work', w:3,h:3, homes:0, cap:8, jobs:18, hub:true, label:'Logistics', desc:'Sorts cargo from trucks onto trains and ships. Must be next to a port or freight track, with a street for the trucks.'},
-  railyard: {name:'Train Yard',     cat:'work', w:4,h:3,  homes:0,  cap:8,  jobs:22, rail:true, label:'Logistics', desc:'Freight trains load and unload here. It needs a freight track alongside and a street for the trucks. Oil rigs and gas wells have to be within 5 blocks of a yard.'},
+  railyard: {name:'Train Yard',     cat:'work', w:4,h:3,  homes:0,  cap:8,  jobs:22, rail:true, label:'Logistics', desc:'Freight trains load and unload here. It needs a freight track alongside and a street for the trucks. Oil rigs and gas wells can also reach a yard through a nearby warehouse.'},
   platformConcrete:{name:'Concrete Platform', cat:'world', w:1,h:1, homes:0, cap:0, jobs:0, platform:1, desc:'Raises one water tile into a permanent concrete island tile. Costs 1 stone and 1 concrete.'},
   platformSteel:{name:'Steel Platform', cat:'world', w:1,h:1, homes:0, cap:0, jobs:0, platform:2, desc:'Raises one water tile into a strong steel island tile. Costs 2 stone and 2 steel.'},
   platformDirt:{name:'Dirt Platform', cat:'world', w:1,h:1, homes:0, cap:0, jobs:0, platform:3, desc:'Fills one water tile with earth. Costs 3 stone.'},
@@ -334,7 +342,10 @@ function genTerrainInto(seed, wArr, tArr) {
   }
   const wd = waterDistance(wArr, ocean);
   const riverTiles = new Uint8Array(N);
-  const riverCount = 8 + (seed % 4);
+  // Few, long rivers. Too many channels chopped the land into islands and read
+  // as a broken generation, so each world gets two to four waterways that
+  // meander widely across the map instead.
+  const riverCount = 2 + (seed % 3);
   for (let r = 0; r < riverCount; r++) {
     // Start at the most inland spot of a handful of tries: a river should have
     // some distance to run before it reaches the sea.
@@ -346,31 +357,64 @@ function genTerrainInto(seed, wArr, tArr) {
       if (wArr[i] || riverTiles[i]) continue;
       if (wd[i] > startD) { startD = wd[i]; start = i; }
     }
-    if (start < 0 || startD < 10) continue;
+    if (start < 0 || startD < 12) continue;
+    // Walk downhill to the sea once, collecting the base course. This is the
+    // shortest way out; the river itself is carved beside it below.
+    const base = [];
+    let cur = start, prev = -1;
+    for (let step = 0; step < 2000; step++) {
+      base.push(cur);
+      if (ocean[cur] || wd[cur] === 0) break;      // the mouth: it reached the sea
+      let next = -1, nextScore = Infinity;
+      for (let d = 1; d <= 4; d++) {
+        const j = nb(cur, d);
+        if (j < 0 || j === prev) continue;
+        const sc = wd[j] + hash(j, r, seed + 83) * 0.4;
+        if (sc < nextScore) { nextScore = sc; next = j; }
+      }
+      if (next < 0) break;
+      prev = cur; cur = next;
+    }
+    if (base.length < 16) continue;
     const carve = (j) => {
       if (j < 0 || wArr[j]) return;
       wArr[j] = 1; biome[j] = 0; tArr[j] = 0; riverTiles[j] = 1;
     };
-    let cur = start, prev = -1;
-    for (let step = 0; step < 2000; step++) {
-      if (ocean[cur] || wd[cur] === 0) break;      // the mouth: it reached the sea
-      let next = -1, nextScore = Infinity, nextD = 0;
-      for (let d = 1; d <= 4; d++) {
-        const j = nb(cur, d);
-        if (j < 0 || j === prev) continue;
-        // downhill, with enough jitter that the channel meanders instead of
-        // running in a straight staircase (never enough to climb uphill)
-        const sc = wd[j] + hash(j, r, seed + 83) * 0.9;
-        if (sc < nextScore) { nextScore = sc; next = j; nextD = d; }
+    // The meander: push the base course sideways by a slow sine wave. The
+    // amplitude and period differ per river, so one snakes in tight bends and
+    // another sweeps in broad curves. The offset tapers to nothing at both
+    // ends, keeping the source inland and the mouth on the coast.
+    const amp = 3 + hash(r, 3, seed + 84) * 4.5;         // 3..7.5 tiles
+    const period = 16 + hash(r, 9, seed + 85) * 24;      // 16..40 tiles per bend
+    const phase = hash(r, 7, seed + 86) * Math.PI * 2;
+    let px = -1, py = -1;
+    for (let k = 0; k < base.length; k++) {
+      const b = base[k], bx = b % MW, by = (b / MW) | 0;
+      const ahead = base[Math.min(base.length - 1, k + 1)], behind = base[Math.max(0, k - 1)];
+      const dx = (ahead % MW) - (behind % MW), dy = ((ahead / MW) | 0) - ((behind / MW) | 0);
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len, ny = dx / len;               // across the course
+      const taper = Math.min(1, k / 8, (base.length - 1 - k) / 7);
+      const off = Math.round(Math.sin(k * 2 * Math.PI / period + phase) * amp * taper);
+      const x = clamp(Math.round(bx + nx * off), 1, MW - 2);
+      const y = clamp(Math.round(by + ny * off), 1, MH - 2);
+      // Join this bend to the last one one tile at a time, so an offset bigger
+      // than the step can never break the channel into separate ponds.
+      if (px >= 0) {
+        let ax = px, ay = py;
+        const sx = Math.sign(x - ax), sy = Math.sign(y - ay);
+        for (let guard = 0; guard < 64 && (ax !== x || ay !== y); guard++) {
+          carve(ay * MW + ax);
+          if (ax !== x) ax += sx;
+          if (ay !== y) ay += sy;
+        }
       }
-      if (next < 0) break;
-      const perp = (nextD === 1 || nextD === 3) ? 2 : 1;
-      // A two-tile-wide channel: each step carries a matching pair of tiles,
-      // so a bend never pinches the river down to a single tile.
-      carve(cur); carve(next);
-      carve(nb(cur, perp)); carve(nb(next, perp));
-      if (wd[cur] < 20) { carve(nb(cur, OPP[perp])); carve(nb(next, OPP[perp])); }
-      prev = cur; cur = next;
+      px = x; py = y;
+      // Two tiles wide, with a third on the outer bank of the bends so the
+      // water reads as one channel rather than a dashed line.
+      carve(y * MW + x);
+      carve(y * MW + Math.min(MW - 1, x + 1));
+      carve(Math.min(MH - 1, y + 1) * MW + x);
     }
   }
   // Two majority passes remove single-tile specks, so each biome is one broad

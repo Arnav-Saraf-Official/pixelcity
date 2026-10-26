@@ -394,6 +394,9 @@ function industryEfficiency(type, x, y, d = BT[type]) {
   return clamp(e, 0.1, 10);
 }
 function trackAdjacent(x, y, w, h) { return perimeter(x, y, w, h).some(i => trackOn[i]); }
+// A crossing can carry a gate where the rails run straight across the street,
+// rather than alongside it.
+const crossingTile = i => trackOn[i] && isRoad(i) && bits(track[i]) === 2 && !(cmask[i] & ((track[i] & 1) ? 5 : 10));
 function hubAdjacent(x, y, w, h) {
   for (const i of perimeter(x, y, w, h)) {
     if (trackOn[i]) return true;
@@ -406,6 +409,17 @@ function hubAdjacent(x, y, w, h) {
 function railyardNear(x, y, w, h) {
   for (const o of buildings.values()) {
     if (o.type !== 'railyard') continue;
+    const dx = Math.max(0, x - (o.x + o.w), o.x - (x + w));
+    const dy = Math.max(0, y - (o.y + o.h), o.y - (y + h));
+    if (dx + dy <= 5) return true;
+  }
+  return false;
+}
+// A warehouse within the same radius gives a resource site a truck route to
+// the rail network, so rigs no longer have to sit beside a train yard.
+function warehouseNear(x, y, w, h) {
+  for (const o of buildings.values()) {
+    if (o.type !== 'warehouse') continue;
     const dx = Math.max(0, x - (o.x + o.w), o.x - (x + w));
     const dy = Math.max(0, y - (o.y + o.h), o.y - (y + h));
     if (dx + dy <= 5) return true;
@@ -431,7 +445,7 @@ function whyNot(type, x, y, ignoreRoad) {
   if (d.shore && !shoreAdjacent(x, y, d.w, d.h)) return 'This one has to sit on a shoreline.';
   if (d.rock && biome[y * MW + x] !== 5) return 'That needs rocky ground.';
   if (d.logging && biome[y * MW + x] !== 2 && !nearType({cx:x + d.w / 2, cy:y + d.h / 2}, 'greenhouse', 10) && !nearType({cx:x + d.w / 2, cy:y + d.h / 2}, 'orchard', 10)) return 'Logging needs jungle, or an orchard/greenhouse within 10 tiles.';
-  if (d.rig && !railyardNear(x, y, d.w, d.h)) return 'Oil and gas need a train yard within 5 blocks.';
+  if (d.rig && !railyardNear(x, y, d.w, d.h) && !warehouseNear(x, y, d.w, d.h)) return 'Oil and gas need a train yard or warehouse within 5 blocks.';
   if (d.rail && !trackAdjacent(x, y, d.w, d.h)) return 'A train yard needs a freight track running alongside it.';
   if (d.hub && !hubAdjacent(x, y, d.w, d.h)) return 'A distribution terminal needs a port or freight track next to it.';
   if (!ignoreRoad && worldSettings.placement !== 'lenientRoads' && needsRoad(type) && !roadAdjacent(x, y, d.w, d.h)) return 'It needs a street next to it.';
@@ -633,10 +647,13 @@ function mapChanged() {
   computeComps(compR, isRoad);
   computeComps(compW, isWalk);
   for (const i of [...lights.keys()]) if (deg[i] < 3 || overpass[i]) lights.delete(i);
-  // A gate only makes sense where a straight piece of track still crosses a
-  // street, rather than running along beside it.
-  for (const i of [...gates]) {
-    if (!trackOn[i] || !isRoad(i) || bits(track[i]) !== 2 || (cmask[i] & ((track[i] & 1) ? 5 : 10))) gates.delete(i);
+  // Every place a straight run of track crosses a street is a level crossing,
+  // so a gate is created there automatically. A gate the player deliberately
+  // removed stays removed until the crossing itself changes.
+  for (const i of [...gates]) if (!crossingTile(i)) gates.delete(i);
+  for (let i = 0; i < N; i++) {
+    if (gateOff[i]) { if (!crossingTile(i)) gateOff[i] = 0; continue; }
+    if (crossingTile(i)) gates.add(i);
   }
   destCom = []; destPark = []; destWork = []; stations = []; docks = []; airports = []; busStops = []; ports = []; yards = []; hubs = [];
   for (const b of buildings.values()) {

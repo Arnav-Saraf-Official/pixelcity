@@ -221,11 +221,11 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
     if (!t.path) continue;
     // A train in a yard still has its wagons on the way in; `ex` is how far
     // the locomotive has run past the buffers, so the tail follows it out of
-    // sight one wagon at a time instead of the whole consist blinking away.
-    const tail = t.state === 'dwell' ? (t.ex || 0) : 0;
+    // The consist stays on its track while it works the yard, drawn over the
+    // yard building instead of sinking into it wagon by wagon.
     for (let k = 0; k < t.consist.length; k++) {
-      let odo = t.i + t.t + tail - k * CAR_GAP;
-      if (odo < 0 || odo >= t.path.length - 1) continue;
+      const odo = t.i + t.t - k * CAR_GAP;
+      if (odo < 0 || odo > t.path.length - 1) continue;
       let idx = Math.floor(odo), frac = odo - idx;
       if (idx >= t.path.length - 1) { idx = t.path.length - 2; frac = 1; }
       if (idx < 0) continue;

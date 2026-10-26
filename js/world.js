@@ -2,7 +2,7 @@
 // World generation
 // =====================================================================
 function clearWorld(keepClock) {
-  tile.fill(0); water.fill(0); tree.fill(0); platform.fill(0); oneway.fill(0); walkway.fill(0); bldAt.fill(0); heat.fill(0); heatAcc.fill(0); resv.fill(0); overpass.fill(0); rail.fill(0); railOn.fill(0); track.fill(0); trackOn.fill(0);
+  tile.fill(0); water.fill(0); tree.fill(0); platform.fill(0); oneway.fill(0); walkway.fill(0); bldAt.fill(0); heat.fill(0); heatAcc.fill(0); resv.fill(0); overpass.fill(0); rail.fill(0); railOn.fill(0); track.fill(0); trackOn.fill(0); trackWide.fill(0); gateOff.fill(0);
   lights.clear(); gates.clear(); buildings.clear(); carById.clear(); chunks.clear();
   districts.clear(); districtLayer.fill(0); nextDid = 1; markDistrictsDirty(); units = []; incidents.length = 0; wrecks.length = 0;
   roadClosed.fill(0); streetClosures.clear();
@@ -103,8 +103,12 @@ function buildStarterTown() {
     findSpot('hospital', box.x, box.y, bx1, by1, 12);
     findSpot('parking', box.x, box.y, bx1, by1, 13);
     for (let k = 0; k < 3; k++) findSpot('park', box.x, box.y, bx1, by1, 20 + k);
-    findSpot('metro', box.x, box.y, bx1, by1, 31);
-    findSpot('metro', box.x, box.y, bx1, by1, 32);
+    // The demo's two stations are joined at their own tiles, so the generated
+    // city starts with a working line instead of two stranded platforms.
+    const met1 = findSpot('metro', box.x, box.y, bx1, by1, 31);
+    if (met1 && typeof connectMetroStation === 'function') connectMetroStation(met1);
+    const met2 = findSpot('metro', box.x, box.y, bx1, by1, 32);
+    if (met2 && typeof connectMetroStation === 'function') connectMetroStation(met2);
     for (let k = 0; k < 4; k++) findSpot('busstop', box.x, box.y, bx1, by1, 40 + k);
     starterTown = {x: Math.round(best2(xs)), y: Math.round(best2(ys))};
   }

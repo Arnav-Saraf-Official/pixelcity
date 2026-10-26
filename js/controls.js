@@ -30,7 +30,8 @@ const TOOLS = {
   plaza:     {cat: 'transit', group: 'Walking & parking', name: 'Plaza', kind: 'rect', desc: 'Paved pedestrian square.'},
   'b:park': {cat: 'transit', group: 'Walking & parking'},
   'b:parking': {cat: 'transit', group: 'Walking & parking'}, 'b:garage': {cat: 'transit', group: 'Walking & parking'},
-  track:     {cat: 'transit', group: 'Freight', name: 'Freight Track', kind: 'line', key: 'I', desc: 'Drag to extend freight track. Lay a second track alongside for a two-way line, so trains pass each other instead of taking turns. Bulldoze it to remove.'},
+  track:     {cat: 'transit', group: 'Freight', name: 'Freight Track', kind: 'line', key: 'I', desc: 'Drag to extend single freight track. Bulldoze it to remove.'},
+  track2:    {cat: 'transit', group: 'Freight', name: 'Two-Way Track', kind: 'line', desc: 'Drag to lay a wide two-track line. The two lanes stay separate, so trains pass each other instead of fusing into loops. Needs twice the clearance of single track.'},
   signal:    {cat: 'transit', group: 'Freight', name: 'Rail Signal', kind: 'click', key: 'E', desc: 'Click a piece of freight track to split it into signal blocks. Blocks turn red while a train has the leg.'},
   gate:      {cat: 'transit', group: 'Freight', name: 'Crossing Gate', kind: 'click', desc: 'Click a street where track crosses it to add or remove a barrier. The arm lowers over the road while a train is coming and cars wait behind it.'},
   freightline:{cat: 'transit', group: 'Freight', name: 'Freight Line', kind: 'click', desc: 'Click two to four train yards to give them a dedicated train loop. Click the first yard again to finish.'},
@@ -101,14 +102,36 @@ function commitLine(tool, sx, sy, ex, ey) {
     if (!n) { toast('There is already metro rail along that line.'); return; }
     mapChanged(); return;
   }
-  if (tool === 'track') {
+  if (tool === 'track' || tool === 'track2') {
     let n = 0, blocked = 0;
+    // A two-way line is two tiles wide. The pair is laid on the side the drag
+    // leans toward, and every tile remembers its lane axis so the linker keeps
+    // the lanes apart.
+    const wide = tool === 'track2';
+    const axis = Math.abs(ex - sx) >= Math.abs(ey - sy) ? 1 : 2;   // 1 E-W, 2 N-S
+    const laid = [];
     for (const i of tiles) {
       if (bldAt[i]) { blocked++; continue; }
-      if (!trackOn[i]) { trackOn[i] = 1; tree[i] = 0; n++; }
+      if (wide) {
+        if (!trackOn[i]) { trackOn[i] = 1; tree[i] = 0; n++; }
+        trackWide[i] = axis;
+        laid.push(i);
+        const x = i % MW, y = (i / MW) | 0;
+        const px = axis === 1 ? x : x + 1, py = axis === 1 ? y + 1 : y;
+        if (px < MW && py < MH) {
+          const j = py * MW + px;
+          if (!bldAt[j]) { if (!trackOn[j]) { trackOn[j] = 1; tree[j] = 0; n++; } trackWide[j] = axis; laid.push(j); }
+          else blocked++;
+        } else blocked++;
+      } else {
+        if (!trackOn[i]) { trackOn[i] = 1; tree[i] = 0; n++; }
+        if (trackWide[i]) trackWide[i] = 0;
+        laid.push(i);
+      }
     }
     if (!n) { toast(blocked ? 'Buildings are in the way of that line.' : 'There is already freight track along that line.'); return; }
-    markTiles(tiles); mapChanged(); return;
+    if (blocked) toast(`Laid the line, but ${blocked} tile${blocked === 1 ? '' : 's'} were blocked.`);
+    markTiles(laid); mapChanged(); return;
   }
   let changed = false;
   tiles.forEach((i, k) => {
@@ -127,10 +150,10 @@ function commitRect(tool, sx, sy, ex, ey) {
   if (tool === 'bulldoze') {
     const underground = overlays.underground, kill = new Set();
     for (const i of tiles) {
-      if (underground) { railOn[i] = 0; trackOn[i] = 0; continue; }
+      if (underground) { railOn[i] = 0; trackOn[i] = 0; trackWide[i] = 0; continue; }
       if (bldAt[i]) kill.add(bldAt[i]);
       tile[i] = 0; oneway[i] = 0; walkway[i] = 0; tree[i] = 0;
-      trackOn[i] = 0; overpass[i] = 0; lights.delete(i); gates.delete(i);
+      trackOn[i] = 0; trackWide[i] = 0; gateOff[i] = 0; overpass[i] = 0; lights.delete(i); gates.delete(i);
       if (platform[i]) { platform[i] = 0; water[i] = 1; }
     }
     for (const id of kill) { const b = B(id); if (b) removeBuilding(b); }
@@ -185,7 +208,7 @@ function tryBuild(t) {
   if (why) { if (!drag) toast((d.cat === 'com' || d.efficiencyBase || type === 'oilRig' || type === 'gasWell' || type === 'quarry' || type === 'mine' ? '⚠️ ' : '') + why); return false; }
   const b = placeBuilding(type, a.x, a.y);
   markDirty(a.x, a.y, a.x + d.w - 1, a.y + d.h - 1);
-  if (type === 'metro') railOn[b.y * MW + b.x] = 1;
+  if (type === 'metro' && typeof connectMetroStation === 'function') connectMetroStation(b);
   mapChanged();
   if (needsRoad(type) && b.road < 0) toast(`❗ ${BT[type].name} placed without road access. Add a street beside it.`);
   if (BT[type].cat === 'com' && !hasAccessibleSupply(b)) toast(`⚠️ ${BT[type].name} has no connected goods supply. Connect it to a producer or stocked warehouse.`);
@@ -223,12 +246,37 @@ function clickSignal(t) {
 function clickGate(t) {
   if (!inb(t.x, t.y)) return;
   const i = t.y * MW + t.x;
-  if (gates.has(i)) { gates.delete(i); mapChanged(); return; }
-  if (!trackOn[i] || !isRoad(i) || bits(track[i]) !== 2 || (cmask[i] & ((track[i] & 1) ? 5 : 10))) {
-    toast('Crossing gates go where a straight run of track crosses a street.');
-    return;
+  if (!crossingTile(i)) { toast('Crossing gates go where a straight run of track crosses a street.'); return; }
+  if (gates.has(i)) { gates.delete(i); gateOff[i] = 1; mapChanged(); return; }
+  gateOff[i] = 0; gates.add(i); mapChanged();
+}
+// Shift-click inspects a tile by cycling it through the states it can take:
+// track first (single, two-way east-west, two-way north-south), then roads
+// (street, country road, highway, the four one-way directions).
+function cycleTile(t) {
+  if (!inb(t.x, t.y)) return;
+  const i = t.y * MW + t.x;
+  if (bldAt[i]) { toast('That tile is occupied by a building.'); return; }
+  if (trackOn[i]) {
+    trackWide[i] = (trackWide[i] + 1) % 3;
+    const label = trackWide[i] === 1 ? 'two-way (east-west)' : trackWide[i] === 2 ? 'two-way (north-south)' : 'single';
+    markTiles([i]); mapChanged(); toast(`Track: ${label}.`); return;
   }
-  gates.add(i);
+  if (tile[i] === 1 && oneway[i] === 0 && walkway[i]) {
+    walkway[i] = 0; markTiles([i]); mapChanged(); toast('Road: country road.'); return;
+  }
+  if (tile[i] === 1 && oneway[i] === 0) {
+    tile[i] = 2; markTiles([i]); mapChanged(); toast('Road: highway.'); return;
+  }
+  if (tile[i] === 2) {
+    tile[i] = 1; walkway[i] = 1; oneway[i] = 2; markTiles([i]); mapChanged(); toast('Road: one-way east.'); return;
+  }
+  if (tile[i] === 1 && oneway[i]) {
+    if (oneway[i] === 1) { oneway[i] = 0; walkway[i] = 1; toast('Road: two-way street.'); }
+    else { oneway[i] = oneway[i] % 4 + 1; toast(`Road: one-way ${DIRNAME[oneway[i]].toLowerCase()}.`); }
+    markTiles([i]); mapChanged(); return;
+  }
+  toast('Nothing to cycle on that tile.');
 }
 const LINE_COLORS = ['#f2c14e', '#4d96ff', '#6bcb77', '#ff7eb6', '#c77dff'];
 let lineDraft = [];
@@ -354,7 +402,17 @@ function drawPreview(f) {
   }
   if (drag && tool.kind === 'select' && !drag.paint) { const x0 = Math.min(drag.sx, drag.ex), y0 = Math.min(drag.sy, drag.ey), x1 = Math.max(drag.sx, drag.ex), y1 = Math.max(drag.sy, drag.ey); f.fillStyle = 'rgba(111,179,255,.22)'; f.fillRect(x0 * T, y0 * T, (x1 - x0 + 1) * T, (y1 - y0 + 1) * T); outline(x0 * T, y0 * T, (x1 - x0 + 1) * T, (y1 - y0 + 1) * T, '#6fb3ff'); return; }
   if (drag && tool.kind === 'line') {
-    const {tiles} = lineTiles(drag.sx, drag.sy, drag.ex, drag.ey), col = curTool === 'rail' ? 'rgba(69,201,141,.55)' : curTool === 'track' ? 'rgba(170,140,100,.6)' : curTool === 'highway' ? 'rgba(120,130,150,.6)' : curTool === 'path' ? 'rgba(230,210,160,.6)' : curTool === 'country' ? 'rgba(170,150,110,.6)' : curTool === 'sidewalk' ? 'rgba(220,225,235,.55)' : 'rgba(200,210,230,.55)';
+    const {tiles} = lineTiles(drag.sx, drag.sy, drag.ex, drag.ey), col = curTool === 'rail' ? 'rgba(69,201,141,.55)' : curTool === 'track' ? 'rgba(170,140,100,.6)' : curTool === 'track2' ? 'rgba(170,140,100,.6)' : curTool === 'highway' ? 'rgba(120,130,150,.6)' : curTool === 'path' ? 'rgba(230,210,160,.6)' : curTool === 'country' ? 'rgba(170,150,110,.6)' : curTool === 'sidewalk' ? 'rgba(220,225,235,.55)' : 'rgba(200,210,230,.55)';
+    if (curTool === 'track2') {
+      const axis = Math.abs(drag.ex - drag.sx) >= Math.abs(drag.ey - drag.sy) ? 1 : 2;
+      for (const i of tiles) {
+        const x = i % MW, y = (i / MW | 0);
+        const pair = axis === 1 ? (x < MW && y + 1 < MH ? i + MW : -1) : (x + 1 < MW ? i + 1 : -1);
+        f.fillStyle = bldAt[i] ? 'rgba(255,70,70,.5)' : col; f.fillRect(x * T, y * T, T, T);
+        if (pair >= 0) { f.fillStyle = bldAt[pair] ? 'rgba(255,70,70,.5)' : col; f.fillRect((pair % MW) * T, (pair / MW | 0) * T, T, T); }
+      }
+      return;
+    }
     for (const i of tiles) { f.fillStyle = bldAt[i] ? 'rgba(255,70,70,.5)' : col; f.fillRect((i % MW) * T, (i / MW | 0) * T, T, T); } return;
   }
   if (drag && tool.kind === 'rect') {
@@ -383,9 +441,11 @@ cv.addEventListener('pointerdown', e => {
   cv.setPointerCapture(e.pointerId); mouse.x = e.clientX; mouse.y = e.clientY; mouse.in = true;
   if (regionView) { if (e.button === 0) { const m = regionHit(e.clientX, e.clientY); if (m >= 0) { closeRegion(); fitDistrict(m); } } return; }
   if (e.button === 2 && drag) { drag = null; return; } if (e.button === 2 && pasteMode) { stopPaste(); return; }
-  if (e.button === 1 || e.button === 2 || spaceDown || e.shiftKey) { pan = {x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y}; cv.style.cursor = 'grabbing'; return; }
+  if (e.button === 1 || e.button === 2 || spaceDown) { pan = {x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y}; cv.style.cursor = 'grabbing'; return; }
   if (e.button !== 0) return;
   const t = screenToTile(e.clientX, e.clientY), tool = TOOLS[curTool];
+  // Shift-click is the state debugger: it never pans or builds.
+  if (e.shiftKey) { cycleTile(t); return; }
   if (tool.kind === 'select') { if (pasteMode) pasteAt(t); else if (inb(t.x, t.y)) drag = {sx: t.x, sy: t.y, ex: t.x, ey: t.y}; }
   else if (tool.kind === 'line' || tool.kind === 'rect') { if (inb(t.x, t.y)) drag = {sx: t.x, sy: t.y, ex: t.x, ey: t.y}; }
   else if (tool.kind === 'build') { drag = null; tryBuild(t); drag = {paint: true}; }
