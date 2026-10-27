@@ -247,16 +247,16 @@ function drawWreck(c, w, t) {
   }
 }
 
-// The plane art is painted nose-west and turned in 45 degree steps, while the
-// simulation measures heading from east, so the design index is offset by half
-// a turn. Without it every aircraft flies backwards.
-const planeHeading = p => (((Math.round(p.ang / (Math.PI / 4)) + 4) % 8) + 8) % 8;
+// Plane textures face the simulation's heading; shadows retain their reversed
+// artwork orientation and use a separate half-turn offset.
+const planeHeading = p => ((Math.round(p.ang / (Math.PI / 4)) % 8) + 8) % 8;
+const planeShadowHeading = p => (planeHeading(p) + 4) % 8;
 
 // The shadow a plane throws on the ground, offset from the aircraft and fainter
 // the higher it climbs. It takes the same heading as the aircraft, so it reads
 // as the same silhouette and not a second, differently-pointed plane.
 function drawPlaneShadow(c, p, alpha) {
-  const prev = c.globalAlpha, h = planeHeading(p);
+  const prev = c.globalAlpha, h = planeShadowHeading(p);
   c.globalAlpha = prev * alpha;
   c.drawImage(sprite('vehicles', 'plane_shadow', { h }, String(h)), Math.round(p.x) - 4, Math.round(p.y) - 4);
   c.globalAlpha = prev;

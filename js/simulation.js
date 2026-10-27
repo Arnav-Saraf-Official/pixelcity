@@ -786,7 +786,7 @@ let nextPlaneId = 1;
 // airfield; more airports means a busier sky.
 const planeCap = () => airports.length > 1 ? 3 + airports.length * 2 : 2;
 const onRunway = q => q.phase === 'roll' || q.phase === 'landroll' || q.phase === 'final';
-const wantsToLand = q => q.phase === 'inbound' || q.phase === 'hold';
+const wantsToLand = q => q.phase === 'inbound' || q.phase === 'hold' || q.phase === 'lineup';
 function runwayFree(apId, except) {
   return !planes.some(q => q !== except && q.ap === apId && onRunway(q));
 }
@@ -862,6 +862,29 @@ function holdCircle(p, dt) {
   p.alt = Math.min(22, p.alt + 4 * dt);
   p.x += Math.cos(p.ang) * p.speed * dt;
   p.y += Math.sin(p.ang) * p.speed * dt;
+}
+// After reaching the approach fix off-course, circle until the aircraft has
+// completed a lap and crosses the fix on an eastbound heading.
+function lineUpCircle(p, dt) {
+  const R = 110, speed = 55, cx = p.tx, cy = p.ty + R;
+  const a = Math.atan2(p.y - cy, p.x - cx);
+  if (p.orbitAngle !== undefined) p.orbitTurn += Math.max(0, wrapAng(a - p.orbitAngle));
+  p.orbitAngle = a;
+  const next = a + speed / R * dt;
+  turnToward(p, Math.atan2(cy + Math.sin(next) * R - p.y, cx + Math.cos(next) * R - p.x), dt, 2.2);
+  p.speed = speed;
+  p.alt = Math.min(22, p.alt + 4 * dt);
+  p.x += Math.cos(p.ang) * p.speed * dt;
+  p.y += Math.sin(p.ang) * p.speed * dt;
+  if (p.orbitTurn >= Math.PI * 2 &&
+      Math.abs(wrapAng(a + Math.PI / 2)) < 0.025 &&
+      Math.abs(wrapAng(p.ang)) < 0.15) {
+    p.ang = 0;
+    p.phase = 'final';
+    p.finalT = 0;
+    p.orbitTurn = 0;
+    delete p.orbitAngle;
+  }
 }
 function stepPlanes(dt) {
   for (const p of planes) {
@@ -946,11 +969,22 @@ function stepPlanes(dt) {
       turnToward(p, Math.atan2((detour ? detour.y : p.ty) - p.y, (detour ? detour.x : p.tx) - p.x), dt, detour ? 1 : d < 150 ? 1.6 : 0.9);
       p.alt = Math.min(22, p.alt + 4 * dt);
       move();
-      if (d < 55) { p.phase = busy ? 'hold' : 'final'; p.finalT = 0; }
+      if (d < 55) {
+        if (busy) p.phase = 'hold';
+        else if (Math.abs(wrapAng(p.ang)) < 0.2 && Math.abs(p.y - r.y) < 24) {
+          p.phase = 'final'; p.finalT = 0;
+        } else {
+          p.phase = 'lineup'; p.orbitTurn = 0; delete p.orbitAngle;
+        }
+      }
     } else if (p.phase === 'hold') {
       if (!r) { p.phase = 'cruise'; p.cross = false; p.wp = null; continue; }
       if (runwayFree(p.ap, p) && firstToLand(p.ap) === p) { p.phase = 'inbound'; continue; }
       holdCircle(p, dt);
+    } else if (p.phase === 'lineup') {
+      if (!r) { p.phase = 'cruise'; p.cross = false; p.wp = null; continue; }
+      if (!runwayFree(p.ap, p) || firstToLand(p.ap) !== p) { p.phase = 'hold'; continue; }
+      lineUpCircle(p, dt);
     } else if (p.phase === 'final') {
       if (!r) { p.phase = 'cruise'; p.cross = false; p.wp = null; continue; }
       p.finalT = (p.finalT || 0) + dt;
@@ -959,10 +993,11 @@ function stepPlanes(dt) {
       turnToward(p, Math.atan2(r.y - p.y, r.x1 + 120 - p.x), dt, 1.2);
       p.speed = Math.max(40, p.speed - 6 * dt); move();
       p.alt = clamp((r.x0 - p.x) / (40 * T) * 22, 0, 22);
-      if (p.x >= r.x0 && p.x <= r.x1 + 20 && Math.abs(p.y - r.y) < 34) { p.y = r.y; p.ang = 0; p.alt = 0; p.phase = 'landroll'; }
+      if (p.x >= r.x0 && p.x <= r.x1 + 20 && Math.abs(p.y - r.y) < 10) { p.ang = 0; p.alt = 0; p.phase = 'landroll'; }
       // overshot the runway, or never got lined up: climb away and come round again
       else if (p.x > r.x1 + 20 || p.finalT > 22) {
-        p.phase = 'inbound'; p.speed = 64; p.alt = 12; p.finalT = 0; p.queued = false;
+        p.phase = 'lineup'; p.speed = 64; p.alt = 12; p.finalT = 0;
+        p.orbitTurn = 0; delete p.orbitAngle;
       }
     } else if (p.phase === 'landroll') {
       p.speed = Math.max(0, p.speed - 16 * dt); p.x += p.speed * dt;
