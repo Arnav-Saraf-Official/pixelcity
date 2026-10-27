@@ -60,7 +60,14 @@ function drawPlazaTile(c, x0, y0, i) {
 // Species live in the texture's own conditions: v picks pine, oak, cedar, the
 // desert cacti or a boulder, so a new plant is a texture edit, not a code change.
 function drawTree(c, x0, y0, v) {
-  c.drawImage(sprite('trees', 'tree', { v }, String(v)), x0, y0);
+  const tree = sprite('trees', 'tree', { v }, String(v));
+  if (hash(x0, y0, v) < 0.5) {
+    c.save();
+    c.translate(x0 + T, y0);
+    c.scale(-1, 1);
+    c.drawImage(tree, 0, 0);
+    c.restore();
+  } else c.drawImage(tree, x0, y0);
 }
 function drawPlatform(c, x0, y0, type) {
   const colors = type === 1 ? ['#8f9297', '#b9bcc0'] : type === 2 ? ['#535b65', '#aab2bc'] : ['#70583b', '#9a7b50'];

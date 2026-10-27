@@ -24,6 +24,7 @@ function makeIcon(id) {
   } else switch (id) {
     case 'rail': aw = ah = 9; drawRailTile(t, 0, 0, 15, 'junction'); break;
     case 'track': aw = ah = 9; grass(); drawTrackTile(t, 0, 0, 10, false); break;
+    case 'track2': aw = 9; ah = 18; grass(); drawTrackTile(t, 0, 0, 10, false); drawTrackTile(t, 0, 9, 10, false); break;
     case 'signal': aw = ah = 9; grass(); drawTrackTile(t, 0, 0, 10, false); t.fillStyle = '#24282e'; t.fillRect(6, 4, 2, 3); t.fillStyle = '#e5484d'; t.fillRect(6, 4, 2, 2); break;
     case 'gate': aw = ah = 18; grass();
       drawRoadTile(t, 0, 6, 10, 0, 0, 0, 1, 0); drawRoadTile(t, 9, 6, 10, 0, 0, 0, 1, 0);
