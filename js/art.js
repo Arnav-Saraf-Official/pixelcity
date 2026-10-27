@@ -96,10 +96,14 @@ function wetMask(type, wet) {
 const BUILDING_TEX = {billboard: 'school'};   // placeholder art until its own sprite is drawn
 const buildingTex = type => BUILDING_TEX[type] || type;
 
-function drawBuilding(c, type, ox, oy, seed, wet) {
+function drawBuilding(c, type, ox, oy, seed, wet, grayscale = false) {
   const t = TEX.render('buildings', buildingTex(type), { seed, wet: wet || null },
     seed + '|' + (wet ? wetMask(type, wet) : '-'));
-  if (c !== NULLC) c.drawImage(t.canvas, ox, oy);
+  if (c !== NULLC) {
+    if (grayscale) { c.save(); c.filter = 'grayscale(1)'; }
+    c.drawImage(t.canvas, ox, oy);
+    if (grayscale) c.restore();
+  }
   const m = t.marks;
   const art = {
     win: m.win.map(p => [p[0] + ox, p[1] + oy]),
@@ -197,6 +201,12 @@ function drawStreetClosure(c, x0, y0, acrossEastWest) {
 function drawRuin(c, r) {
   const x0 = Math.round(r.x * T), y0 = Math.round(r.y * T);
   const w = r.w * T, h = r.h * T;
+  if (r.charredBuilding) {
+    drawBuilding(c, r.type, x0, y0, r.seed, wetFor(r), true);
+    c.fillStyle = 'rgba(25,22,22,.24)';
+    c.fillRect(x0, y0, w, h);
+    return;
+  }
   const rnd = (a, b, n) => Math.floor(hash(r.seed, a, b) * n);
   c.fillStyle = '#171513';
   c.fillRect(x0, y0, w, h);

@@ -291,21 +291,46 @@ document.getElementById('zIn').onclick = () => zoomStep(1);
 document.getElementById('zFit').onclick = () => { const d = camDistrict(); if (regionView) closeRegion(); fitDistrict(d); };
 document.getElementById('zRegion').onclick = () => regionView ? closeRegion() : openRegion();
 document.getElementById('mapChip').onclick = () => regionView ? closeRegion() : openRegion();
-function toast(msg) {
-  const el = document.createElement('div'); el.className = 'toast panel'; el.textContent = msg;
+document.getElementById('fireMapBtn').onclick = openFireMap;
+document.getElementById('fireMapClose').onclick = closeFireMap;
+function toast(msg, tier = 'info') {
+  const el = document.createElement('div'); el.className = `toast panel ${tier}`; el.textContent = msg;
   document.getElementById('toasts').append(el);
+  while (document.getElementById('toasts').children.length > 4) document.getElementById('toasts').firstElementChild.remove();
   setTimeout(() => el.remove(), 4600);
 }
-function toastAction(msg, label, fn) {
-  const el = document.createElement('div'); el.className = 'toast panel act';
+function toastAction(msg, label, fn, tier = 'info') {
+  const el = document.createElement('div'); el.className = `toast panel act ${tier}`;
   const s = document.createElement('span'); s.textContent = msg;
   const b = document.createElement('button'); b.textContent = label; b.onclick = () => { el.remove(); fn(); };
   el.append(s, b);
   document.getElementById('toasts').append(el);
+  while (document.getElementById('toasts').children.length > 4) document.getElementById('toasts').firstElementChild.remove();
   setTimeout(() => el.remove(), 7100);
+}
+let fireToast = null, fireToastTimer = 0;
+function notifyFireAlert() {
+  const active = incidents.filter(i => i.kind === 'fire' && i.state !== 'done');
+  if (!active.length) return;
+  const msg = active.length > 1 ? 'Multiple fires are occurring.' : (() => {
+    const inc = active[0], b = B(inc.b);
+    return b ? `Fire at ${BT[b.type].name} in ${DISTRICTS[districtOf(inc.x, inc.y)]}.` : `Fire reported in ${DISTRICTS[districtOf(inc.x, inc.y)]}.`;
+  })();
+  if (fireToast && fireToast.isConnected) fireToast.querySelector('span').textContent = msg;
+  else {
+    fireToast = document.createElement('div');
+    fireToast.className = 'toast panel act alert';
+    const text = document.createElement('span'); text.textContent = msg;
+    const button = document.createElement('button'); button.textContent = 'Show fire map'; button.onclick = () => { fireToast.remove(); openFireMap(); };
+    fireToast.append(text, button);
+    document.getElementById('toasts').append(fireToast);
+  }
+  clearTimeout(fireToastTimer);
+  fireToastTimer = setTimeout(() => { if (fireToast) fireToast.remove(); fireToast = null; }, 7100);
 }
 function showBuilding(id) {
   const b = B(id); if (!b) { toast('That building is gone now.'); return; }
+  if (fireMapView) closeFireMap();
   if (regionView) closeRegion();
   const i = Math.floor(b.cy) * MW + Math.floor(b.cx);
   centerOn(i, Math.max(cam.z, 3));
@@ -317,6 +342,7 @@ function showBuilding(id) {
 function showSite(x, y) {
   const tx = Math.round(x), ty = Math.round(y);
   if (!inb(tx, ty)) return;
+  if (fireMapView) closeFireMap();
   if (regionView) closeRegion();
   const i = ty * MW + tx;
   centerOn(i, Math.max(cam.z, 4));
@@ -351,6 +377,8 @@ function select(sel) {
   if (sel.kind === 'bld') {
     const b = B(sel.id), d = BT[b.type];
     html = `<div class="ih"><span id="iIcon"></span><div class="t">${d.name}<small>${d.label || CATLABEL[d.cat]} · ${DISTRICTS[districtOf(b.cx, b.cy)]}</small></div><button id="iClose">✕</button></div>`;
+    if (b.charred) html += '<p class="note">Charred after 30 minutes of fire. This site has no services or jobs. Bulldoze it to rebuild.</p>';
+    else {
     if (d.homes) html += row('Residents', 'ivRes') + row('Home right now', 'ivHome') + row('Asleep', 'ivSleep') + row('Overall mood', 'ivMood') + row('Residents unwell', 'ivSick') + row('Average health', 'ivHealth');
     if (d.jobs) html += row('Workers', 'ivJobs') + row('People inside', 'ivPeople');
     if (isLeisure(b.type)) html += row('Visitors', 'ivPeople');
@@ -369,6 +397,7 @@ function select(sel) {
     html += row('District', 'ivDistrict');
     if (d.homes) html += row('Job mood', 'ivMoodJob') + row('Transport mood', 'ivMoodRide') + row('Home mood', 'ivMoodHome') + row('Health mood', 'ivMoodHealth') + row('Birth mood', 'ivMoodBirth') + row('Local mood', 'ivMoodLocal') + row('Parks & green', 'ivMoodGreen') + row('Quiet', 'ivMoodQuiet') + row('Clean air', 'ivMoodAir') + row('Local safety', 'ivMoodSafety') + row('Health care nearby', 'ivMoodCare');
     if (POWER_REQ[b.type]) html += row('Power output', 'ivPower') + row('Needs', 'ivPowerNeed');
+    }
     html += `<div class="btns"><button class="danger" id="iDel">Bulldoze</button></div>`;
   } else if (sel.kind === 'light') {
     const L = lights.get(sel.i);
@@ -463,6 +492,7 @@ function updateInspector() {
   const s = selection;
   if (s.kind === 'bld') {
     const b = B(s.id); if (!b) { select(null); return; }
+    if (b.charred) return;
     const d = BT[b.type];
     setT('ivRes', `${b.residents} / ${d.homes}`);
     setT('ivHome', b.people);
@@ -601,6 +631,10 @@ function hud(dt) {
   setT('gSleep', sleep);
   setT('gMoodCity', `job ${Math.round(cityMood.job * 100)} · ride ${Math.round(cityMood.transport * 100)} · birth ${Math.round(cityMood.repro * 100)}`);
   setT('gIncidents', `${incidents.filter(i => i.state !== 'done').length} · ${units.filter(u => u.state !== 'idle').length} out`);
+  const fireCount = incidents.filter(i => i.kind === 'fire' && i.state !== 'done').length;
+  document.getElementById('fireMapBtn').classList.toggle('hidden', fireCount === 0);
+  setT('fireCount', fireCount);
+  setT('fireMapCount', fireCount ? `${fireCount} active` : 'No active fires');
   const sales = document.getElementById('taxSales'), income = document.getElementById('taxIncome');
   if (sales && document.getElementById('taxDlg').classList.contains('hidden')) { sales.value = worldSettings.taxSales || 0; income.value = worldSettings.taxIncome || 0; }
   setT('gAir', `${planes.length} · ${boats.length}`);
@@ -635,11 +669,14 @@ function updateHover() {
   if (bldAt[i]) {
     const b = B(bldAt[i]), d = BT[b.type];
     txt = d.name;
-    if (d.homes) txt += ` · home ${b.people}/${b.residents}` + (b.residents ? ` · ${MOODWORD[homeMoodKind(b)]}` : '') + (b.sick ? ` · ${b.sick} unwell` : '');
-    else if (d.jobs) txt += ` · inside ${b.people}`;
-    else if (isLeisure(b.type)) txt += ` · visitors ${b.people}`;
-    if (d.cap) txt += ` · parked ${b.cars}/${d.cap}`;
-    if (b.road < 0 && b.walk < 0) txt += ' · NO ACCESS';
+    if (b.charred) txt += ' · CHARRED · bulldoze to rebuild';
+    else {
+      if (d.homes) txt += ` · home ${b.people}/${b.residents}` + (b.residents ? ` · ${MOODWORD[homeMoodKind(b)]}` : '') + (b.sick ? ` · ${b.sick} unwell` : '');
+      else if (d.jobs) txt += ` · inside ${b.people}`;
+      else if (isLeisure(b.type)) txt += ` · visitors ${b.people}`;
+      if (d.cap) txt += ` · parked ${b.cars}/${d.cap}`;
+      if (b.road < 0 && b.walk < 0) txt += ' · NO ACCESS';
+    }
   } else if (isRoad(i)) {
     txt = (overpass[i] ? 'Overpass' : deg[i] >= 3 ? (lights.has(i) ? 'Signal' : 'Intersection') : trackOn[i] ? 'Level crossing' : tile[i] === 2 ? (autoOw[i] ? 'Highway (2 lanes)' : 'Highway') : water[i] ? 'Bridge' : oneway[i] ? 'One-way' : walkway[i] ? 'Street' : 'Country road') + ' · ' + heatLabel(heat[i]);
     if (connections.includes(i)) txt += ' · leaves the region';

@@ -635,7 +635,7 @@ function relinkBlocks() {
       const j = nb(i, d), id = j >= 0 ? bldAt[j] : 0;
       if (!id) continue;
       const b = B(id);
-      if (b && (b.type === 'railyard' || b.type === 'distribution')) return true;
+      if (b && !b.charred && (b.type === 'railyard' || b.type === 'distribution')) return true;
     }
     return false;
   };
@@ -737,7 +737,7 @@ function linePlan(t) {
   if (!line) return [];
   const stops = line.stops.filter(id => {
     const y = B(id);
-    return y && y.type === 'railyard' && yardTrack(y) >= 0;
+    return y && !y.charred && y.type === 'railyard' && yardTrack(y) >= 0;
   });
   if (stops.length < 2) return [];
   const at = Math.max(0, stops.indexOf(t.at));
@@ -770,7 +770,7 @@ function newFreightTrain(yard, lineId) {
 function syncFreight() {
   for (const t of freight) {
     const a = B(t.home);
-    if (!a || a.type !== 'railyard' || yardTrack(a) < 0) retireFreight(t);
+    if (!a || a.charred || a.type !== 'railyard' || yardTrack(a) < 0) retireFreight(t);
     else if (t.line && !freightLines.some(l => l.id === t.line)) retireFreight(t);
   }
   freight = freight.filter(t => !t.dead);
@@ -778,8 +778,8 @@ function syncFreight() {
   for (const line of freightLines) {
     if (freight.some(t => t.line === line.id)) continue;
     const home = B(line.stops[0]);
-    if (!home || home.type !== 'railyard' || yardTrack(home) < 0) continue;
-    if (line.stops.some(id => { const y = B(id); return !y || y.type !== 'railyard' || yardTrack(y) < 0; })) continue;
+    if (!home || home.charred || home.type !== 'railyard' || yardTrack(home) < 0) continue;
+    if (line.stops.some(id => { const y = B(id); return !y || y.charred || y.type !== 'railyard' || yardTrack(y) < 0; })) continue;
     if (freight.length >= 32) break;
     freight.push(newFreightTrain(home, line.id));
   }
@@ -897,14 +897,14 @@ function unloadFreight(t) {
 // freight train, so its passenger cars are good for something.
 function stationBeside(i) {
   const here = bldAt[i];
-  if (here) { const b = B(here); if (b && b.type === 'metro') return b; }
+  if (here) { const b = B(here); if (b && !b.charred && b.type === 'metro') return b; }
   for (let d = 1; d <= 4; d++) {
     const j = nb(i, d);
     if (j < 0) continue;
     const id = bldAt[j];
     if (!id) continue;
     const b = B(id);
-    if (b && b.type === 'metro') return b;
+    if (b && !b.charred && b.type === 'metro') return b;
   }
   return null;
 }
@@ -1090,7 +1090,7 @@ function stepLogistics(dt) {
         const id = bldAt[i];
         if (!id) continue;
         const b = B(id);
-        if (!b || (b.type !== 'port' && b.type !== 'riverWharf')) continue;
+        if (!b || b.charred || (b.type !== 'port' && b.type !== 'riverWharf')) continue;
         const n = Math.min(h.stock, 40, Math.max(0, stockLimit(b) - (b.stock || 0)));
         if (n <= 0) break;
         b.stock = (b.stock || 0) + n;

@@ -210,10 +210,9 @@ function raiseIncident(kind, x, y, buildingId, extra) {
   stats.lastSite = {x: Math.round(x), y: Math.round(y)};
   if (kind === 'fire') {
     evacuate(B(buildingId));
-    // a fire alert carries the same jump-to-it offer as a parking failure
-    const b = B(buildingId);
-    if (b) toastAction(`Fire at ${BT[b.type].name} in ${DISTRICTS[districtOf(x, y)]}.`,
-      'Take me there', () => showSite(Math.round(x), Math.round(y)));
+    notifyFireAlert();
+  } else if (kind === 'crash') {
+    toastAction('Traffic crash reported.', 'Show location', () => showSite(Math.round(x), Math.round(y)), 'alert');
   }
   dispatch(inc);   // after `extra`, so a wreck's short reach is already known
   return inc;
@@ -295,7 +294,7 @@ function planeCrash(x, y) {
   const tx = Math.round(x), ty = Math.round(y);
   stats.lastSite = {x: tx, y: ty};
   if (!inb(tx, ty) || water[ty * MW + tx]) {   // down in the water: nothing to fight
-    toast('A flight went down in the water.');
+    toast('A flight went down in the water.', 'alert');
     return;
   }
   wrecks.push({x: tx, y: ty, v: (Math.random() * WRECK_VARIANTS) | 0, t: simTime, until: gameMin + 720});
@@ -517,13 +516,22 @@ function stepIncidents(dt) {
       inc.state = 'done';
       if (inc.kind === 'crash') stats.crashesCleared = (stats.crashesCleared || 0) + 1;
     }
-    // A building fire gets 25 world minutes. If it is still burning after that,
-    // it takes the buildings around it with it: three quarters of the nearby
-    // structures catch, and each one starts its own 25-minute clock.
-    if (inc.kind === 'fire' && inc.b && inc.state !== 'done' &&
-        gameMin - (inc.started ?? gameMin) >= FIRE_SPREAD_MINUTES) {
-      spreadFire(inc);
-      burnDown(inc);
+    if (inc.kind === 'fire' && inc.state !== 'done') {
+      const minute = Math.floor(gameMin);
+      if (inc.lastRainCheck !== minute) {
+        inc.lastRainCheck = minute;
+        const weather = weatherAt(inc.x, inc.y);
+        if ((weather === 'rain' || weather === 'storm') && Math.random() < 0.04) {
+          resolveFire(inc);
+          continue;
+        }
+      }
+      const age = gameMin - (inc.started ?? gameMin);
+      if (inc.b && !inc.spread && age >= FIRE_SPREAD_MINUTES) {
+        inc.spread = true;
+        spreadFire(inc);
+      }
+      if (inc.b && age >= FIRE_CHAR_MINUTES) charBuilding(inc);
     }
   }
   for (let k = incidents.length - 1; k >= 0; k--) {
@@ -541,10 +549,12 @@ function resolveIncident(inc, u) {
   u.i = 0;
   if (inc.kind === 'fire') stats.firesOut = (stats.firesOut || 0) + 1;
   else stats.crashesCleared = (stats.crashesCleared || 0) + 1;
+  if (inc.kind === 'fire') notifyFireAlert();
 }
 // How far a fire reaches: from the edge of the burning footprint, not from its
 // centre, so a large building does not magically protect the row beside it.
 const FIRE_SPREAD_MINUTES = 25;
+const FIRE_CHAR_MINUTES = 30;
 const FIRE_SPREAD_REACH = 4;
 const FIRE_SPREAD_SHARE = 0.75;
 
@@ -578,24 +588,30 @@ function spreadFire(inc) {
     raiseIncident('fire', o.cx, o.cy, o.id);
     lit++;
   }
-  if (lit) toast(`Fire spread to ${lit} nearby building${lit === 1 ? '' : 's'}.`);
 }
 
-// The burnt-out shell is removed from the building layer, leaving a charred
-// footprint on the ground. It is drawn live, so it never becomes stale map art;
-// bulldozing the tiles clears it, and it also fades from the record after three
-// in-game days if the player leaves it alone.
-function burnDown(inc) {
+function resolveFire(inc) {
+  inc.state = 'done';
+  stats.firesOut = (stats.firesOut || 0) + 1;
+  notifyFireAlert();
+}
+
+function charBuilding(inc) {
   inc.state = 'done';
   const b = B(inc.b);
-  if (!b) return;               // a wreck with no building left to lose
-  const footprint = {x: b.x, y: b.y, w: b.w, h: b.h, seed: b.seed};
+  if (!b || b.charred) return;
+  const footprint = {x: b.x, y: b.y, w: b.w, h: b.h, seed: b.seed, type: b.type, id: b.id};
   for (const a of agents) if (a.home === b.id) a.mood = Math.max(0, a.mood - 0.3);
   removeBuilding(b);
-  wrecks.push({ruin: true, ...footprint, t: simTime, until: gameMin + 3 * 1440});
+  b.charred = true;
+  b.queue = [];
+  charredBuildings.set(b.id, b);
+  for (let yy = b.y; yy < b.y + b.h; yy++) for (let xx = b.x; xx < b.x + b.w; xx++) bldAt[yy * MW + xx] = b.id;
+  wrecks.push({ruin: true, charredBuilding: true, ...footprint, t: simTime, until: Infinity});
+  mapChanged();
   markDirty(footprint.x - 1, footprint.y - 1, footprint.x + footprint.w, footprint.y + footprint.h);
   stats.burned = (stats.burned || 0) + 1;
-  toast('A building burned down.');
+  notifyFireAlert();
 }
 
 // Bulldozing a ruin removes the charred overlay as well as the ground tiles.

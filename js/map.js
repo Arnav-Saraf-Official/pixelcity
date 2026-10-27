@@ -248,7 +248,7 @@ const MINIC = [[88, 156, 68], [215, 218, 224], [240, 200, 90], [219, 201, 159], 
 const MINIB = {res: [222, 158, 96], com: [95, 168, 224], work: [168, 150, 128], civic: [236, 236, 242], ped: [127, 209, 106], lot: [140, 140, 140]};
 function miniColor(i) {
   const id = bldAt[i];
-  if (id) { const b = B(id); if (b) return b.type === 'metro' ? [31, 79, 176] : b.type === 'farm' || b.type === 'orchard' ? [196, 178, 84] : MINIB[BT[b.type].cat]; }
+  if (id) { const b = B(id); if (b) return b.charred ? [118, 118, 118] : b.type === 'metro' ? [31, 79, 176] : b.type === 'farm' || b.type === 'orchard' ? [196, 178, 84] : MINIB[BT[b.type].cat]; }
   const t = tile[i];
   if (t === 1) return water[i] ? [190, 170, 140] : walkway[i] ? MINIC[1] : [176, 160, 120];
   if (t) return MINIC[t];
@@ -318,7 +318,7 @@ function walkCost(u, v) {
   const t = tile[v];
   if (t === 1) return walkway[v] ? 1.3 : -1;
   if (t === 3 || t === 4) return 0.75;
-  const b = bldAt[v]; if (b) { const ty = B(b).type; if (isLeisureWalk(ty) || ty === 'metro') return 0.75; }
+  const b = bldAt[v]; if (b) { const building = B(b); if (building && !building.charred && (isLeisureWalk(building.type) || building.type === 'metro')) return 0.75; }
   return -1;
 }
 function findPath(s, g, mode, maxCost = Infinity, ignoreClosed = false) {
@@ -401,7 +401,7 @@ function hubAdjacent(x, y, w, h) {
   for (const i of perimeter(x, y, w, h)) {
     if (trackOn[i]) return true;
     const id = bldAt[i];
-    if (id) { const b = B(id); if (b && (b.type === 'port' || b.type === 'riverWharf')) return true; }
+    if (id) { const b = B(id); if (b && !b.charred && (b.type === 'port' || b.type === 'riverWharf')) return true; }
   }
   return false;
 }
@@ -538,7 +538,10 @@ function computeAccess(b) {
   for (let yy = b.y - 4; yy < b.y + b.h + 4; yy++) for (let xx = b.x - 4; xx < b.x + b.w + 4; xx++) {
     if (!inb(xx, yy)) continue; const i = yy * MW + xx;
     if (tile[i] === 3 || tile[i] === 4) ws++;
-    else if (bldAt[i] && bldAt[i] !== b.id && isLeisureWalk(B(bldAt[i]).type)) ws += 0.5;
+    else if (bldAt[i] && bldAt[i] !== b.id) {
+      const neighbor = B(bldAt[i]);
+      if (neighbor && !neighbor.charred && isLeisureWalk(neighbor.type)) ws += 0.5;
+    }
   }
   b.ws = Math.min(14, ws);
 }
@@ -695,7 +698,7 @@ function mergeAccess() {
         const oid = bldAt[i];
         if (!oid || oid === b.id || seen.has(oid)) continue;
         const o = B(oid);
-        if (!o || o.type !== start.type) continue;
+        if (!o || o.charred || o.type !== start.type) continue;
         seen.add(oid);
         queue.push(o);
       }
@@ -724,6 +727,7 @@ function mergeAccess() {
 }
 function removeBuilding(b) {
   buildings.delete(b.id);
+  charredBuildings.delete(b.id);
   for (let yy = b.y; yy < b.y + b.h; yy++) for (let xx = b.x; xx < b.x + b.w; xx++) bldAt[yy * MW + xx] = 0;
   markDirty(b.x, b.y, b.x + b.w - 1, b.y + b.h - 1);
   for (const c of b.queue) { if (!c.dead) { c.dead = true; c.agent.car = null; teleportHome(c.agent); } }

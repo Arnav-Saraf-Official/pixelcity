@@ -6,6 +6,7 @@ const cam = {x: 0, y: 0, z: 3};
 const ZOOMS = [0.5, 0.75, 1, 1.5, 2, 3, 4, 5, 6, 8, 10];
 let flash = null; // {i, until} highlighted hotspot
 let frameLod = 1; // buffer pixels per world pixel for the frame being drawn
+let fireMapView = false, fireMapLayout = null, fireMapHover = -1;
 function resize() {
   dpr = Math.max(1, window.devicePixelRatio || 1);
   cv.width = Math.floor(innerWidth * dpr); cv.height = Math.floor(innerHeight * dpr);
@@ -35,6 +36,7 @@ const HEAT_BUCKETS = Array.from({length: 32}, (_, k) => {
 const moodFace = m => m >= 0.9 ? 'ecstatic' : m >= 0.74 ? 'happy' : m >= 0.58 ? 'content'
   : m >= 0.42 ? 'uneasy' : m >= 0.24 ? 'miserable' : 'angry';
 function render() {
+  if (fireMapView) { renderFireMap(); return; }
   if (regionView) { renderRegion(); return; }
   const z = cam.z;
   // Level of detail: the world is drawn into a frame buffer at one buffer pixel
@@ -580,8 +582,79 @@ function computeDistStats() {
   distStats = DISTRICTS.map(() => ({homes: 0, jobs: 0, pop: 0}));
   for (const b of buildings.values()) { const s = distStats[districtOf(b.cx, b.cy)]; s.homes += BT[b.type].homes; s.jobs += BT[b.type].jobs; s.pop += b.residents; }
 }
-function openRegion() { regionView = true; regionHover = -1; document.body.classList.add('region'); select(null); hideTip(); setT('zoomLbl', 'Region'); }
+function openRegion() { fireMapView = false; document.body.classList.remove('firemap'); regionView = true; regionHover = -1; document.body.classList.add('region'); select(null); hideTip(); setT('zoomLbl', 'Region'); }
 function closeRegion() { regionView = false; document.body.classList.remove('region'); cv.style.cursor = curTool === 'inspect' ? 'pointer' : 'crosshair'; zoomTo(cam.z); }
+function openFireMap() {
+  regionView = false;
+  document.body.classList.remove('region');
+  fireMapView = true;
+  fireMapHover = -1;
+  document.body.classList.add('firemap');
+  select(null); hideTip();
+}
+function closeFireMap() {
+  fireMapView = false;
+  document.body.classList.remove('firemap');
+  cv.style.cursor = curTool === 'inspect' ? 'pointer' : 'crosshair';
+}
+function fireMapHit(sx, sy) {
+  const L = fireMapLayout;
+  if (!L) return null;
+  let best = null, bd = 18;
+  for (const marker of L.markers) {
+    const d = Math.hypot(sx - marker.sx, sy - marker.sy);
+    if (d < bd) { bd = d; best = marker; }
+  }
+  return best;
+}
+function renderFireMap() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const k = dpr, W = innerWidth, H = innerHeight;
+  ctx.fillStyle = '#0d1018'; ctx.fillRect(0, 0, cv.width, cv.height);
+  const top = 72, bot = 42;
+  const s = Math.min((W - 40) / FW, (H - top - bot) / FH);
+  const x0 = (W - FW * s) / 2, y0 = top + (H - top - bot - FH * s) / 2;
+  const dw = DW * T * s, dh = DH * T * s;
+  ctx.fillStyle = '#111a22'; ctx.fillRect(x0 * k, y0 * k, FW * s * k, FH * s * k);
+  for (let m = 0; m < RW * RH; m++) {
+    const x = x0 + (m % RW) * dw, y = y0 + (m / RW | 0) * dh;
+    ctx.fillStyle = (m + (m / RW | 0)) % 2 ? '#18271f' : '#1a2b22';
+    ctx.fillRect(x * k, y * k, dw * k, dh * k);
+    ctx.strokeStyle = 'rgba(190,220,190,.18)'; ctx.lineWidth = k;
+    ctx.strokeRect(x * k, y * k, dw * k, dh * k);
+    ctx.font = `${18 * k}px VT323, monospace`; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillStyle = 'rgba(220,235,220,.62)';
+    ctx.fillText(DISTRICTS[m], (x + 8) * k, (y + 6) * k);
+  }
+  const grouped = new Map();
+  for (const inc of incidents) {
+    if (inc.kind !== 'fire' || inc.state === 'done') continue;
+    const key = `${Math.round(inc.x)},${Math.round(inc.y)}`;
+    const group = grouped.get(key);
+    if (group) group.count++;
+    else grouped.set(key, {x: inc.x, y: inc.y, count: 1});
+  }
+  const markers = [];
+  for (const group of grouped.values()) {
+    const sx = x0 + group.x * T * s, sy = y0 + group.y * T * s;
+    markers.push({...group, sx, sy});
+    const pulse = (Math.sin(performance.now() / 220) + 1) / 2;
+    ctx.beginPath(); ctx.arc(sx * k, sy * k, (9 + pulse * 4) * k, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,75,45,.28)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(sx * k, sy * k, 5 * k, 0, Math.PI * 2);
+    ctx.fillStyle = '#ff5143'; ctx.fill();
+    ctx.strokeStyle = '#fff0d0'; ctx.lineWidth = 2 * k; ctx.stroke();
+    if (group.count > 1) {
+      ctx.font = `${14 * k}px VT323, monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#fff'; ctx.fillText(String(group.count), sx * k, sy * k);
+    }
+  }
+  fireMapLayout = {markers};
+  ctx.font = `${18 * k}px VT323, monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffb9aa';
+  const count = markers.reduce((sum, marker) => sum + marker.count, 0);
+  ctx.fillText(count ? 'CLICK A FIRE TO JUMP TO IT' : 'NO ACTIVE FIRES', W * k / 2, (H - 20) * k);
+}
 function regionHit(sx, sy) {
   const L = regionLayout; if (!L) return -1;
   const mx = Math.floor((sx - L.x0) / (DW * T * L.s)), my = Math.floor((sy - L.y0) / (DH * T * L.s));

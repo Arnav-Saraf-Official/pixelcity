@@ -66,6 +66,10 @@ input[type=range]{width:100%;accent-color:var(--hi)}
 #regionHint{display:none;position:fixed;left:50%;bottom:calc(14px + var(--sb));transform:translateX(-50%);padding:6px 14px;z-index:6;color:var(--hi);white-space:nowrap}
 body.region #regionHint{display:block}
 body.region #side,body.region #bottom,body.region #inspector,body.region #cong,body.region #hover{display:none!important}
+body.firemap #top,body.firemap #menu,body.firemap #side,body.firemap #bottom,body.firemap #inspector,body.firemap #cong,body.firemap #zoom,body.firemap #hover,body.firemap #toasts,body.firemap #regionHint,body.firemap .dlg,body.firemap .start-screen,body.firemap .menu-page{display:none!important}
+#fireMapPanel{display:none;position:fixed;top:calc(10px + var(--st));left:50%;transform:translateX(-50%);align-items:center;gap:12px;padding:6px 10px;z-index:8;white-space:nowrap}
+#fireMapPanel b{color:#ff8574;font-weight:normal;letter-spacing:1px}
+body.firemap #fireMapPanel{display:flex}
 #mapChip{cursor:pointer;font-size:19px}
 /* The toolbar sizes itself to its contents and is only pushed left as far as
    needed to clear the zoom panel, which --zoomw / --bshift are measured for in
@@ -92,7 +96,14 @@ body.region #side,body.region #bottom,body.region #inspector,body.region #cong,b
 #tip .s{color:var(--acc)}
 #hover{position:fixed;z-index:6;pointer-events:none;padding:2px 6px;font-size:17px;background:rgba(16,20,32,.92);border:2px solid var(--line);white-space:nowrap}
 #toasts{position:fixed;top:72px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;z-index:40;pointer-events:none;align-items:center;max-width:calc(100vw - 32px)}
-.toast{padding:4px 10px;font-size:19px;animation:fade 4.5s forwards;text-align:center}
+.toast{padding:4px 10px;font-size:19px;animation:fade 4.5s forwards;text-align:center;max-width:min(460px,calc(100vw - 32px));white-space:normal}
+.toast::before{font-size:15px;letter-spacing:1px;margin-right:6px}
+.toast.info::before{content:'INFO';color:var(--acc)}
+.toast.warning{border-color:#9b7729}
+.toast.warning::before{content:'WARNING';color:var(--warn)}
+.toast.alert{border-color:#a53d42;background:#351c29}
+.toast.alert::before{content:'ALERT';color:#ff7c72}
+.toast.act{max-width:min(540px,calc(100vw - 32px))}
 @keyframes fade{0%{opacity:0;transform:translateY(-6px)}6%{opacity:1;transform:none}80%{opacity:1}100%{opacity:0}}
 @media (prefers-reduced-motion:reduce){.toast{animation:none}}
 .dlg{position:fixed;inset:0;margin:auto;width:min(560px,calc(100vw - 32px));height:fit-content;max-height:calc(100vh - 40px);overflow:auto;padding:14px 18px;z-index:30;display:flex;flex-direction:column;gap:12px}

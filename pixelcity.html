@@ -8,6 +8,7 @@
   <div class="brand">PIXEL<span>CITY</span></div>
   <div class="chip"><canvas id="sun" width="9" height="9"></canvas><span id="clockT">06:00</span><b id="dayT">Day 1</b></div>
   <button id="mapChip" class="chip" title="Region view: every district"><b>Region</b><span id="mapName">Mainland</span></button>
+  <button id="fireMapBtn" class="chip hidden" title="Show the locations of all active fires"><b>Fires</b><span id="fireCount">0</span></button>
   <div class="seg" id="speeds">
     <button data-s="0" title="Pause (P)">❚❚</button>
     <button data-s="1" class="on" title="Normal (1)">▶</button>
@@ -91,6 +92,7 @@
   <button id="zRegion" title="Every district in the region">Region</button>
 </div>
 <div id="regionHint" class="panel">REGION · click a district to build in it · Esc or + to go back</div>
+<div id="fireMapPanel" class="panel"><b>ACTIVE FIRES</b><span id="fireMapCount">No active fires</span><button id="fireMapClose">Back to city</button></div>
 
 <div id="bottom">
   <div id="selBar" class="panel hidden">
@@ -155,7 +157,7 @@
     <li><b>Parking:</b> offices and shops have fewer spaces than visitors. Full lots send drivers circling to a Parking Lot or Garage, or home unhappy.</li>
     <li><b>Walking:</b> sidewalks, footpaths, plazas and parks let people walk short trips. <b>Metro stations</b> take longer trips off the road, but a station is only useful once you draw <b>Metro Rails</b> (Metro tab) between it and another station.</li>
     <li><b>Freight:</b> farms, quarries, fisheries and rigs load their goods onto <b>trucks</b> at the kerb. Draw surface <b>Freight Track</b> (Transit tab, <kbd>I</kbd>) between <b>Train Yards</b>; each train carries 12-18 cars in runs of three, mixing passengers, materials, liquids and gas. Trains plan multi-stop tours between up to three yards, and a <b>Freight Line</b> tool gives chosen yards a dedicated loop. Track is split into signal blocks; a block turns red while a train holds the leg, and no two trains can occupy the same block. <b>Rail Signal</b> (<kbd>E</kbd>) adds a block boundary by hand. <b>Cargo Ports</b> send ships to other ports and islands, and <b>Distribution Terminals</b> sort truck cargo onto trains and quays. <b>Two-Way Track</b> lays a wide pair of lanes so trains pass each other without fusing into loops. Wherever track crosses a street a <b>crossing gate</b> appears automatically. Oil and gas buildings need a train yard or a warehouse within 5 blocks: trucks haul from the site to a warehouse, and the warehouse loads the trains.</li>
-    <li><b>Services &amp; health:</b> a fire left burning for 25 world minutes jumps to three-quarters of the buildings around it. Burnt lots stay charred until bulldozed (or fade after a few days). Illness keeps workers home and makes their households travel less; billboards can promote or demote health nearby.</li>
+    <li><b>Services &amp; health:</b> a fire left burning for 25 world minutes jumps to three-quarters of the buildings around it. After 30 minutes, its building turns charred and stops functioning until bulldozed. Rain and thunderstorms have a 4% chance per fire each world minute to put it out. Use the <b>Fires</b> button to see every active fire on a fire-only region map; click a marker to jump to it. Illness keeps workers home and makes their households travel less; billboards can promote or demote health nearby.</li>
     <li><b>Region:</b> nine connected districts, all simulated at once. Zoom out past a whole district to see them all, then click one to build there. Cars, boats and planes travel across all of them.</li>
     <li>Turn on <b>Congestion</b> to see jams as a green-to-red gradient. <b>Underground</b> strips the surface away and shows the metro network: rails, junction blocks where lines meet, reversing blocks where a train can turn back, and the trains themselves. <b>Save &amp; share</b> in the menu makes a save file or a share code.</li>
   </ul>

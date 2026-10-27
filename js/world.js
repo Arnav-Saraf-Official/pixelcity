@@ -3,7 +3,7 @@
 // =====================================================================
 function clearWorld(keepClock) {
   tile.fill(0); water.fill(0); tree.fill(0); platform.fill(0); oneway.fill(0); walkway.fill(0); bldAt.fill(0); heat.fill(0); heatAcc.fill(0); resv.fill(0); overpass.fill(0); rail.fill(0); railOn.fill(0); track.fill(0); trackOn.fill(0); trackWide.fill(0); gateOff.fill(0);
-  lights.clear(); gates.clear(); buildings.clear(); carById.clear(); chunks.clear();
+  lights.clear(); gates.clear(); buildings.clear(); charredBuildings.clear(); carById.clear(); chunks.clear();
   districts.clear(); districtLayer.fill(0); nextDid = 1; markDistrictsDirty(); units = []; incidents.length = 0; wrecks.length = 0;
   roadClosed.fill(0); streetClosures.clear();
   power.plants = []; power.capacity = 0; power.demand = 0;

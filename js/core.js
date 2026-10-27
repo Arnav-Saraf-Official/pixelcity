@@ -6,7 +6,7 @@ const T = 9;                               // art pixels per tile
 const DW = 200, DH = 150, RW = 3, RH = 3;  // district size and region grid
 const MW = DW * RW, MH = DH * RH, N = MW * MH;
 const FW = MW * T, FH = MH * T;
-const MIN_PER_SEC = 2.5;                   // game minutes per sim second
+const MIN_PER_SEC = 1 / 60;                 // one game minute per real minute at normal speed
 const TRAIN_RIDE_GAP_MIN = 30;             // world minutes between one train ride and the next
 const TRAIN_RIDE_GAP = TRAIN_RIDE_GAP_MIN / MIN_PER_SEC;
 const YEL = 2;                             // yellow light seconds
@@ -147,6 +147,7 @@ const CATLABEL = {res: 'Residential', com: 'Commercial', work: 'Workplace', civi
 const hasType = t => typeof t === 'string' && Object.prototype.hasOwnProperty.call(BT, t);
 
 const buildings = new Map();
+const charredBuildings = new Map();
 let nextBid = 1, nextAid = 1, nextCid = 1;
 let agents = [], cars = [], peds = [], planes = [], boats = [], metros = [], ships = [], freight = [], agentsDirty = false;
 let ports = [], yards = [], hubs = [];
@@ -164,7 +165,7 @@ let stats = {trips: [], modes: [], totalTrips: 0, frustrated: 0, stranded: 0, ti
 const overlays = {heat: false, mood: true, occ: false, grid: false, sky: true, underground: false,
   districts: true, weather: true, power: false};
 
-const B = id => buildings.get(id);
+const B = id => buildings.get(id) || charredBuildings.get(id);
 const inb = (x, y) => x >= 0 && y >= 0 && x < MW && y < MH;
 const isRoad = i => tile[i] === 1 || tile[i] === 2;
 const bits = m => (m & 1) + (m >> 1 & 1) + (m >> 2 & 1) + (m >> 3 & 1);
@@ -181,7 +182,7 @@ const isLeisure = type => LEISURE.has(type);
 const isLeisureWalk = type => LEISURE_WALK.has(type);
 function isWalk(i) {
   const t = tile[i]; if (t === 3 || t === 4 || (t === 1 && walkway[i])) return true;
-  const b = bldAt[i]; if (b) { const ty = B(b).type; return isLeisureWalk(ty) || ty === 'metro'; }
+  const b = bldAt[i]; if (b) { const building = B(b); return !!building && !building.charred && (isLeisureWalk(building.type) || building.type === 'metro'); }
   return false;
 }
 function walkMask(i) { let m = 0; for (let d = 1; d <= 4; d++) { const j = nb(i, d); if (j >= 0 && isWalk(j)) m |= bit(d); } return m; }

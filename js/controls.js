@@ -206,7 +206,7 @@ function tryBuild(t) {
     markTiles(tiles); mapChanged(); return true;
   }
   const why = whyNot(type, a.x, a.y);
-  if (why) { if (!drag) toast((d.cat === 'com' || d.efficiencyBase || type === 'oilRig' || type === 'gasWell' || type === 'quarry' || type === 'mine' ? '⚠️ ' : '') + why); return false; }
+  if (why) { if (!drag) { const warning = d.cat === 'com' || d.efficiencyBase || type === 'oilRig' || type === 'gasWell' || type === 'quarry' || type === 'mine'; toast((warning ? '⚠️ ' : '') + why, warning ? 'warning' : 'info'); } return false; }
   const b = placeBuilding(type, a.x, a.y);
   markDirty(a.x, a.y, a.x + d.w - 1, a.y + d.h - 1);
   if (type === 'metro' && typeof connectMetroStation === 'function') connectMetroStation(b);
@@ -284,7 +284,7 @@ let lineDraft = [];
 function clickFreightLine(t, e) {
   if (!inb(t.x, t.y)) return;
   const id = bldAt[t.y * MW + t.x], yard = id ? B(id) : null;
-  if (!yard || yard.type !== 'railyard') { toast('Freight lines start and stop at train yards.'); return; }
+  if (!yard || yard.charred || yard.type !== 'railyard') { toast('Freight lines start and stop at train yards.'); return; }
   if (e && e.shiftKey) {
     const before = freightLines.length;
     freightLines = freightLines.filter(l => !l.stops.includes(yard.id));
@@ -440,6 +440,7 @@ function drawPreview(f) {
 cv.addEventListener('contextmenu', e => e.preventDefault());
 cv.addEventListener('pointerdown', e => {
   cv.setPointerCapture(e.pointerId); mouse.x = e.clientX; mouse.y = e.clientY; mouse.in = true;
+  if (fireMapView) { if (e.button === 0) { const marker = fireMapHit(e.clientX, e.clientY); if (marker) { closeFireMap(); showSite(marker.x, marker.y); } } return; }
   if (regionView) { if (e.button === 0) { const m = regionHit(e.clientX, e.clientY); if (m >= 0) { closeRegion(); fitDistrict(m); } } return; }
   if (e.button === 2 && drag) { drag = null; return; } if (e.button === 2 && pasteMode) { stopPaste(); return; }
   if (e.button === 1 || e.button === 2 || spaceDown) { pan = {x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y}; cv.style.cursor = 'grabbing'; return; }
@@ -456,6 +457,7 @@ cv.addEventListener('pointerdown', e => {
 });
 cv.addEventListener('pointermove', e => {
   mouse.x = e.clientX; mouse.y = e.clientY; mouse.in = true;
+  if (fireMapView) { fireMapHover = fireMapHit(e.clientX, e.clientY) ? 1 : -1; cv.style.cursor = fireMapHover >= 0 ? 'pointer' : 'default'; return; }
   if (regionView) { regionHover = regionHit(e.clientX, e.clientY); cv.style.cursor = regionHover >= 0 ? 'pointer' : 'default'; return; }
   if (pan) { cam.x = pan.cx - (e.clientX - pan.x) / cam.z; cam.y = pan.cy - (e.clientY - pan.y) / cam.z; clampCam(); return; }
   const t = screenToTile(e.clientX, e.clientY), moved = t.x !== hoverT.x || t.y !== hoverT.y; hoverT = t;
@@ -473,6 +475,7 @@ cv.addEventListener('pointerup', () => {
 });
 cv.addEventListener('pointerleave', () => { mouse.in = false; hoverEl.classList.add('hidden'); });
 function zoomStep(dir, sx = innerWidth / 2, sy = innerHeight / 2) {
+  if (fireMapView) return;
   if (regionView) { if (dir > 0) closeRegion(); return; }
   let k = ZOOMS.indexOf(cam.z); if (k < 0) k = ZOOMS.indexOf(3);
   if (k === 0 && dir < 0) { openRegion(); return; }
@@ -492,19 +495,20 @@ addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey) { if (k === 'c' || k === 'x') { e.preventDefault(); if (curTool !== 'select' || !selRect) toast('Highlight an area with the Select tool (X) first.'); else copySel(k === 'x'); } else if (k === 's') { e.preventDefault(); saveLocal(false); } return; }
   keys.add(k);
   if ((k === 'delete' || k === 'backspace') && curTool === 'select' && selRect) { askConfirm('Clear everything in the highlighted area?', deleteSel); return; }
-  if (k === 'escape') { if (!confirmEl.classList.contains('hidden')) confirmEl.classList.add('hidden'); else if (!saveEl.classList.contains('hidden')) saveEl.classList.add('hidden'); else if (pasteMode) stopPaste(); else if (curTool === 'select' && selRect) { selRect = null; updateSelBar(); } else if (regionView) closeRegion(); else if (drag) drag = null; else if (!helpEl.classList.contains('hidden')) helpEl.classList.add('hidden'); else { setTool('inspect'); select(null); } }
+  if (k === 'escape') { if (!confirmEl.classList.contains('hidden')) confirmEl.classList.add('hidden'); else if (!saveEl.classList.contains('hidden')) saveEl.classList.add('hidden'); else if (fireMapView) closeFireMap(); else if (pasteMode) stopPaste(); else if (curTool === 'select' && selRect) { selRect = null; updateSelBar(); } else if (regionView) closeRegion(); else if (drag) drag = null; else if (!helpEl.classList.contains('hidden')) helpEl.classList.add('hidden'); else { setTool('inspect'); select(null); } }
   else if (k === 'p') setSpeed(speed ? 0 : 1); else if (k === '1') setSpeed(1); else if (k === '2') setSpeed(3); else if (k === '3') setSpeed(8);
   else if (k === 'v') toggleOverlay('heat'); else if (k === 'c') toggleOverlay('occ'); else if (k === 'g') toggleOverlay('grid'); else if (k === 'm') toggleOverlay('mood'); else if (k === 'n') toggleOverlay('underground'); else if (k === 'y') toggleOverlay('sky');
-  else if (k === '=' || k === '+') zoomStep(1); else if (k === '-' || k === '_') zoomStep(-1); else if (k === 'z') { if (regionView) closeRegion(); fitDistrict(camDistrict()); }
+  else if (k === '=' || k === '+') zoomStep(1); else if (k === '-' || k === '_') zoomStep(-1); else if (k === 'z') { if (fireMapView) closeFireMap(); if (regionView) closeRegion(); fitDistrict(camDistrict()); }
   else for (const id in TOOLS) if (TOOLS[id].key && TOOLS[id].key.toLowerCase() === k) { setTool(id); break; }
 });
 addEventListener('keyup', e => { const k = e.key.toLowerCase(); if (k === ' ') spaceDown = false; keys.delete(k); });
 addEventListener('blur', () => keys.clear());
 function panEdge(dt) {
+  if (fireMapView) return;
   if (regionView || !mouse.in || pan) return;
   let dx = 0, dy = 0; if (mouse.x <= 0) dx = -1; else if (mouse.x >= innerWidth - 1) dx = 1; if (mouse.y <= 0) dy = -1; else if (mouse.y >= innerHeight - 1) dy = 1; if (!dx && !dy) return;
   const move = 520 * dt / cam.z; cam.x += dx * move; cam.y += dy * move; clampCam();
   const t = screenToTile(mouse.x, mouse.y), moved = t.x !== hoverT.x || t.y !== hoverT.y; hoverT = t;
   if (drag) { if (drag.paint && moved) { if (TOOLS[curTool].kind === 'build') tryBuild(t); else brushTree(t); } else if (!drag.paint) { drag.ex = t.x; drag.ey = t.y; } }
 }
-function panKeys(dt) { if (regionView) return; const s = 420 * dt / cam.z; if (keys.has('w') || keys.has('arrowup')) cam.y -= s; if (keys.has('s') || keys.has('arrowdown')) cam.y += s; if (keys.has('a') || keys.has('arrowleft')) cam.x -= s; if (keys.has('d') || keys.has('arrowright')) cam.x += s; if (keys.size) clampCam(); }
+function panKeys(dt) { if (fireMapView || regionView) return; const s = 420 * dt / cam.z; if (keys.has('w') || keys.has('arrowup')) cam.y -= s; if (keys.has('s') || keys.has('arrowdown')) cam.y += s; if (keys.has('a') || keys.has('arrowleft')) cam.x -= s; if (keys.has('d') || keys.has('arrowright')) cam.x += s; if (keys.size) clampCam(); }

@@ -98,7 +98,7 @@ function infectAgent(a, source) {
   if (SICKNESS.total === 1 || gameMin - SICKNESS.lastOutbreak > 2880) {
     SICKNESS.outbreaks++;
     SICKNESS.lastOutbreak = gameMin;
-    if (typeof toast === 'function') toast('Illness is spreading in the city.');
+    if (typeof toast === 'function') toast('Illness is spreading in the city.', 'warning');
   }
   return true;
 }

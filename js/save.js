@@ -209,6 +209,7 @@ function serialize() {
     lights: [...lights].map(([i, L]) => [i, L.ns, L.ew, Math.round(L.off)]),
     gates: [...gates], gateOff: listFlags(gateOff),
     b: savedBuildings.map(b => [b.type, b.x, b.y, b.seed >>> 0]),
+    charred: [...charredBuildings.values()].map(b => [b.type, b.x, b.y, b.seed >>> 0]),
     state: savedBuildings.map((b, i) => [i, Number.isFinite(b.stock) ? b.stock : null, b.inventory || null, b.byproducts || null, b.policy || null]),
     districts: [...districts.values()].map(d => [d.id, d.name, d.color]),
     dlayer: rle(districtLayer),
@@ -247,6 +248,7 @@ function loadData(d) {
   if (!isInt(d.seed, 0, 1e9)) throw new Error(BAD);
   for (const k of ['tile', 'oneway', 'overpass', 'walkway', 'water', 'tree']) if (typeof d[k] !== 'string' || d[k].length > 5e6) throw new Error(BAD);
   if (!Array.isArray(d.b) || d.b.length > 40000 || !Array.isArray(d.lights) || d.lights.length > 40000) throw new Error(BAD);
+  if (d.charred !== undefined && (!Array.isArray(d.charred) || d.charred.length > 40000)) throw new Error(BAD);
   if (d.gates !== undefined && (!Array.isArray(d.gates) || d.gates.length > N)) throw new Error(BAD);
   if (Array.isArray(d.gates) && d.gates.some(i => !isInt(i, 0, N - 1))) throw new Error(BAD);
   if (d.gateOff !== undefined && (!Array.isArray(d.gateOff) || d.gateOff.length > N)) throw new Error(BAD);
@@ -270,6 +272,7 @@ function loadData(d) {
   if (typeof d.sig === 'string') unrleInto(d.sig, nsig, 1);
   genTerrainInto(d.seed, nwa, ntr); applyDiff(d.water, nwa, 1); applyDiff(d.tree, ntr, TREE_MAXV);
   for (const e of d.b) if (!Array.isArray(e) || !hasType(e[0]) || !isInt(e[1], 0, MW - 1) || !isInt(e[2], 0, MH - 1) || !isInt(e[3], 0, 4294967295)) throw new Error(BAD);
+  if (Array.isArray(d.charred)) for (const e of d.charred) if (!Array.isArray(e) || !hasType(e[0]) || !isInt(e[1], 0, MW - 1) || !isInt(e[2], 0, MH - 1) || !isInt(e[3], 0, 4294967295)) throw new Error(BAD);
   for (const e of d.lights) if (!Array.isArray(e) || !isInt(e[0], 0, N - 1) || !isInt(e[1], 3, 25) || !isInt(e[2], 3, 25) || !isInt(e[3], 0, 60)) throw new Error(BAD);
   // the save is valid: replace the region
   clearWorld();
@@ -311,6 +314,15 @@ function loadData(d) {
       if (b.type !== 'billboard' || !policy || !['driving', 'tax', 'environment', 'birth', 'health'].includes(policy.message) || !['positive', 'negative'].includes(policy.tone)) throw new Error(BAD);
       b.policy = {message: policy.message, tone: policy.tone};
     }
+  }
+  if (Array.isArray(d.charred)) for (const [type, x, y, seed] of d.charred) {
+    const b = canPlace(type, x, y) || canPlaceLoose(type, x, y) ? placeBuilding(type, x, y, seed) : null;
+    if (!b) continue;
+    buildings.delete(b.id);
+    b.charred = true;
+    b.queue = [];
+    charredBuildings.set(b.id, b);
+    wrecks.push({ruin: true, charredBuilding: true, id: b.id, type, x, y, w: b.w, h: b.h, seed, t: simTime, until: Infinity});
   }
   if (d.resources) for (const good of Object.keys(resources)) if (Number.isFinite(d.resources[good])) resources[good] = d.resources[good];
   for (const [i, ns, ew, off] of d.lights) lights.set(i, {ns, ew, off});
