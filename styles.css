@@ -228,3 +228,27 @@ body.menu-screen #top,body.menu-screen #taxBtn,body.menu-screen #menu,body.menu-
 @media (max-height:600px){.start-screen{padding-top:12px;padding-bottom:10px}.start-layout{padding:12px 0;gap:20px}.start-copy h1{font-size:clamp(42px,6vw,60px)}.start-description{margin:12px 0 16px}.start-aside{padding:9px}.preview-divider{margin:7px 0}.preview-stats{margin-top:9px}}
 @media (prefers-reduced-motion:reduce){.menu-primary,.menu-secondary,.option-card{transition:none}}
 @media (max-width:760px){#side{display:none}#inspector{top:auto;bottom:190px;width:calc(100vw - 20px);max-height:40vh}.brand{display:none}}
+
+/* City statistics: compact summary dialog and the full-screen record. */
+#statsBtn{padding:4px 10px;border:2px solid var(--edge);background:var(--panel2);color:var(--hi);font:inherit;font-size:18px}
+#statsBtn:hover{border-color:var(--hi);background:#3c3520}
+.stats-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px}
+.stat-cell{display:flex;flex-direction:column;gap:2px;padding:6px 8px;background:var(--ink);border:2px solid var(--line)}
+.stat-label{color:var(--dim);font-size:16px;line-height:1}
+.stat-cell b{color:var(--hi);font-weight:normal;font-size:21px;line-height:1.05;font-variant-numeric:tabular-nums}
+.stats-content{width:min(1220px,100
+/* City statistics: compact summary dialog and the full-screen record. */
+#statsBtn{padding:4px 10px;border:2px solid var(--edge);background:var(--panel2);color:var(--hi);font:inherit;font-size:18px}
+#statsBtn:hover{border-color:var(--hi);background:#3c3520}
+.stats-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px}
+.stat-cell{display:flex;flex-direction:column;gap:2px;padding:6px 8px;background:var(--ink);border:2px solid var(--line)}
+.stat-label{color:var(--dim);font-size:16px;line-height:1}
+.stat-cell b{color:var(--hi);font-weight:normal;font-size:21px;line-height:1.05;font-variant-numeric:tabular-nums}
+.stats-content{width:min(1220px,100%)}
+.stats-full{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px;margin-top:22px;align-items:start}
+.stat-block{padding:10px 12px;background:rgba(20,26,44,.94);border:2px solid var(--edge);box-shadow:3px 3px 0 #070910}
+.stat-block h2{margin:0 0 6px;color:var(--hi);font-size:20px;font-weight:normal;letter-spacing:1px;text-transform:uppercase}
+.stat-block .row{padding:1px 0;font-size:17px;gap:10px}
+.stat-block .row span:first-child{color:var(--dim)}
+.stat-block .row span:last-child{text-align:right;color:var(--txt);font-variant-numeric:tabular-nums}
+@media (max-width:560px){.stats-grid{grid-template-columns:1fr}.stat-block .row{font-size:16px}}

@@ -30,7 +30,10 @@ const HEAT_BUCKETS = Array.from({length: 32}, (_, k) => {
   const [r, g, b] = heatRGB((k + 0.5) / 32);
   return { col: `rgba(${r | 0},${g | 0},${b | 0},.9)`, n: 0, a: [] };
 });
-const moodFace = m => m >= 0.7 ? 'happy' : m >= 0.5 ? 'ok' : m >= 0.3 ? 'sad' : 'angry';
+// Six steps rather than four, so a city can be thriving without every happy
+// resident looking identical. Sickness and anxiety override this in homeMoodKind.
+const moodFace = m => m >= 0.9 ? 'ecstatic' : m >= 0.74 ? 'happy' : m >= 0.58 ? 'content'
+  : m >= 0.42 ? 'uneasy' : m >= 0.24 ? 'miserable' : 'angry';
 function render() {
   if (regionView) { renderRegion(); return; }
   const z = cam.z;
@@ -130,6 +133,11 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
     }
   }
 
+  // Billboard faces are live overlays, so changing the advertised policy is
+  // visible immediately even though the building art itself is baked into chunks.
+  if (typeof drawBillboardSign === 'function') {
+    for (const b of vis) if (b.type === 'billboard') drawBillboardSign(f, b);
+  }
   // streets shut by a crash: a red and white barrier across the carriageway
   for (const [i, until] of streetClosures) {
     if (until <= simTime) continue;
@@ -137,8 +145,16 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
     if (tx < vx0 || tx > vx1 || ty < vy0 || ty > vy1) continue;
     drawStreetClosure(f, tx * T, ty * T, (cmask[i] & 10) !== 0);
   }
-  // crash sites: the scorch and hull outlive the incident, the smoke fades
-  for (const w of wrecks) if (inP(w.x * T, w.y * T)) drawWreck(f, w, simTime);
+  // crash sites and burnt-out parcels: both outlive their incident. Ruins are
+  // drawn over the rebuilt ground chunk, never baked into it, so bulldozing or
+  // the slow fade can remove them without a map redraw.
+  for (const w of wrecks) {
+    if (w.ruin) {
+      const rx = w.x * T, ry = w.y * T, rw = w.w * T, rh = w.h * T;
+      if (rx > sx1 || ry > sy1 || rx + rw < sx0 || ry + rh < sy0) continue;
+      drawRuin(f, w);
+    } else if (inP(w.x * T, w.y * T)) drawWreck(f, w, simTime);
+  }
   // emergency units and the incidents they are working. A unit sitting in its
   // station is parked inside the building, so only the ones on the road show.
   for (const u of units) {
@@ -286,7 +302,7 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
         const x = b.x * T + b.w * T - 4, y = b.y * T + (blink ? 0 : 1);
         f.fillStyle = 'rgba(190,210,255,.85)'; f.fillRect(x, y, 3, 1); f.fillRect(x + 1, y + 1, 1, 1); f.fillRect(x, y + 2, 3, 1);
       }
-      if (overlays.mood) drawFace(f, b.x * T + 1, b.y * T - 2, moodFace(b.mood));
+      if (overlays.mood) drawFace(f, b.x * T + 1, b.y * T - 2, homeMoodKind(b));
     }
     // blinking no-parking sign where drivers recently gave up looking for a space
     if (b.parkFail !== undefined && simTime - b.parkFail < 40 && (performance.now() / 450 | 0) % 2) {

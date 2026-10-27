@@ -4,6 +4,13 @@
 function newPerson(home) {
   return {id: nextAid++, home, job: 0, loc: home, carAt: home, lotFor: 0, state: 'idle',
     stayUntil: 0, worked: -1, worker: Math.random() < 0.7,    mood: worldSettings.difficulty === 'ideal' ? 1 : 0.75, ideal: 0,
+    // Mood drivers. A person's overall mood is a blend of these, so a good job
+    // cannot fully hide an exhausting commute or a sick household.
+    moodWork: 0.75, moodHome: 0.75, moodHealth: 0.85, moodSafety: 0.8,
+    moodLeisure: 0.7, moodTaxes: 0.7, moodWeather: 0.8, moodLocal: 0.7, stress: 0.12,
+    // Health is the ground floor for sickness: immunity rises after recovery.
+    health: 0.9 + Math.random() * 0.1, immunity: 0.35 + Math.random() * 0.4,
+    sick: false, illness: 0, illnessKey: '', sickSince: 0,
     // bed and wake times follow a bell curve, so the city drifts off and wakes up gradually
     bed: clamp(22.4 + gauss() * 1.0, 20.2, 25.6), wake: clamp(6.5 + gauss() * 0.9, 4.4, 9.6),
     color: CARC[Math.floor(Math.random() * CARC.length)], shirt: SHIRT[Math.floor(Math.random() * SHIRT.length)],
@@ -32,12 +39,15 @@ function teleportHome(a) {
 function arriveAgent(a, b, mode) {
   a.state = 'idle'; a.loc = b.id; a.car = null; a.ped = null; b.people++;
   const dur = Math.max(1, gameMin - a.tripStart);
+  stats.totalTrips = (stats.totalTrips || 0) + 1;
   stats.trips.push(dur); if (stats.trips.length > 150) stats.trips.shift();
   stats.modes.push(mode); if (stats.modes.length > 300) stats.modes.shift();
   // How people feel about traffic: a drive close to the free-flow time is a good drive.
   const score = mode === 'car' ? clamp(((a.ideal + 3) / dur - 0.5) / 0.4, 0, 1) : mode === 'walk' ? 0.88 : 0.82;
   const sensitivity = {ideal: 0, easy: 0.35, normal: 0.7, hard: 1, insane: 1.5}[worldSettings.difficulty] ?? 0.7;
   a.mood = a.mood * (1 - 0.3 * sensitivity) + score * (0.3 * sensitivity);
+  // A bad trip adds stress; a smooth one takes a little away.
+  a.stress = clamp((a.stress || 0) + (score < 0.4 ? 0.07 : score > 0.72 ? -0.03 : 0), 0, 1);
   if (b.id === a.home) a.stayUntil = 0;
   else if (b.id === a.job) a.stayUntil = gameMin + 450 + Math.random() * 90;
   else if (isLeisure(b.type)) a.stayUntil = gameMin + 50 + Math.random() * 110;
@@ -533,31 +543,111 @@ const nearType = (b, type, r) => {
 // ---------------------------------------------------------------------
 // Moods: jobs, transport, overall and the reproductive mood that drives births
 // ---------------------------------------------------------------------
-const cityMood = {job: 0.7, transport: 0.7, overall: 0.7, repro: 0.55};
+const cityMood = {job: 0.7, transport: 0.7, housing: 0.7, health: 0.75, safety: 0.8,
+  leisure: 0.65, taxes: 0.7, weather: 0.8, local: 0.7, stress: 0.15, sick: 0, overall: 0.7, repro: 0.55};
 function jobsWanted() { let n = 0; for (const b of buildings.values()) n += BT[b.type].jobs; return n; }
 function hospitalCount() { let n = 0; for (const b of buildings.values()) if (b.type === 'hospital') n++; return n; }
+const weatherMood = wx => ({sunny: 1, cloudy: 0.88, rain: 0.68, storm: 0.42, snow: 0.55}[wx] ?? 0.8);
 function updateMoods() {
-  let pop = 0, employed = 0;
-  for (const a of agents) { pop++; if (a.job) employed++; }
+  let pop = 0, employed = 0, sick = 0, stressSum = 0, healthSum = 0, homes = 0;
+  let leisureSites = 0, walkSites = 0, police = 0, localSum = 0;
+  for (const a of agents) {
+    pop++; if (a.job) employed++;
+    if (a.sick) sick++;
+    stressSum += a.stress || 0;
+    healthSum += a.health ?? 1;
+    const home = B(a.home);
+    if (home && typeof localMoodFactors === 'function') localSum += localMoodFactors(home).overall;
+    else localSum += 0.7;
+  }
+  for (const b of buildings.values()) {
+    homes += BT[b.type].homes || 0;
+    if (isLeisure(b.type)) leisureSites++;
+    if (b.type === 'policeStation') police++;
+    if (b.walk >= 0) walkSites++;
+  }
   const want = jobsWanted();
-  const filled = want ? Math.min(1, employed / want) : 1;
+  // Sickness takes people off the job and makes their households more cautious,
+  // so job mood reflects the effective workforce rather than nominal headcount.
+  const sickSnap = typeof sicknessSnapshot === 'function' ? sicknessSnapshot() : null;
+  const workFactor = sickSnap ? sickSnap.work : 1;
+  const filled = want ? Math.min(1, employed * workFactor / want) : 1;
   const job = clamp(0.35 + 0.65 * filled, 0.05, 1);
   const transport = clamp(1 - stats.ti * 0.55 - (stats.wait || 0) * 0.08, 0.05, 1);
-  const cover = Math.min(1, hospitalCount() / Math.max(1, pop / 260));
-  const overallBase = clamp(0.42 * job + 0.3 * transport + 0.28 * cover, 0.05, 1);
+  const cover = Math.min(1, hospitalCount() * 260 / Math.max(1, pop));
+  const occupancy = pop / Math.max(1, homes);
+  const housing = clamp(1 - Math.max(0, occupancy - 0.55) * 0.8, 0.05, 1);
+  const sickShare = pop ? sick / pop : 0;
+  const health = sickSnap ? sickSnap.health
+    : clamp(0.42 + 0.34 * cover + 0.24 * (1 - sickShare * 3) - 0.18 * clamp(1 - (healthSum / Math.max(1, pop)), 0, 1), 0.05, 1);
+  const active = incidents.filter(i => i.state !== 'done').length;
+  const safety = clamp(0.94 - active * 0.055 + police * 0.02, 0.05, 1);
+  const leisure = clamp(0.22 + Math.min(1, leisureSites / Math.max(1, pop / 180)) * 0.5 + Math.min(1, walkSites / Math.max(1, pop / 240)) * 0.24, 0.05, 1);
+  const taxes = clamp(1 - ((worldSettings.taxSales || 0) + (worldSettings.taxIncome || 0)) / 50 * 0.75, 0.05, 1);
+  const wx = weatherMood(weatherNow().kind);
+  const stress = pop ? clamp(stressSum / pop, 0, 1) : 0;
+  // Neighbourhood quality is its own driver: a pleasant park-side street can
+  // feel better than a mansion beside a jammed highway.
+  const local = pop ? clamp(localSum / pop, 0.05, 1) : 0.7;
+  const overallBase = clamp(job * 0.19 + transport * 0.17 + housing * 0.11 + health * 0.17 +
+    safety * 0.09 + leisure * 0.07 + taxes * 0.06 + wx * 0.07 + local * 0.07 - stress * 0.08, 0.05, 1);
   const overall = worldSettings.difficulty === 'ideal' ? 1 : overallBase;
-  const repro = clamp(0.25 + 0.6 * overall + 0.15 * cover, 0.05, 1);
+  const repro = clamp(0.22 + 0.55 * overall + 0.15 * cover + 0.1 * health, 0.05, 1);
   // Ideal makes residents reliably happy; other tiers react at increasing rates.
   const ease = {ideal: 1, easy: 0.1, normal: 0.22, hard: 0.38, insane: 0.58}[worldSettings.difficulty] ?? 0.22;
-  if (worldSettings.difficulty === 'ideal') for (const a of agents) a.mood = 1;
   cityMood.job += (job - cityMood.job) * ease;
   cityMood.transport += (transport - cityMood.transport) * ease;
+  cityMood.housing += (housing - cityMood.housing) * ease;
+  cityMood.health += (health - cityMood.health) * ease;
+  cityMood.safety += (safety - cityMood.safety) * ease;
+  cityMood.leisure += (leisure - cityMood.leisure) * ease;
+  cityMood.taxes += (taxes - cityMood.taxes) * ease;
+  cityMood.weather += (wx - cityMood.weather) * ease;
+  cityMood.local += (local - cityMood.local) * ease;
+  cityMood.stress += (stress - cityMood.stress) * ease;
+  cityMood.sick += (sickShare - cityMood.sick) * ease;
   cityMood.overall += (overall - cityMood.overall) * ease;
   cityMood.repro += (repro - cityMood.repro) * ease;
+
+  // Give every resident the whole picture, not just a city average. A sick
+  // person, or one whose home is crowded, feels it in their own mood.
+  for (const a of agents) {
+    if (worldSettings.difficulty === 'ideal') { a.mood = 1; a.stress = 0; continue; }
+    const home = B(a.home);
+    const crowd = home ? clamp(home.residents / Math.max(1, BT[home.type].homes), 0, 1) : 0.5;
+    const personalHealth = a.sick ? clamp(a.health * 0.55, 0, 1) : clamp(0.55 + a.health * 0.45, 0, 1);
+    a.moodWork += (((a.job ? 0.74 : 0.34) * 0.65 + cityMood.job * 0.35) - a.moodWork) * ease;
+    a.moodHome += (((1 - crowd * 0.55) * 0.6 + cityMood.housing * 0.4) - a.moodHome) * ease;
+    a.moodHealth += ((personalHealth * 0.7 + cityMood.health * 0.3) - a.moodHealth) * ease;
+    a.moodSafety += (cityMood.safety - a.moodSafety) * ease;
+    a.moodLeisure += (cityMood.leisure - a.moodLeisure) * ease;
+    a.moodTaxes += (cityMood.taxes - a.moodTaxes) * ease;
+    const localWx = home ? weatherMood(weatherAt(home.cx, home.cy)) : cityMood.weather;
+    a.moodWeather += ((localWx * 0.65 + cityMood.weather * 0.35) - a.moodWeather) * ease;
+    const localHome = home && typeof localMoodFactors === 'function' ? localMoodFactors(home).overall : cityMood.local;
+    a.moodLocal += ((localHome * 0.7 + cityMood.local * 0.3) - a.moodLocal) * ease;
+    a.stress = clamp((a.stress || 0) + (a.sick ? 0.03 : 0) + (1 - cityMood.transport) * 0.02 - 0.02, 0, 1);
+    const target = a.moodWork * 0.21 + a.moodHome * 0.14 + a.moodHealth * 0.19 +
+      a.moodSafety * 0.1 + a.moodLeisure * 0.1 + a.moodTaxes * 0.08 + a.moodWeather * 0.06 + a.moodLocal * 0.09 - a.stress * 0.08;
+    a.mood = clamp(a.mood + (clamp(target, 0.03, 1) - a.mood) * ease, 0.02, 1);
+  }
+  const homeStats = new Map();
+  for (const a of agents) {
+    let s = homeStats.get(a.home);
+    if (!s) homeStats.set(a.home, s = {n: 0, sick: 0, stress: 0, health: 0, local: 0});
+    s.n++; if (a.sick) s.sick++;
+    s.stress += a.stress || 0; s.health += a.health ?? 1; s.local += a.moodLocal || cityMood.local;
+  }
   for (const b of buildings.values()) {
     if (!BT[b.type].homes) continue;
+    const s = homeStats.get(b.id);
+    b.sick = s ? s.sick : 0;
+    b.stress = s && s.n ? s.stress / s.n : 0;
+    b.health = s && s.n ? s.health / s.n : 1;
+    if (s && s.n) s.local /= s.n;
     b.moodJob += (cityMood.job - b.moodJob) * ease;
     b.moodTransport += (cityMood.transport - b.moodTransport) * ease;
+    b.moodLocal = s && s.local != null ? s.local : cityMood.local;
     b.moodOverall += (cityMood.overall - b.moodOverall) * ease;
     b.moodRepro += (cityMood.repro - b.moodRepro) * ease;
     b.mood = b.moodOverall;
@@ -573,6 +663,7 @@ function hourTick() {
   // Production is accounted for by producer stock and item-specific storage;
   // it changes numbers, not art, so no tiles need redrawing here.
   updateMoods();
+  if (typeof sicknessHour === 'function') sicknessHour();
   if (typeof logisticsHour === 'function') logisticsHour();
 }
 function minuteTick() {
@@ -605,9 +696,26 @@ function minuteTick() {
     if (Math.random() < 1 / 40) spawnBoat(dk, false);
     if (Math.random() < 1 / 40) spawnBoat(dk, true);
   }
+  // Household caution: when somebody at home is ill, the healthy residents are
+  // less likely to leave for work or leisure. This is separate from the sick
+  // person staying in bed, and it visibly thins both commuting and traffic.
+  const homeSick = new Map(), homePeople = new Map();
+  for (const a of agents) {
+    homePeople.set(a.home, (homePeople.get(a.home) || 0) + 1);
+    if (a.sick) homeSick.set(a.home, (homeSick.get(a.home) || 0) + 1);
+  }
   for (const a of agents) {
     if (a.dead || a.state !== 'idle') continue;
+    // People who are ill stay home until they recover.
+    if (a.sick) {
+      if (a.loc !== a.home) go(a, a.home, 'home');
+      const H = B(a.home);
+      if (H && a.loc === a.home && asleepAt(a, h)) H.asleep++;
+      continue;
+    }
     const late = h >= a.bed - 0.5 || h < 4;
+    const homeIll = (homeSick.get(a.home) || 0) / Math.max(1, homePeople.get(a.home) || 1);
+    const homeCaution = clamp(1 - homeIll * 0.45, 0.45, 1);
     if (a.loc === a.home) {
       if (asleepAt(a, h)) { const H = B(a.home); if (H) H.asleep++; continue; }
       if (h >= Math.max(6, wakeToday(a)) && h < 11 && a.worked !== day && a.worker) {
@@ -615,9 +723,11 @@ function minuteTick() {
           a.worked = day;
           if (!a.job) assignJob(a);
           else if (Math.random() < 0.4) reconsiderJob(a);
-          if (a.job) go(a, a.job, 'work');
+          // Most people still go in, but a household with illness loses some
+          // work trips instead of only the person who is actually sick.
+          if (a.job && Math.random() < homeCaution) go(a, a.job, 'work');
         }
-      } else if (h >= 9 && h < Math.min(21, a.bed - 1.5) && Math.random() < 0.0013) {
+      } else if (h >= 9 && h < Math.min(21, a.bed - 1.5) && Math.random() < 0.0013 * homeCaution) {
         leisure(a, B(a.home));
       }
     } else {

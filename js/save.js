@@ -308,7 +308,7 @@ function loadData(d) {
       b.byproducts = clean;
     }
     if (policy !== null) {
-      if (b.type !== 'billboard' || !policy || !['driving', 'tax', 'environment', 'birth'].includes(policy.message) || !['positive', 'negative'].includes(policy.tone)) throw new Error(BAD);
+      if (b.type !== 'billboard' || !policy || !['driving', 'tax', 'environment', 'birth', 'health'].includes(policy.message) || !['positive', 'negative'].includes(policy.tone)) throw new Error(BAD);
       b.policy = {message: policy.message, tone: policy.tone};
     }
   }

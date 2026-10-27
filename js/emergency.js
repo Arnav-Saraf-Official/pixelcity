@@ -204,7 +204,7 @@ function dispatch(inc) {
 }
 
 function raiseIncident(kind, x, y, buildingId, extra) {
-  const inc = {id: nextIncident++, kind, x, y, b: buildingId || 0, age: 0, state: 'open', unit: 0, progress: 0};
+  const inc = {id: nextIncident++, kind, x, y, b: buildingId || 0, age: 0, started: gameMin, state: 'open', unit: 0, progress: 0};
   if (extra) Object.assign(inc, extra);
   incidents.push(inc);
   stats.lastSite = {x: Math.round(x), y: Math.round(y)};
@@ -266,6 +266,30 @@ const planeCrashChance = () => PLANE_CRASH[worldSettings.difficulty] ?? 0.015;
 const CRASH_ROAD_RANGE = 8;
 
 const WRECK_VARIANTS = 4;
+// Anyone at the impact site is lost. Pedestrians standing in the blast radius
+// and people inside a building under the wreck are counted, so the city record
+// can show real casualties instead of a decorative zero.
+function planeCasualties(tx, ty) {
+  const R = 3;
+  let dead = 0;
+  for (const p of peds) {
+    if (p.dead) continue;
+    if (Math.abs(Math.round(p.x / T) - tx) <= R && Math.abs(Math.round(p.y / T) - ty) <= R) { p.dead = true; dead++; }
+  }
+  for (const a of agents) {
+    if (a.dead || a.state !== 'idle' || !a.loc) continue;
+    const b = B(a.loc);
+    if (!b || Math.abs(b.cx - tx) > R || Math.abs(b.cy - ty) > R) continue;
+    killAgent(a); dead++;
+  }
+  if (dead) {
+    agents = agents.filter(a => !a.dead);
+    peds = peds.filter(p => !p.dead);
+    recount();
+  }
+  stats.planeDeaths = (stats.planeDeaths || 0) + dead;
+  return dead;
+}
 function planeCrash(x, y) {
   stats.planeCrashes = (stats.planeCrashes || 0) + 1;
   const tx = Math.round(x), ty = Math.round(y);
@@ -275,8 +299,10 @@ function planeCrash(x, y) {
     return;
   }
   wrecks.push({x: tx, y: ty, v: (Math.random() * WRECK_VARIANTS) | 0, t: simTime, until: gameMin + 720});
+  const lost = planeCasualties(tx, ty);
   const shut = closeStreetAround(tx, ty);
   toastAction(`A flight went down in the storm in ${DISTRICTS[districtOf(tx, ty)]}.` +
+    (lost ? ` ${lost} ${lost === 1 ? 'person was' : 'people were'} lost.` : '') +
     (shut ? ' The street around the wreck is closed.' : ''), 'Take me there', () => showSite(tx, ty));
   // the wreck burns and there are casualties, so a truck and an ambulance come
   const site = {roadMax: CRASH_ROAD_RANGE, wreck: true};
@@ -345,6 +371,7 @@ function evacuate(b) {
   if (!inside.length) return;
   const from = nearestWalkTile(b.cx, b.cy);
   if (from < 0) return;
+  stats.evacuated = (stats.evacuated || 0) + inside.length;
   const shelter = nearestShelter(b);
   for (const a of inside) {
     if (a.car) { a.car.dead = true; releaseAll(a.car); carById.delete(a.car.id); a.car = null; }
@@ -415,7 +442,9 @@ function maybeFire(hourly) {
 
 // Is there something in the road just ahead of a unit? Crews queue in traffic
 // rather than driving through it, though after a few seconds they edge forward
-// so a jam can never trap an ambulance for good.
+// so a jam can never trap an ambulance for good. The lateral test is tight
+// enough to ignore the opposite lane: a unit and a car in separate lanes are
+// only a few pixels apart at this scale.
 function unitBlocked(u) {
   const hx = DX[u.d || 2], hy = DY[u.d || 2];
   const fx = u.x * T + hx * 5, fy = u.y * T + hy * 5;
@@ -423,7 +452,9 @@ function unitBlocked(u) {
   if (!arr) return false;
   for (const o of arr) {
     if (o.unit) continue;
-    if (Math.abs(o.x - fx) + Math.abs(o.y - fy) < 4.5) return true;
+    const vx = o.x - fx, vy = o.y - fy;
+    if (vx * hx + vy * hy > -1 && Math.abs(vx * hy - vy * hx) < 2.6 &&
+        Math.abs(o.x - u.x * T) + Math.abs(o.y - u.y * T) < 6) return true;
   }
   return false;
 }
@@ -453,12 +484,16 @@ function stepIncidents(dt) {
       if (facing) u.d = facing;
       if (unitBlocked(u)) u.blocked = (u.blocked || 0) + dt; else u.blocked = 0;
       if (!u.blocked || u.blocked > 4) u.i += speed * dt / T;
-      const k = Math.min(p.length - 1, Math.floor(u.i));
-      const a = p[k], b = p[Math.min(p.length - 1, k + 1)];
-      const ax = a % MW, ay = a / MW | 0, bx = b % MW, by = b / MW | 0;
-      const t = Math.min(1, u.i - k);
-      u.x = ax + (bx - ax) * t + 0.5;
-      u.y = ay + (by - ay) * t + 0.5;
+      // Keep the engine in the same right-hand lane as ordinary traffic, so it
+      // queues behind cars instead of straddling the centre line between both
+      // lanes. laneGeom works in pixels; units store tile coordinates.
+      const k = Math.min(p.length - 2, Math.floor(u.i));
+      const t = clamp(u.i - k, 0, 1);
+      const g = {x: 0, y: 0, d: facing || u.d || 2};
+      laneGeom(g, p, k, t, 1, 0);
+      u.x = (g.x - 4.5) / T;
+      u.y = (g.y - 4.5) / T;
+      u.d = g.d || facing || u.d || 2;
       if (u.i >= p.length - 1) {
         if (u.state === 'enroute') { u.state = 'onscene'; u.timer = 0; }
         else parkUnit(u);   // home again, out of sight inside the station
@@ -478,8 +513,18 @@ function stepIncidents(dt) {
     inc.age += dt;
     if (inc.state === 'open' && !inc.unit) dispatch(inc);
     // nobody could come: a tow truck clears the wreck after a while
-    if (inc.state === 'open' && inc.age > 300) { inc.state = 'done'; stats.crashesCleared = (stats.crashesCleared || 0) + 1; }
-    if (inc.kind === 'fire' && inc.age > 240) burnDown(inc);
+    if (inc.state === 'open' && inc.age > 300) {
+      inc.state = 'done';
+      if (inc.kind === 'crash') stats.crashesCleared = (stats.crashesCleared || 0) + 1;
+    }
+    // A building fire gets 25 world minutes. If it is still burning after that,
+    // it takes the buildings around it with it: three quarters of the nearby
+    // structures catch, and each one starts its own 25-minute clock.
+    if (inc.kind === 'fire' && inc.b && inc.state !== 'done' &&
+        gameMin - (inc.started ?? gameMin) >= FIRE_SPREAD_MINUTES) {
+      spreadFire(inc);
+      burnDown(inc);
+    }
   }
   for (let k = incidents.length - 1; k >= 0; k--) {
     if (incidents[k].state === 'done') incidents.splice(k, 1);
@@ -497,13 +542,68 @@ function resolveIncident(inc, u) {
   if (inc.kind === 'fire') stats.firesOut = (stats.firesOut || 0) + 1;
   else stats.crashesCleared = (stats.crashesCleared || 0) + 1;
 }
+// How far a fire reaches: from the edge of the burning footprint, not from its
+// centre, so a large building does not magically protect the row beside it.
+const FIRE_SPREAD_MINUTES = 25;
+const FIRE_SPREAD_REACH = 4;
+const FIRE_SPREAD_SHARE = 0.75;
+
+function nearbyBuildings(b, reach) {
+  const out = [];
+  for (const o of buildings.values()) {
+    if (o.id === b.id) continue;
+    const dx = Math.max(0, Math.abs(o.x - b.x) - (o.w + b.w) / 2);
+    const dy = Math.max(0, Math.abs(o.y - b.y) - (o.h + b.h) / 2);
+    if (Math.max(dx, dy) <= reach) out.push(o);
+  }
+  out.sort((a, c) => distB(a, b) - distB(c, b));
+  return out;
+}
+
+function spreadFire(inc) {
+  const b = B(inc.b);
+  if (!b) return;
+  const near = nearbyBuildings(b, FIRE_SPREAD_REACH);
+  if (!near.length) return;
+  const burning = new Set();
+  for (const other of incidents) if (other.kind === 'fire' && other.state !== 'done' && other.b) burning.add(other.b);
+  const candidates = near.filter(o => !burning.has(o.id));
+  // Round to the nearest building so a street with two neighbours catches one
+  // or two, and a row of four catches three: seventy-five percent, not always
+  // the whole row.
+  const count = Math.max(1, Math.round(candidates.length * FIRE_SPREAD_SHARE));
+  let lit = 0;
+  for (const o of candidates) {
+    if (lit >= count) break;
+    raiseIncident('fire', o.cx, o.cy, o.id);
+    lit++;
+  }
+  if (lit) toast(`Fire spread to ${lit} nearby building${lit === 1 ? '' : 's'}.`);
+}
+
+// The burnt-out shell is removed from the building layer, leaving a charred
+// footprint on the ground. It is drawn live, so it never becomes stale map art;
+// bulldozing the tiles clears it, and it also fades from the record after three
+// in-game days if the player leaves it alone.
 function burnDown(inc) {
   inc.state = 'done';
   const b = B(inc.b);
   if (!b) return;               // a wreck with no building left to lose
+  const footprint = {x: b.x, y: b.y, w: b.w, h: b.h, seed: b.seed};
   for (const a of agents) if (a.home === b.id) a.mood = Math.max(0, a.mood - 0.3);
   removeBuilding(b);
-  markDirty(inc.x - 6, inc.y - 6, inc.x + 6, inc.y + 6);
+  wrecks.push({ruin: true, ...footprint, t: simTime, until: gameMin + 3 * 1440});
+  markDirty(footprint.x - 1, footprint.y - 1, footprint.x + footprint.w, footprint.y + footprint.h);
   stats.burned = (stats.burned || 0) + 1;
   toast('A building burned down.');
+}
+
+// Bulldozing a ruin removes the charred overlay as well as the ground tiles.
+function clearRuinsRect(x0, y0, x1, y1) {
+  for (let k = wrecks.length - 1; k >= 0; k--) {
+    const r = wrecks[k];
+    if (!r.ruin) continue;
+    if (r.x > x1 || r.x + r.w - 1 < x0 || r.y > y1 || r.y + r.h - 1 < y0) continue;
+    wrecks.splice(k, 1);
+  }
 }

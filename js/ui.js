@@ -350,11 +350,11 @@ function select(sel) {
   if (sel.kind === 'bld') {
     const b = B(sel.id), d = BT[b.type];
     html = `<div class="ih"><span id="iIcon"></span><div class="t">${d.name}<small>${d.label || CATLABEL[d.cat]} · ${DISTRICTS[districtOf(b.cx, b.cy)]}</small></div><button id="iClose">✕</button></div>`;
-    if (d.homes) html += row('Residents', 'ivRes') + row('Home right now', 'ivHome') + row('Asleep', 'ivSleep') + row('Happy with traffic', 'ivMood');
+    if (d.homes) html += row('Residents', 'ivRes') + row('Home right now', 'ivHome') + row('Asleep', 'ivSleep') + row('Overall mood', 'ivMood') + row('Residents unwell', 'ivSick') + row('Average health', 'ivHealth');
     if (d.jobs) html += row('Workers', 'ivJobs') + row('People inside', 'ivPeople');
     if (isLeisure(b.type)) html += row('Visitors', 'ivPeople');
     if (d.efficiencyBase) html += row('Industry efficiency', 'ivEfficiency');
-    if (b.type === 'billboard') html += `<label for="billboardPolicy">Policy advertisement</label><select id="billboardPolicy"><option value="driving">Driving</option><option value="tax">Tax</option><option value="environment">Environment</option><option value="birth">Birth rate</option></select><label for="billboardTone">Public response</label><select id="billboardTone"><option value="positive">Positive</option><option value="negative">Negative</option></select><p class="note">Policy effects on mood are a future system.</p>`;
+    if (b.type === 'billboard') html += `<label for="billboardPolicy">Policy advertisement</label><select id="billboardPolicy"><option value="driving">Driving</option><option value="tax">Tax</option><option value="environment">Environment</option><option value="birth">Birth rate</option><option value="health">Health</option></select><label for="billboardTone">Public response</label><select id="billboardTone"><option value="positive">Positive / promote</option><option value="negative">Negative / demote</option></select>${row('Nearby health mood', 'ivAdMood')}${row('Local infection pressure', 'ivAdRisk')}<p class="note">Health ads reach homes within 12 blocks. Positive ads lift health mood and ease local infection pressure; negative ads do the reverse.</p>`;
     if (b.type === 'warehouse') html += row('Mixed inventory', 'ivInventory');
     if (d.cap) html += row('Cars parked', 'ivCars') + `<div class="bar"><i id="ivBar"></i></div>`;
     if (b.type === 'metro') html += row('Riders nearby', 'ivRiders');
@@ -366,7 +366,7 @@ function select(sel) {
     if (BT[b.type].cat === 'com') html += row('Goods on the shelf', 'ivStock');
     html += row('Road access', 'ivRoad') + row('Walk score', 'ivWalk') + row('Cars heading here', 'ivIncoming');
     html += row('District', 'ivDistrict');
-    if (d.homes) html += row('Job mood', 'ivMoodJob') + row('Transport mood', 'ivMoodRide') + row('Birth mood', 'ivMoodBirth');
+    if (d.homes) html += row('Job mood', 'ivMoodJob') + row('Transport mood', 'ivMoodRide') + row('Home mood', 'ivMoodHome') + row('Health mood', 'ivMoodHealth') + row('Birth mood', 'ivMoodBirth') + row('Local mood', 'ivMoodLocal') + row('Parks & green', 'ivMoodGreen') + row('Quiet', 'ivMoodQuiet') + row('Clean air', 'ivMoodAir') + row('Local safety', 'ivMoodSafety') + row('Health care nearby', 'ivMoodCare');
     if (POWER_REQ[b.type]) html += row('Power output', 'ivPower') + row('Needs', 'ivPowerNeed');
     html += `<div class="btns"><button class="danger" id="iDel">Bulldoze</button></div>`;
   } else if (sel.kind === 'light') {
@@ -401,11 +401,16 @@ function select(sel) {
   if (sel.kind === 'road') buildRoadButtons();
   if (sel.kind === 'crossing') buildCrossButtons();
   if (sel.kind === 'bld' && B(sel.id).type === 'billboard') {
-    const b = B(sel.id); b.policy ||= {message: 'driving', tone: 'positive'};
+    const b = B(sel.id); b.policy = billboardPolicyOf(b);
     const msg = document.getElementById('billboardPolicy'), tone = document.getElementById('billboardTone');
     msg.value = b.policy.message; tone.value = b.policy.tone;
-    msg.onchange = () => { b.policy.message = msg.value; };
-    tone.onchange = () => { b.policy.tone = tone.value; };
+    const policyChanged = () => {
+      if (typeof invalidateBillboardHealth === 'function') invalidateBillboardHealth();
+      if (typeof invalidateLocalMoodFactors === 'function') invalidateLocalMoodFactors();
+      updateInspector();
+    };
+    msg.onchange = () => { b.policy.message = msg.value; policyChanged(); };
+    tone.onchange = () => { b.policy.tone = tone.value; policyChanged(); };
   }
   updateInspector();
 }
@@ -450,7 +455,7 @@ function setT(id, v) { const el = document.getElementById(id); if (el) el.textCo
 const CATEXTRA = {rural: 'Agriculture', resource: 'Resource', power: 'Power', transit: 'Transit'};
 for (const k of Object.keys(CATEXTRA)) if (!CATLABEL[k]) CATLABEL[k] = CATEXTRA[k];
 function heatLabel(h) { return h < 0.15 ? 'Free flowing' : h < 0.6 ? 'Light' : h < 1.3 ? 'Busy' : h < 2.2 ? 'Heavy' : 'Jammed'; }
-const MOODWORD = {happy: 'happy', ok: 'okay', sad: 'annoyed', angry: 'furious'};
+const MOODWORD = {ecstatic: 'delighted', happy: 'happy', content: 'content', uneasy: 'uneasy', miserable: 'miserable', angry: 'furious', anxious: 'anxious', sick: 'unwell'};
 function updateInspector() {
   if (!selection) return;
   if (document.getElementById('taxDlg') && !document.getElementById('taxDlg').classList.contains('hidden')) return;
@@ -461,7 +466,9 @@ function updateInspector() {
     setT('ivRes', `${b.residents} / ${d.homes}`);
     setT('ivHome', b.people);
     setT('ivSleep', b.asleep);
-    setT('ivMood', b.residents ? `${Math.round(b.mood * 100)}% (${MOODWORD[moodFace(b.mood)]})` : '-');
+    setT('ivMood', b.residents ? `${Math.round(b.mood * 100)}% (${MOODWORD[homeMoodKind(b)]})` : '-');
+    setT('ivSick', b.residents ? `${b.sick || 0} of ${b.residents}` : '-');
+    setT('ivHealth', b.residents ? Math.round((b.health ?? 1) * 100) + '%' : '-');
     setT('ivJobs', `${b.workers} / ${d.jobs}`);
     setT('ivPeople', b.people);
     setT('ivCars', `${b.cars} / ${d.cap}${b.cars >= d.cap ? ' FULL' : ''}`);
@@ -486,7 +493,23 @@ function updateInspector() {
     if (d.homes) {
       setT('ivMoodJob', Math.round(b.moodJob * 100) + '%');
       setT('ivMoodRide', Math.round(b.moodTransport * 100) + '%');
+      setT('ivMoodHome', Math.round(cityMood.housing * 100) + '%');
+      setT('ivMoodHealth', Math.round(cityMood.health * 100) + '%');
       setT('ivMoodBirth', Math.round(b.moodRepro * 100) + '%');
+      if (typeof localMoodFactors === 'function') {
+        const f = localMoodFactors(b);
+        setT('ivMoodLocal', Math.round(f.overall * 100) + '%');
+        setT('ivMoodGreen', Math.round(f.green * 100) + '%');
+        setT('ivMoodQuiet', Math.round(f.quiet * 100) + '%');
+        setT('ivMoodAir', Math.round(f.cleanAir * 100) + '%');
+        setT('ivMoodSafety', Math.round(f.safety * 100) + '%');
+        setT('ivMoodCare', Math.round(f.care * 100) + '%');
+      }
+    }
+    if (b.type === 'billboard' && typeof billboardHealthEffect === 'function') {
+      const e = billboardHealthEffect(b.cx, b.cy);
+      setT('ivAdMood', e.count ? `${e.mood >= 0 ? '+' : ''}${Math.round(e.mood * 100)} pts` : 'no health ad nearby');
+      setT('ivAdRisk', e.count ? `${e.risk >= 0 ? '+' : ''}${Math.round(e.risk * 100)}%` : '-');
     }
     if (POWER_REQ[b.type]) {
       setT('ivPower', POWER_REQ[b.type].out + ' MW (not wired up yet)');
@@ -596,6 +619,7 @@ function hud(dt) {
   document.getElementById('mWalk').style.width = (m.walk / tot * 100) + '%';
   document.getElementById('mMetro').style.width = (m.metro / tot * 100) + '%';
   setT('lCar', `car ${Math.round(m.car / tot * 100)}%`); setT('lWalk', `walk ${Math.round(m.walk / tot * 100)}%`); setT('lMetro', `metro ${Math.round(m.metro / tot * 100)}%`);
+  if (typeof updateStatsPanels === 'function') updateStatsPanels();
   gctx.fillStyle = '#10141f'; gctx.fillRect(0, 0, 230, 70);
   gctx.fillStyle = '#1d2438'; for (let y = 17; y < 70; y += 17) gctx.fillRect(0, y, 230, 1);
   const hist = stats.hist, maxC = Math.max(10, ...hist.map(v => v.cars));
@@ -610,7 +634,7 @@ function updateHover() {
   if (bldAt[i]) {
     const b = B(bldAt[i]), d = BT[b.type];
     txt = d.name;
-    if (d.homes) txt += ` · home ${b.people}/${b.residents}` + (b.residents ? ` · ${MOODWORD[moodFace(b.mood)]} about traffic` : '');
+    if (d.homes) txt += ` · home ${b.people}/${b.residents}` + (b.residents ? ` · ${MOODWORD[homeMoodKind(b)]}` : '') + (b.sick ? ` · ${b.sick} unwell` : '');
     else if (d.jobs) txt += ` · inside ${b.people}`;
     else if (isLeisure(b.type)) txt += ` · visitors ${b.people}`;
     if (d.cap) txt += ` · parked ${b.cars}/${d.cap}`;

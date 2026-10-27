@@ -157,6 +157,7 @@ function commitRect(tool, sx, sy, ex, ey) {
       if (platform[i]) { platform[i] = 0; water[i] = 1; }
     }
     for (const id of kill) { const b = B(id); if (b) removeBuilding(b); }
+    if (typeof clearRuinsRect === 'function') clearRuinsRect(Math.min(sx, ex), Math.min(sy, ey), Math.max(sx, ex), Math.max(sy, ey));
   } else if (tool === 'plaza') {
     for (const i of tiles) if (!bldAt[i] && !isRoad(i) && !water[i]) { tile[i] = 4; tree[i] = 0; }
   } else if (tool === 'water') {

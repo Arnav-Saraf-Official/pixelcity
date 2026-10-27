@@ -27,7 +27,7 @@
   <div class="grow"></div>
   <div class="seg" id="overlays">
     <button data-o="heat" title="Congestion map (V)">Congestion</button>
-    <button data-o="mood" class="on" title="Traffic moods over homes (M)">Moods</button>
+    <button data-o="mood" class="on" title="Resident moods over homes (M)">Moods</button>
     <button data-o="occ" title="Building occupancy (C)">Occupancy</button>
     <button data-o="grid" title="Grid (G)">Grid</button>
     <button data-o="sky" class="on" title="Aircraft in flight (Y)">Sky</button>
@@ -36,6 +36,7 @@
     <button data-o="weather" class="on" title="Weather (W)">Weather</button>
     <button data-o="power" disabled title="The electricity grid is scaffolding only">Electricity</button>
   </div>
+  <button id="statsBtn" title="City statistics">Stats</button>
   <button id="taxBtn" title="Set future sales and income tax policy">Tax</button>
   <button id="menuBtn" title="Menu">☰</button>
 </div>
@@ -154,6 +155,7 @@
     <li><b>Parking:</b> offices and shops have fewer spaces than visitors. Full lots send drivers circling to a Parking Lot or Garage, or home unhappy.</li>
     <li><b>Walking:</b> sidewalks, footpaths, plazas and parks let people walk short trips. <b>Metro stations</b> take longer trips off the road, but a station is only useful once you draw <b>Metro Rails</b> (Metro tab) between it and another station.</li>
     <li><b>Freight:</b> farms, quarries, fisheries and rigs load their goods onto <b>trucks</b> at the kerb. Draw surface <b>Freight Track</b> (Transit tab, <kbd>I</kbd>) between <b>Train Yards</b>; each train carries 12-18 cars in runs of three, mixing passengers, materials, liquids and gas. Trains plan multi-stop tours between up to three yards, and a <b>Freight Line</b> tool gives chosen yards a dedicated loop. Track is split into signal blocks; a block turns red while a train holds the leg, and no two trains can occupy the same block. <b>Rail Signal</b> (<kbd>E</kbd>) adds a block boundary by hand. <b>Cargo Ports</b> send ships to other ports and islands, and <b>Distribution Terminals</b> sort truck cargo onto trains and quays. <b>Two-Way Track</b> lays a wide pair of lanes so trains pass each other without fusing into loops. Wherever track crosses a street a <b>crossing gate</b> appears automatically. Oil and gas buildings need a train yard or a warehouse within 5 blocks: trucks haul from the site to a warehouse, and the warehouse loads the trains.</li>
+    <li><b>Services &amp; health:</b> a fire left burning for 25 world minutes jumps to three-quarters of the buildings around it. Burnt lots stay charred until bulldozed (or fade after a few days). Illness keeps workers home and makes their households travel less; billboards can promote or demote health nearby.</li>
     <li><b>Region:</b> nine connected districts, all simulated at once. Zoom out past a whole district to see them all, then click one to build there. Cars, boats and planes travel across all of them.</li>
     <li>Turn on <b>Congestion</b> to see jams as a green-to-red gradient. <b>Underground</b> strips the surface away and shows the metro network: rails, junction blocks where lines meet, reversing blocks where a train can turn back, and the trains themselves. <b>Save &amp; share</b> in the menu makes a save file or a share code.</li>
   </ul>
@@ -264,6 +266,32 @@
   <label for="taxIncome">Income tax <span id="taxIncomeValue">0%</span></label><input id="taxIncome" type="range" min="0" max="50" step="1" value="0">
 </div>
 
+<div id="statsDlg" class="panel dlg hidden" role="dialog" aria-labelledby="statsTitle">
+  <div class="dlgHead"><h3 id="statsTitle">City statistics</h3><button id="statsClose" title="Close">✕</button></div>
+  <p class="note">A live snapshot of the city. Figures update while the simulation runs.</p>
+  <div id="statsSummary" class="stats-grid"></div>
+  <div class="btns"><button id="statsOpenFull" class="on">Open full statistics →</button></div>
+</div>
+
+<section id="statsScreen" class="menu-page hidden" aria-labelledby="statsScreenTitle">
+  <div class="page-shell">
+    <header class="page-header">
+      <button id="statsScreenBack" class="back-button"><span aria-hidden="true">←</span> Back to city</button>
+      <a class="menu-wordmark" href="#" aria-label="PixelCity home">PIXEL<span>CITY</span></a>
+      <span class="page-step">CITY RECORD</span>
+    </header>
+    <main class="page-content stats-content">
+      <div class="page-intro">
+        <p class="eyebrow">EVERY NUMBER THAT MATTERS</p>
+        <h1 id="statsScreenTitle">The record.</h1>
+        <p>Population, moods, miles of road and rail, cargo, power, casualties and everything else the city keeps track of.</p>
+      </div>
+      <div id="statsFull" class="stats-full"></div>
+    </main>
+    <footer class="page-footer"><span id="statsFooterWorld">Region</span><span id="statsFooterClock">Day 1</span></footer>
+  </div>
+</section>
+
 <section id="worldListDlg" class="menu-page hidden" aria-labelledby="worldsTitle">
   <div class="page-shell">
     <header class="page-header">
@@ -293,11 +321,14 @@
 </section>
 
 <script src="js/core.js"></script>
+<script src="js/billboard.js"></script>
+<script src="js/mood.js"></script>
 <script src="js/texture.js"></script>
 <script src="js/textures.generated.js"></script>
 <script src="js/art.js"></script>
 <script src="js/map.js"></script>
 <script src="js/simulation.js"></script>
+<script src="js/sickness.js"></script>
 <script src="js/emergency.js"></script>
 <script src="js/metro.js"></script>
 <script src="js/logistics.js"></script>
@@ -306,6 +337,7 @@
 <script src="js/ui.js"></script>
 <script src="js/world.js"></script>
 <script src="js/save.js"></script>
+<script src="js/stats.js"></script>
 <script src="js/menuPreview.js"></script>
 <script src="js/worldMenu.js"></script>
 <script src="js/main.js"></script>

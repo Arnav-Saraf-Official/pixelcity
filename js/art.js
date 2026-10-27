@@ -142,8 +142,10 @@ function drawTruck(c, x, y, horiz, col) {
 function drawEmergencyUnit(c, u) {
   const d = u.d || 2, hz = d === 2 || d === 4;
   const name = (u.kind === 'firetruck' ? 'firetruck' : 'ambulance') + (hz ? '_h' : '_v');
+  // u.x/u.y already carry the same right-hand lane offset laneGeom gives a car,
+  // so the sprite is centred on that point without adding OX/OY a second time.
   c.drawImage(sprite('vehicles', name, {}, ''),
-    Math.round(u.x * T + OX[d] - (hz ? 3.5 : 1.5)), Math.round(u.y * T + OY[d] - (hz ? 1.5 : 3.5)));
+    Math.round(u.x * T - (hz ? 3.5 : 1.5)), Math.round(u.y * T - (hz ? 1.5 : 3.5)));
 }
 
 // A crossing gate: a post on the kerb and an arm that lies along the track when
@@ -180,6 +182,39 @@ function drawFire(c, x, y, frame) {
 function drawStreetClosure(c, x0, y0, acrossEastWest) {
   const v = acrossEastWest ? 0 : 1;
   c.drawImage(sprite('roads', 'closure', { v }, v), x0, y0);
+}
+
+// The charred footprint left by a burnt building. It is drawn from a seed so
+// every ruin has its own broken timber and soot pattern, and it covers exactly
+// the parcel the building occupied.
+function drawRuin(c, r) {
+  const x0 = Math.round(r.x * T), y0 = Math.round(r.y * T);
+  const w = r.w * T, h = r.h * T;
+  const rnd = (a, b, n) => Math.floor(hash(r.seed, a, b) * n);
+  c.fillStyle = '#171513';
+  c.fillRect(x0, y0, w, h);
+  // soot, broken boards and a few surviving rafters
+  for (let ty = 0; ty < r.h; ty++) for (let tx = 0; tx < r.w; tx++) {
+    const bx = x0 + tx * T, by = y0 + ty * T;
+    c.fillStyle = rnd(tx, ty, 4) === 0 ? '#25211d' : '#302922';
+    c.fillRect(bx + 1, by + 1, T - 2, T - 2);
+    c.fillStyle = '#151311';
+    for (let k = 0; k < 3; k++) {
+      const px = bx + 2 + rnd(tx + k, ty, T - 4);
+      const py = by + 2 + rnd(tx, ty + k, T - 4);
+      c.fillRect(px, py, 1 + (k & 1), 1);
+    }
+    c.fillStyle = '#4a3c30';
+    const rx = bx + 2 + rnd(tx + 9, ty + 3, 4);
+    c.fillRect(rx, by + 2, 1, T - 4);
+    c.fillRect(bx + 2, by + 3 + rnd(tx, ty + 11, 3), T - 4, 1);
+  }
+  // a cracked, smoke-stained outline along the parcel edge
+  c.fillStyle = '#0d0c0b';
+  c.fillRect(x0, y0, w, 2); c.fillRect(x0, y0 + h - 2, w, 2);
+  c.fillRect(x0, y0, 2, h); c.fillRect(x0 + w - 2, y0, 2, h);
+  c.fillStyle = '#3b342d';
+  c.fillRect(x0 + 1, y0 + 1, w - 2, 1);
 }
 
 // A crash site: scorched ground, the burnt hull lying on it, and a plume of
@@ -277,6 +312,20 @@ function drawPed(c, x, y, color) {
   c.drawImage(sprite('people', 'ped', { color }, color), x, y - 1);
 }
 
+// The texture carries the four drawn expressions. The finer mood states reuse
+// the nearest one and add a small accent, so new moods cost no extra art while
+// still reading differently at a glance.
+const FACE_BASE = {ecstatic: 'happy', happy: 'happy', content: 'ok', uneasy: 'ok',
+  miserable: 'sad', angry: 'angry', anxious: 'ok', sick: 'sad'};
 function drawFace(c, x, y, kind) {
-  c.drawImage(sprite('people', 'face', { kind }, kind), x, y);
+  const base = FACE_BASE[kind] || kind;
+  c.drawImage(sprite('people', 'face', { kind: base }, base), x, y);
+  if (kind === 'ecstatic') {
+    c.fillStyle = '#ffe066'; c.fillRect(x, y - 1, 1, 1); c.fillRect(x + 4, y - 1, 1, 1);
+  } else if (kind === 'anxious' || kind === 'uneasy') {
+    c.fillStyle = kind === 'anxious' ? '#6fd3ff' : '#b9c4d0';
+    c.fillRect(x + 4, y + 1, 1, 1); c.fillRect(x + 3, y + 2, 1, 1);
+  } else if (kind === 'sick') {
+    c.fillStyle = '#7fdc8a'; c.fillRect(x + 4, y, 1, 1); c.fillRect(x + 1, y + 4, 1, 1);
+  }
 }

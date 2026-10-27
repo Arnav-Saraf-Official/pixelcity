@@ -122,10 +122,6 @@
       "default": "base",
       "conditions": []
     },
-    // One aircraft, eight headings: every design is the same painted art turned
-    // in 45 degree steps, so an edit to the shape belongs in all of them. h0
-    // faces east, which is heading 0 in the simulation, and each later design
-    // turns another step clockwise.
     "plane": {
       "size": [9,9],
       "params": {"h":0,"night":0,"blink":0},
@@ -145,129 +141,118 @@
             {"layers":[{"color":"#ffffff"},{"color":"#3ef06b","when":"blink"}]},
             {"layers":[{"color":"#ffffff"},{"color":"#ff0000","when":"blink"}]}
           ],
-          "rows": [".....9...","....56...","....16...","...716..7","811116111","...716..7","....16...","....26...",".....a..."],
-          "groups": {"paletteStart":8,"items":[{"id":1,"pixels":[[0,4,"4"]]},{"id":2,"pixels":[[5,0,"6"]]},{"id":3,"pixels":[[5,8,"6"]]}]}
+          "rows": ["...a.....","...62....","...61....","7..617...","111611118","7..617...","...61....","...65....","...9....."],
+          "groups": {"paletteStart":8,"items":[{"id":1,"pixels":[[8,4,"4"]]},{"id":2,"pixels":[[3,8,"6"]]},{"id":3,"pixels":[[3,0,"6"]]}]}
         },
         "h1": {
           "palette": [
             "transparent",
+            "#d63a3a",
             "#f4f5f7",
             "#c8ccd4",
-            "#d63a3a",
             "#9aa3b5",
-            "#c8ccd4",
             "#ffffff",
-            "#bdc5d1",
-            {"layers":[{"color":"#9aa3b5"},{"color":"#fee771","when":"night"}]},
-            {"layers":[{"color":"#ffffff"},{"color":"#3ef06b","when":"blink"}]},
-            {"layers":[{"color":"#ffffff"},{"color":"#ff0000","when":"blink"}]}
+            {"layers":[{"color":"#c8ccd4"},{"color":"#fee771","when":"night"}]},
+            {"layers":[{"color":"#ffffff"},{"color":"#ff0000","when":"blink"}]},
+            {"layers":[{"color":"#ffffff"},{"color":"#3ef06b","when":"blink"}]}
           ],
-          "rows": [".........",".8......9","..1.7.599","...17166.","..77166..","...166...","..266.177","..a6..717",".aa...77."],
-          "groups": {"paletteStart":8,"items":[{"id":1,"pixels":[[1,1,"4"]]},{"id":2,"pixels":[[8,1,"6"],[7,2,"6"],[8,2,"6"]]},{"id":3,"pixels":[[2,7,"6"],[1,8,"6"],[2,8,"6"]]}]}
+          "rows": ["..3...7..",".5...53..","3.5.55...","...553...","..555....",".553.5...","83....5..",".......6.","........."],
+          "groups": {"paletteStart":6,"items":[{"id":1,"pixels":[[7,7,"3"]]},{"id":3,"pixels":[[6,0,"5"]]},{"id":2,"pixels":[[0,6,"5"]]}]}
         },
         "h2": {
           "palette": [
             "transparent",
+            "#d63a3a",
             "#f4f5f7",
             "#c8ccd4",
-            "#d63a3a",
-            "#9aa3b5",
             "#c8ccd4",
+            "#9aa3b5",
             "#ffffff",
-            "#bdc5d1",
-            {"layers":[{"color":"#9aa3b5"},{"color":"#fee771","when":"night"}]},
+            {"layers":[{"color":"#c8ccd4"},{"color":"#fee771","when":"night"}]},
             {"layers":[{"color":"#ffffff"},{"color":"#3ef06b","when":"blink"}]},
             {"layers":[{"color":"#ffffff"},{"color":"#ff0000","when":"blink"}]}
           ],
-          "rows": ["....8....","....1....","....1....","...717...",".2111115.","a66666669","....1....","....1....","...717..."],
-          "groups": {"paletteStart":8,"items":[{"id":1,"pixels":[[4,0,"4"]]},{"id":2,"pixels":[[8,5,"6"]]},{"id":3,"pixels":[[0,5,"6"]]}]}
+          "rows": ["...363...","....2....","....2....","866666669",".3222223.","...323...","....2....","....2....","....7...."],
+          "groups": {"paletteStart":7,"items":[{"id":1,"pixels":[[4,8,"3"]]},{"id":2,"pixels":[[0,3,"6"]]},{"id":3,"pixels":[[8,3,"6"]]}]}
         },
         "h3": {
           "palette": [
             "transparent",
-            "#f4f5f7",
-            "#c8ccd4",
             "#d63a3a",
+            "#c8ccd4",
+            "#f4f5f7",
             "#9aa3b5",
             "#c8ccd4",
             "#ffffff",
-            "#bdc5d1",
-            {"layers":[{"color":"#9aa3b5"},{"color":"#fee771","when":"night"}]},
+            {"layers":[{"color":"#c8ccd4"},{"color":"#fee771","when":"night"}]},
             {"layers":[{"color":"#ffffff"},{"color":"#3ef06b","when":"blink"}]},
             {"layers":[{"color":"#ffffff"},{"color":"#ff0000","when":"blink"}]}
           ],
-          "rows": [".........","a......8.","aa2.7.1..",".66171...","..66117..","...661...","771.665..","717..69..",".77...99."],
-          "groups": {"paletteStart":8,"items":[{"id":1,"pixels":[[7,1,"4"]]},{"id":2,"pixels":[[6,7,"6"],[6,8,"6"],[7,8,"6"]]},{"id":3,"pixels":[[0,1,"6"],[0,2,"6"],[1,2,"6"]]}]}
+          "rows": ["..8...2..","..26...3.","...66.3.2","...263...","....366..","...3.266.","..3....29",".7.......","........."],
+          "groups": {"paletteStart":7,"items":[{"id":1,"pixels":[[1,7,"2"]]},{"id":2,"pixels":[[2,0,"6"]]},{"id":3,"pixels":[[8,6,"6"]]}]}
         },
         "h4": {
           "palette": [
             "transparent",
-            "#f4f5f7",
             "#c8ccd4",
+            "#f4f5f7",
             "#d63a3a",
             "#9aa3b5",
             "#c8ccd4",
             "#ffffff",
-            "#bdc5d1",
             {"layers":[{"color":"#9aa3b5"},{"color":"#fee771","when":"night"}]},
             {"layers":[{"color":"#ffffff"},{"color":"#3ef06b","when":"blink"}]},
             {"layers":[{"color":"#ffffff"},{"color":"#ff0000","when":"blink"}]}
           ],
-          "rows": ["...a.....","...62....","...61....","7..617...","111611118","7..617...","...61....","...65....","...9....."],
-          "groups": {"paletteStart":8,"items":[{"id":1,"pixels":[[8,4,"4"]]},{"id":2,"pixels":[[3,8,"6"]]},{"id":3,"pixels":[[3,0,"6"]]}]}
+          "rows": [".....8...","....16...","....26...","...126..1","722222222","...126..1","....26...","....16...",".....9..."],
+          "groups": {"paletteStart":7,"items":[{"id":1,"pixels":[[0,4,"4"]]},{"id":2,"pixels":[[5,0,"6"]]},{"id":3,"pixels":[[5,8,"6"]]}]}
         },
         "h5": {
           "palette": [
             "transparent",
-            "#f4f5f7",
-            "#c8ccd4",
-            "#d63a3a",
             "#9aa3b5",
             "#c8ccd4",
+            "#f4f5f7",
+            "#d63a3a",
             "#ffffff",
-            "#bdc5d1",
-            {"layers":[{"color":"#9aa3b5"},{"color":"#fee771","when":"night"}]},
-            {"layers":[{"color":"#ffffff"},{"color":"#3ef06b","when":"blink"}]},
-            {"layers":[{"color":"#ffffff"},{"color":"#ff0000","when":"blink"}]}
+            {"layers":[{"color":"#c8ccd4"},{"color":"#fee771","when":"night"}]},
+            {"layers":[{"color":"#ffffff"},{"color":"#ff0000","when":"blink"}]},
+            {"layers":[{"color":"#ffffff"},{"color":"#3ef06b","when":"blink"}]}
           ],
-          "rows": [".77...aa.","717..6a..","771.662..","...661...","..66117..",".66111...","995.7.1..","9......8.","........."],
-          "groups": {"paletteStart":8,"items":[{"id":1,"pixels":[[7,7,"4"]]},{"id":2,"pixels":[[0,6,"6"],[1,6,"6"],[0,7,"6"]]},{"id":3,"pixels":[[6,0,"6"],[7,0,"6"],[6,1,"6"]]}]}
+          "rows": [".........",".6.......","..3....28","...3.255.","....355..","...253...","...55.3.5","..25...3.","..7...5.."],
+          "groups": {"paletteStart":6,"items":[{"id":1,"pixels":[[1,1,"2"]]},{"id":3,"pixels":[[2,8,"5"]]},{"id":2,"pixels":[[8,2,"5"]]}]}
         },
         "h6": {
           "palette": [
             "transparent",
+            "#9aa3b5",
             "#f4f5f7",
             "#c8ccd4",
-            "#d63a3a",
-            "#9aa3b5",
             "#c8ccd4",
-            "#ffffff",
-            "#bdc5d1",
+            "#d63a3a",
             {"layers":[{"color":"#9aa3b5"},{"color":"#fee771","when":"night"}]},
-            {"layers":[{"color":"#ffffff"},{"color":"#3ef06b","when":"blink"}]},
-            {"layers":[{"color":"#ffffff"},{"color":"#ff0000","when":"blink"}]}
+            {"layers":[{"color":"#f4f5f7"},{"color":"#3ef06b","when":"blink"}]},
+            {"layers":[{"color":"#f4f5f7"},{"color":"#ff0000","when":"blink"}]}
           ],
-          "rows": ["...717...","....1....","....1....","96666666a",".5111112.","...717...","....1....","....1....","....8...."],
-          "groups": {"paletteStart":8,"items":[{"id":1,"pixels":[[4,8,"4"]]},{"id":2,"pixels":[[0,3,"6"]]},{"id":3,"pixels":[[8,3,"6"]]}]}
+          "rows": ["....6....","....2....","....2....","...323...",".3222223.","822222227","....2....","....2....","...222..."],
+          "groups": {"paletteStart":6,"items":[{"id":1,"pixels":[[4,0,"1"]]},{"id":2,"pixels":[[8,5,"2"]]},{"id":3,"pixels":[[0,5,"2"]]}]}
         },
         "h7": {
           "palette": [
             "transparent",
-            "#f4f5f7",
             "#c8ccd4",
-            "#d63a3a",
             "#9aa3b5",
+            "#f4f5f7",
+            "#d63a3a",
             "#c8ccd4",
             "#ffffff",
-            "#bdc5d1",
             {"layers":[{"color":"#9aa3b5"},{"color":"#fee771","when":"night"}]},
             {"layers":[{"color":"#ffffff"},{"color":"#3ef06b","when":"blink"}]},
             {"layers":[{"color":"#ffffff"},{"color":"#ff0000","when":"blink"}]}
           ],
-          "rows": [".99...77.","..96..717","..566.177","...166...","..77166..","...11166.","..1.7.2aa",".8......a","........."],
-          "groups": {"paletteStart":8,"items":[{"id":1,"pixels":[[1,7,"4"]]},{"id":2,"pixels":[[1,0,"6"],[2,0,"6"],[2,1,"6"]]},{"id":3,"pixels":[[7,6,"6"],[8,6,"6"],[8,7,"6"]]}]}
+          "rows": [".........",".......7.","91....3..",".661.3...","..663....","...361...","6.3.66...",".3...61..","..6...8.."],
+          "groups": {"paletteStart":7,"items":[{"id":1,"pixels":[[7,1,"2"]]},{"id":2,"pixels":[[6,8,"6"]]},{"id":3,"pixels":[[0,2,"6"]]}]}
         }
-      
       },
       "conditions": [
         {"when":"h = 1","design":"h1"},
