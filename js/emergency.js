@@ -527,8 +527,8 @@ function stepIncidents(dt) {
         }
       }
       const age = gameMin - (inc.started ?? gameMin);
-      if (inc.b && !inc.spread && age >= FIRE_SPREAD_MINUTES) {
-        inc.spread = true;
+      while (inc.b && age < FIRE_CHAR_MINUTES && age >= ((inc.spreadCount || 0) + 1) * FIRE_SPREAD_INTERVAL) {
+        inc.spreadCount = (inc.spreadCount || 0) + 1;
         spreadFire(inc);
       }
       if (inc.b && age >= FIRE_CHAR_MINUTES) charBuilding(inc);
@@ -553,10 +553,10 @@ function resolveIncident(inc, u) {
 }
 // How far a fire reaches: from the edge of the burning footprint, not from its
 // centre, so a large building does not magically protect the row beside it.
-const FIRE_SPREAD_MINUTES = 25;
+const FIRE_SPREAD_INTERVAL = 5;
+const FIRE_SPREAD_CHANCE = 0.25;
 const FIRE_CHAR_MINUTES = 30;
 const FIRE_SPREAD_REACH = 4;
-const FIRE_SPREAD_SHARE = 0.75;
 
 function nearbyBuildings(b, reach) {
   const out = [];
@@ -577,16 +577,9 @@ function spreadFire(inc) {
   if (!near.length) return;
   const burning = new Set();
   for (const other of incidents) if (other.kind === 'fire' && other.state !== 'done' && other.b) burning.add(other.b);
-  const candidates = near.filter(o => !burning.has(o.id));
-  // Round to the nearest building so a street with two neighbours catches one
-  // or two, and a row of four catches three: seventy-five percent, not always
-  // the whole row.
-  const count = Math.max(1, Math.round(candidates.length * FIRE_SPREAD_SHARE));
-  let lit = 0;
-  for (const o of candidates) {
-    if (lit >= count) break;
-    raiseIncident('fire', o.cx, o.cy, o.id);
-    lit++;
+  for (const o of near) {
+    if (!burning.has(o.id) && Math.random() < FIRE_SPREAD_CHANCE)
+      raiseIncident('fire', o.cx, o.cy, o.id);
   }
 }
 
