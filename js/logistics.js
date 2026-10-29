@@ -762,7 +762,7 @@ function newFreightTrain(yard, lineId) {
   return {
     id: nextIncident++, home: yard.id, line: lineId || 0, consist: freightConsist(),
     path: null, i: 0, t: 0, ex: 0, x: yard.cx * T, y: yard.cy * T, d: 2,
-    state: 'dwell', wait: TRAIN_RIDE_GAP + Math.random() * 3, at: yard.id, target: 0,
+    state: 'dwell', wait: worldSecs(TRAIN_RIDE_GAP_MIN) + Math.random() * 3, at: yard.id, target: 0,
     plan: [], leg: 0, reserved: [], cargo: {material: 0, liquid: 0, gas: 0},
     riders: [], lastStop: -1, dead: false,
   };
@@ -1007,7 +1007,7 @@ function stepFreight(dt) {
         // Keep the leg until the last wagon is in, and stay in the yard long
         // enough that no car has to jump when the next leg begins.
         t.state = 'dwell';
-        t.wait = Math.max(TRAIN_RIDE_GAP, 3 + t.consist.length / FREIGHT_SPEED);
+        t.wait = Math.max(worldSecs(TRAIN_RIDE_GAP_MIN), 3 + t.consist.length / FREIGHT_SPEED);
         t.i = t.path.length - 1; t.t = 0; t.ex = 0; t.lastStop = -1; t.stops = null;
         const y = B(t.at);
         if (y) { t.x = y.cx * T; t.y = y.cy * T; }

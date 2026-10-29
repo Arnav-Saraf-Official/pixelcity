@@ -496,7 +496,7 @@ addEventListener('keydown', e => {
   keys.add(k);
   if ((k === 'delete' || k === 'backspace') && curTool === 'select' && selRect) { askConfirm('Clear everything in the highlighted area?', deleteSel); return; }
   if (k === 'escape') { if (!confirmEl.classList.contains('hidden')) confirmEl.classList.add('hidden'); else if (!saveEl.classList.contains('hidden')) saveEl.classList.add('hidden'); else if (fireMapView) closeFireMap(); else if (pasteMode) stopPaste(); else if (curTool === 'select' && selRect) { selRect = null; updateSelBar(); } else if (regionView) closeRegion(); else if (drag) drag = null; else if (!helpEl.classList.contains('hidden')) helpEl.classList.add('hidden'); else { setTool('inspect'); select(null); } }
-  else if (k === 'p') setSpeed(speed ? 0 : 1); else if (k === '1') setSpeed(1); else if (k === '2') setSpeed(3); else if (k === '3') setSpeed(8);
+  else if (k === 'p') setSpeed(speed ? 0 : 1); else if (k === '1') setSpeed(1); else if (k === '2') setSpeed(2); else if (k === '3') setSpeed(3);
   else if (k === 'v') toggleOverlay('heat'); else if (k === 'c') toggleOverlay('occ'); else if (k === 'g') toggleOverlay('grid'); else if (k === 'm') toggleOverlay('mood'); else if (k === 'n') toggleOverlay('underground'); else if (k === 'y') toggleOverlay('sky');
   else if (k === '=' || k === '+') zoomStep(1); else if (k === '-' || k === '_') zoomStep(-1); else if (k === 'z') { if (fireMapView) closeFireMap(); if (regionView) closeRegion(); fitDistrict(camDistrict()); }
   else for (const id in TOOLS) if (TOOLS[id].key && TOOLS[id].key.toLowerCase() === k) { setTool(id); break; }

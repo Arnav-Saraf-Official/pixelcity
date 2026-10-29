@@ -18,9 +18,15 @@ function frame(now) {
   const inGameMenu = gameActive && document.body.classList.contains('menu-screen');
   if (gameActive || menuPreview.active) {
     if (gameActive && !inGameMenu) { panKeys(dt); panEdge(dt); }
-    if (speed > 0 && ((!inGameMenu && gameActive) || menuPreview.advancing)) {
-      let sdt = dt * speed;
+    const rate = SPEED_RATES[speed] || 0;
+    if (rate > 0 && ((!inGameMenu && gameActive) || menuPreview.advancing)) {
+      // The clock advances at the chosen rate, while the world itself is
+      // animated at a capped rate so fast-forwarding never tunnels vehicles.
+      const physRate = Math.min(rate / MIN_PER_SEC, PHYS_MAX);
+      simRate = rate / physRate;
+      let sdt = dt * physRate;
       while (sdt > 1e-6) { const s = Math.min(sdt, 1 / 30); simStep(s); sdt -= s; }
+      advanceClock(dt * rate);
     }
     render();
     hud(dt);

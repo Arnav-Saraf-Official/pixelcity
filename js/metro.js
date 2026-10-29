@@ -214,7 +214,7 @@ function newMetro(s) {
   return {
     id: nextMid++, home: s.id, at: s.id, target: 0,
     x: s.x * T + 4.5, y: s.y * T + 4.5, d: 2,
-    path: null, i: 0, t: 0, state: 'dwell', wait: TRAIN_RIDE_GAP + Math.random() * 3,
+    path: null, i: 0, t: 0, state: 'dwell', wait: worldSecs(TRAIN_RIDE_GAP_MIN) + Math.random() * 3,
     riders: [], dead: false
   };
 }
@@ -362,7 +362,7 @@ function metroDepart(m) {
 function metroArrive(m) {
   const id = m.target, s = B(id);
   // Every train sits out at least half an hour of world time between rides.
-  m.at = id; m.state = 'dwell'; m.wait = Math.max(METRO_DWELL, TRAIN_RIDE_GAP); m.target = 0;
+  m.at = id; m.state = 'dwell'; m.wait = Math.max(METRO_DWELL, worldSecs(TRAIN_RIDE_GAP_MIN)); m.target = 0;
   m.path = null; m.i = 0; m.t = 0;
   if (s) { m.x = s.x * T + 4.5; m.y = s.y * T + 4.5; }
   const staying = [];

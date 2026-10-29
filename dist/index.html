@@ -278,9 +278,9 @@ body.menu-screen #top,body.menu-screen #taxBtn,body.menu-screen #menu,body.menu-
   <button id="fireMapBtn" class="chip hidden" title="Show the locations of all active fires"><b>Fires</b><span id="fireCount">0</span></button>
   <div class="seg" id="speeds">
     <button data-s="0" title="Pause (P)">❚❚</button>
-    <button data-s="1" class="on" title="Normal (1)">▶</button>
-    <button data-s="3" title="Fast (2)">▶▶</button>
-    <button data-s="8" title="Very fast (3)">▶▶▶</button>
+    <button data-s="1" class="on" title="Normal (1): 1 real minute = 1 game minute">▶</button>
+    <button data-s="2" title="Fast (2): 1 real second = 1 game minute">▶▶</button>
+    <button data-s="3" title="Very fast (3): 1 real second = 15 game minutes">▶▶▶</button>
   </div>
   <div class="stats">
     <div class="chip"><b>Pop</b><span id="sPop">0</span></div>
@@ -600,9 +600,18 @@ const T = 9;                               // art pixels per tile
 const DW = 200, DH = 150, RW = 3, RH = 3;  // district size and region grid
 const MW = DW * RW, MH = DH * RH, N = MW * MH;
 const FW = MW * T, FH = MH * T;
-const MIN_PER_SEC = 1 / 60;                 // one game minute per real minute at normal speed
+const MIN_PER_SEC = 1 / 60;                 // 1×: one game minute per real minute
+// Clock speed per step, in game minutes per real second. 1× keeps real time,
+// 2× runs a game minute every second, 3× a quarter of an hour every second.
+const SPEED_RATES = [0, MIN_PER_SEC, 1, 15];
+// The world itself is only animated up to this multiple of real time; the clock
+// above may run far faster than vehicles can safely move.
+const PHYS_MAX = 12;
+// Game minutes that pass per second of world animation. The clock may run ahead
+// of the animation, and timers that mean world time use this to stay in step.
+let simRate = MIN_PER_SEC;
+const worldSecs = mins => mins / Math.max(1e-9, simRate);
 const TRAIN_RIDE_GAP_MIN = 30;             // world minutes between one train ride and the next
-const TRAIN_RIDE_GAP = TRAIN_RIDE_GAP_MIN / MIN_PER_SEC;
 const YEL = 2;                             // yellow light seconds
 const SAVE_KEY = 'pixelCity.v5';
 const LEGACY_SAVE_KEY = 'pixelTrafficCity.v5';
@@ -3899,6 +3908,7 @@ function spawnThrough() {
 // Resources: oil and gas fields, timber, quarrying
 // ---------------------------------------------------------------------
 let lastHourTick = -1;
+const MAX_MINUTE_TICKS = 4;   // guards a stalled frame from firing a minute burst
 const nearType = (b, type, r) => {
   for (const o of buildings.values()) {
     if (o.type !== type) continue;
@@ -4450,11 +4460,16 @@ function computeArea() {
   }
   actx.putImageData(areaImg, 0, 0);
 }
+// The clock is advanced by the selected speed, separately from the animation:
+// fast-forwarding passes many game minutes without stepping the world as often.
+function advanceClock(mins) {
+  if (!(mins > 0)) return;
+  const prev = gameMin; gameMin += mins;
+  const ticks = Math.min(MAX_MINUTE_TICKS, Math.floor(gameMin) - Math.floor(prev));
+  for (let k = 0; k < ticks; k++) minuteTick();
+}
 function simStep(dt) {
   simTime += dt;
-  const prev = gameMin; gameMin += dt * MIN_PER_SEC;
-  const ticks = Math.min(3, Math.floor(gameMin) - Math.floor(prev));
-  for (let k = 0; k < ticks; k++) minuteTick();
   buildBuckets();
   for (const b of buildings.values()) if (b.queue.length) { b.spawnCd -= dt; if (b.spawnCd <= 0) trySpawn(b); }
   for (const c of cars) if (!c.dead) stepCar(c, dt);
@@ -5552,7 +5567,7 @@ function newMetro(s) {
   return {
     id: nextMid++, home: s.id, at: s.id, target: 0,
     x: s.x * T + 4.5, y: s.y * T + 4.5, d: 2,
-    path: null, i: 0, t: 0, state: 'dwell', wait: TRAIN_RIDE_GAP + Math.random() * 3,
+    path: null, i: 0, t: 0, state: 'dwell', wait: worldSecs(TRAIN_RIDE_GAP_MIN) + Math.random() * 3,
     riders: [], dead: false
   };
 }
@@ -5700,7 +5715,7 @@ function metroDepart(m) {
 function metroArrive(m) {
   const id = m.target, s = B(id);
   // Every train sits out at least half an hour of world time between rides.
-  m.at = id; m.state = 'dwell'; m.wait = Math.max(METRO_DWELL, TRAIN_RIDE_GAP); m.target = 0;
+  m.at = id; m.state = 'dwell'; m.wait = Math.max(METRO_DWELL, worldSecs(TRAIN_RIDE_GAP_MIN)); m.target = 0;
   m.path = null; m.i = 0; m.t = 0;
   if (s) { m.x = s.x * T + 4.5; m.y = s.y * T + 4.5; }
   const staying = [];
@@ -6513,7 +6528,7 @@ function newFreightTrain(yard, lineId) {
   return {
     id: nextIncident++, home: yard.id, line: lineId || 0, consist: freightConsist(),
     path: null, i: 0, t: 0, ex: 0, x: yard.cx * T, y: yard.cy * T, d: 2,
-    state: 'dwell', wait: TRAIN_RIDE_GAP + Math.random() * 3, at: yard.id, target: 0,
+    state: 'dwell', wait: worldSecs(TRAIN_RIDE_GAP_MIN) + Math.random() * 3, at: yard.id, target: 0,
     plan: [], leg: 0, reserved: [], cargo: {material: 0, liquid: 0, gas: 0},
     riders: [], lastStop: -1, dead: false,
   };
@@ -6758,7 +6773,7 @@ function stepFreight(dt) {
         // Keep the leg until the last wagon is in, and stay in the yard long
         // enough that no car has to jump when the next leg begins.
         t.state = 'dwell';
-        t.wait = Math.max(TRAIN_RIDE_GAP, 3 + t.consist.length / FREIGHT_SPEED);
+        t.wait = Math.max(worldSecs(TRAIN_RIDE_GAP_MIN), 3 + t.consist.length / FREIGHT_SPEED);
         t.i = t.path.length - 1; t.t = 0; t.ex = 0; t.lastStop = -1; t.stops = null;
         const y = B(t.at);
         if (y) { t.x = y.cx * T; t.y = y.cy * T; }
@@ -8058,7 +8073,7 @@ addEventListener('keydown', e => {
   keys.add(k);
   if ((k === 'delete' || k === 'backspace') && curTool === 'select' && selRect) { askConfirm('Clear everything in the highlighted area?', deleteSel); return; }
   if (k === 'escape') { if (!confirmEl.classList.contains('hidden')) confirmEl.classList.add('hidden'); else if (!saveEl.classList.contains('hidden')) saveEl.classList.add('hidden'); else if (fireMapView) closeFireMap(); else if (pasteMode) stopPaste(); else if (curTool === 'select' && selRect) { selRect = null; updateSelBar(); } else if (regionView) closeRegion(); else if (drag) drag = null; else if (!helpEl.classList.contains('hidden')) helpEl.classList.add('hidden'); else { setTool('inspect'); select(null); } }
-  else if (k === 'p') setSpeed(speed ? 0 : 1); else if (k === '1') setSpeed(1); else if (k === '2') setSpeed(3); else if (k === '3') setSpeed(8);
+  else if (k === 'p') setSpeed(speed ? 0 : 1); else if (k === '1') setSpeed(1); else if (k === '2') setSpeed(2); else if (k === '3') setSpeed(3);
   else if (k === 'v') toggleOverlay('heat'); else if (k === 'c') toggleOverlay('occ'); else if (k === 'g') toggleOverlay('grid'); else if (k === 'm') toggleOverlay('mood'); else if (k === 'n') toggleOverlay('underground'); else if (k === 'y') toggleOverlay('sky');
   else if (k === '=' || k === '+') zoomStep(1); else if (k === '-' || k === '_') zoomStep(-1); else if (k === 'z') { if (fireMapView) closeFireMap(); if (regionView) closeRegion(); fitDistrict(camDistrict()); }
   else for (const id in TOOLS) if (TOOLS[id].key && TOOLS[id].key.toLowerCase() === k) { setTool(id); break; }
@@ -10662,9 +10677,15 @@ function frame(now) {
   const inGameMenu = gameActive && document.body.classList.contains('menu-screen');
   if (gameActive || menuPreview.active) {
     if (gameActive && !inGameMenu) { panKeys(dt); panEdge(dt); }
-    if (speed > 0 && ((!inGameMenu && gameActive) || menuPreview.advancing)) {
-      let sdt = dt * speed;
+    const rate = SPEED_RATES[speed] || 0;
+    if (rate > 0 && ((!inGameMenu && gameActive) || menuPreview.advancing)) {
+      // The clock advances at the chosen rate, while the world itself is
+      // animated at a capped rate so fast-forwarding never tunnels vehicles.
+      const physRate = Math.min(rate / MIN_PER_SEC, PHYS_MAX);
+      simRate = rate / physRate;
+      let sdt = dt * physRate;
       while (sdt > 1e-6) { const s = Math.min(sdt, 1 / 30); simStep(s); sdt -= s; }
+      advanceClock(dt * rate);
     }
     render();
     hud(dt);
