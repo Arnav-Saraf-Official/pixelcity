@@ -533,7 +533,6 @@ function spawnThrough() {
 // Resources: oil and gas fields, timber, quarrying
 // ---------------------------------------------------------------------
 let lastHourTick = -1;
-const MAX_MINUTE_TICKS = 4;   // guards a stalled frame from firing a minute burst
 const nearType = (b, type, r) => {
   for (const o of buildings.values()) {
     if (o.type !== type) continue;
@@ -1085,16 +1084,13 @@ function computeArea() {
   }
   actx.putImageData(areaImg, 0, 0);
 }
-// The clock is advanced by the selected speed, separately from the animation:
-// fast-forwarding passes many game minutes without stepping the world as often.
-function advanceClock(mins) {
-  if (!(mins > 0)) return;
-  const prev = gameMin; gameMin += mins;
-  const ticks = Math.min(MAX_MINUTE_TICKS, Math.floor(gameMin) - Math.floor(prev));
-  for (let k = 0; k < ticks; k++) minuteTick();
-}
+// One clock for everything: a simulated second is a second of world movement,
+// a second of travel and a sixtieth of a game minute, whatever the speed.
 function simStep(dt) {
   simTime += dt;
+  const prev = gameMin; gameMin += dt * MIN_PER_SEC;
+  const ticks = Math.min(3, Math.floor(gameMin) - Math.floor(prev));
+  for (let k = 0; k < ticks; k++) minuteTick();
   buildBuckets();
   for (const b of buildings.values()) if (b.queue.length) { b.spawnCd -= dt; if (b.spawnCd <= 0) trySpawn(b); }
   for (const c of cars) if (!c.dead) stepCar(c, dt);
@@ -1104,6 +1100,10 @@ function simStep(dt) {
   if (cars.some(c => c.dead)) cars = cars.filter(c => !c.dead);
   if (agentsDirty) { agentsDirty = false; agents = agents.filter(a => !a.dead); recount(); }
   if (peds.some(p => p.dead)) peds = peds.filter(p => !p.dead);
+}
+// Once a frame, with the seconds the frame simulated: the per-tile heat field and
+// the stat samples are whole-city work, so they are not repeated per step.
+function simSample(dt) {
   heatTimer += dt;
   if (heatTimer >= 0.5) {
     for (let i = 0; i < N; i++) { if (heat[i] || heatAcc[i]) { heat[i] = heat[i] * 0.82 + (heatAcc[i] / heatTimer) * 0.18; if (heat[i] < 0.01) heat[i] = 0; heatAcc[i] = 0; } }

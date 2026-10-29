@@ -20,13 +20,13 @@ function frame(now) {
     if (gameActive && !inGameMenu) { panKeys(dt); panEdge(dt); }
     const rate = SPEED_RATES[speed] || 0;
     if (rate > 0 && ((!inGameMenu && gameActive) || menuPreview.advancing)) {
-      // The clock advances at the chosen rate, while the world itself is
-      // animated at a capped rate so fast-forwarding never tunnels vehicles.
-      const physRate = Math.min(rate / MIN_PER_SEC, PHYS_MAX);
-      simRate = rate / physRate;
-      let sdt = dt * physRate;
-      while (sdt > 1e-6) { const s = Math.min(sdt, 1 / 30); simStep(s); sdt -= s; }
-      advanceClock(dt * rate);
+      // Everything - the clock, travel, fire spread, spawns - runs on one clock.
+      // The frame's simulated seconds are cut into equal steps (never more than
+      // SIM_STEPS) so a high speed can leap ahead without stalling the frame.
+      const sdt = dt * rate / MIN_PER_SEC;
+      const steps = Math.min(SIM_STEPS, Math.max(1, Math.ceil(sdt * 30)));
+      for (let k = 0; k < steps; k++) simStep(sdt / steps);
+      simSample(sdt);
     }
     render();
     hud(dt);

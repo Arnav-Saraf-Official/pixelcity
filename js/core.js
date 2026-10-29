@@ -10,14 +10,9 @@ const MIN_PER_SEC = 1 / 60;                 // 1×: one game minute per real min
 // Clock speed per step, in game minutes per real second. 1× keeps real time,
 // 2× runs a game minute every second, 3× a quarter of an hour every second.
 const SPEED_RATES = [0, MIN_PER_SEC, 1, 15];
-// The world itself is only animated up to this multiple of real time; the clock
-// above may run far faster than vehicles can safely move.
-const PHYS_MAX = 12;
-// Game minutes that pass per second of world animation. The clock may run ahead
-// of the animation, and timers that mean world time use this to stay in step.
-let simRate = MIN_PER_SEC;
-const worldSecs = mins => mins / Math.max(1e-9, simRate);
+const SIM_STEPS = 10;                       // most simulation steps one frame may run
 const TRAIN_RIDE_GAP_MIN = 30;             // world minutes between one train ride and the next
+const TRAIN_RIDE_GAP = TRAIN_RIDE_GAP_MIN / MIN_PER_SEC;   // the same gap in simulated seconds
 const YEL = 2;                             // yellow light seconds
 const SAVE_KEY = 'pixelCity.v5';
 const LEGACY_SAVE_KEY = 'pixelTrafficCity.v5';
