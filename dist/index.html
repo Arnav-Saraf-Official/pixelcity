@@ -607,7 +607,7 @@ const FW = MW * T, FH = MH * T;
 const TICK_SEC = 1 / 20;                    // simulated seconds one tick advances
 const TICK_MIN = 1 / 60;                    // game minutes one tick advances
 const TPS_BASE = 20;                        // ticks per real second: the normal speed
-const TPS_STEPS = [0, TPS_BASE, 60, 180];   // pause, 1×, 2×, 3×
+const TPS_STEPS = [0, TPS_BASE, 180, 480];   // pause, 1×, 2×, 3×
 const MAX_TICKS_PER_FRAME = 12;             // catch-up cap, so a stalled frame cannot spiral
 const TRAIN_RIDE_GAP_MIN = 30;              // world minutes between one train ride and the next
 const TRAIN_RIDE_GAP = TRAIN_RIDE_GAP_MIN * 60 * TICK_SEC;   // the same gap in world seconds
