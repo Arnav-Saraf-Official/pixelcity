@@ -18,6 +18,20 @@ function clampCam() {
   cam.x = Math.max(-vw * 0.5, Math.min(FW - vw * 0.5, cam.x));
   cam.y = Math.max(-vh * 0.5, Math.min(FH - vh * 0.5, cam.y));
 }
+// Motion is simulated on ticks; between two ticks the drawing places moving
+// things where the last tick left them plus the fraction of the next tick that
+// has already elapsed. A path change that jumps further than a few tiles is not
+// blended, so a re-route never smears across the map.
+function lerpPos(o) {
+  if (o.px == null || tickAlpha >= 1) return [o.x, o.y];
+  const dx = o.x - o.px, dy = o.y - o.py;
+  if (dx * dx + dy * dy > 16 * T * T) return [o.x, o.y];
+  return [o.px + dx * tickAlpha, o.py + dy * tickAlpha];
+}
+// Flame flicker, rain, snow and lightning are world effects, so they run on the
+// tick clock too and speed up with everything else. Interface blinks stay on real
+// time: the player should still be able to read them at 3x.
+const animNow = () => simTime * 1000;
 function darkness(h) {
   if (h >= 7 && h < 17.5) return 0;
   if (h >= 17.5 && h < 20) return (h - 17.5) / 2.5 * 0.58;
@@ -172,7 +186,7 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
     if (!inP(inc.x * T, inc.y * T)) continue;
     const px = Math.round(inc.x * T), py = Math.round(inc.y * T);
     if (inc.kind === 'fire') {
-      drawFire(f, px, py, (performance.now() / 140 | 0) % 3);
+      drawFire(f, px, py, (animNow() / 140 | 0) % 3);
       // a blinking alert over the burning building, in the same spirit as the
       // no-parking sign drivers raise
       if ((performance.now() / 420 | 0) % 2) {
@@ -187,7 +201,8 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
   for (const s of ships) if (inP(s.x, s.y)) drawShip(f, s);
   for (const p of peds) {
     if (p.dead || p.hidden || !inP(p.x, p.y)) continue;
-    drawPed(f, Math.round(p.x - 0.5), Math.round(p.y - 0.5), p.color);
+    const pp = lerpPos(p);
+    drawPed(f, Math.round(pp[0] - 0.5), Math.round(pp[1] - 0.5), p.color);
   }
   // people queueing at bus stops (metro riders wait underground, out of sight)
   for (const b of vis) {
@@ -198,16 +213,17 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
   // cars (east-west cars on an overpass are drawn after its deck, so the others pass underneath)
   const drawCar = c => {
     const hz = c.d === 2 || c.d === 4;
+    const cp = lerpPos(c), cx = cp[0], cy = cp[1];
     if (c.bus) {
       // a long yellow bus with a row of windows
-      drawBus(f, Math.round(c.x - (hz ? 2.5 : 1)), Math.round(c.y - (hz ? 1 : 2.5)), hz);
+      drawBus(f, Math.round(cx - (hz ? 2.5 : 1)), Math.round(cy - (hz ? 1 : 2.5)), hz);
       return;
     }
     if (c.truck) {
-      drawTruck(f, Math.round(c.x - (hz ? 2.5 : 1)), Math.round(c.y - (hz ? 1 : 2.5)), hz, c.color);
+      drawTruck(f, Math.round(cx - (hz ? 2.5 : 1)), Math.round(cy - (hz ? 1 : 2.5)), hz, c.color);
       return;
     }
-    drawCarSprite(f, Math.round(c.x - (hz ? 1.5 : 1)), Math.round(c.y - (hz ? 1 : 1.5)), hz, c.color);
+    drawCarSprite(f, Math.round(cx - (hz ? 1.5 : 1)), Math.round(cy - (hz ? 1 : 1.5)), hz, c.color);
   };
   const onDeck = [];
   for (const c of cars) {
@@ -426,7 +442,7 @@ function strokePath(f, pts, width, style) {
   f.stroke();
 }
 function drawLightning(f, cell, cx, cy, R, sx0, sy0, sx1, sy1) {
-  const now = performance.now();
+  const now = animNow();
   const slot = Math.floor(now / BOLT_MS);
   if (hash(slot, 91, cell.id) > 0.06) return;          // a strike every few seconds
   const a = 1 - (now - slot * BOLT_MS) / BOLT_MS;      // fade out over the slot
@@ -475,7 +491,7 @@ function drawLightning(f, cell, cx, cy, R, sx0, sy0, sx1, sy1) {
   f.fillRect(px - 16 * zf, py - Math.max(0.5, zf), 32 * zf * a, Math.max(1, zf));
 }
 function drawRain(f, cell, R, sx0, sy0, sx1, sy1) {
-  const t = performance.now() / 1000;
+  const t = animNow() / 1000;
   const cx = cell.x * T, cy = cell.y * T, heavy = cell.kind === 'storm';
   // A shower is a scatter of drops; a thunderstorm is a dense sheet driven
   // sideways, so the two never look like the same weather at two strengths.
@@ -521,7 +537,7 @@ function drawRain(f, cell, R, sx0, sy0, sx1, sy1) {
   }
 }
 function drawSnow(f, cell, R, sx0, sy0, sx1, sy1) {
-  const t = performance.now() / 1000, cx = cell.x * T, cy = cell.y * T;
+  const t = animNow() / 1000, cx = cell.x * T, cy = cell.y * T;
   const n = cell.kind === 'storm' ? 170 : 120;
   f.fillStyle = 'rgba(248,252,255,.85)';
   f.beginPath();

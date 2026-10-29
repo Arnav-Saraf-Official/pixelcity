@@ -207,7 +207,7 @@ function setTool(id) {
   markTool();
   cv.style.cursor = id === 'inspect' ? 'pointer' : 'crosshair';
 }
-function setSpeed(s) { speed = s; document.querySelectorAll('#speeds button').forEach(b => b.classList.toggle('on', +b.dataset.s === s)); }
+function setSpeed(s) { speed = s; tps = TPS_STEPS[s] || 0; document.querySelectorAll('#speeds button').forEach(b => b.classList.toggle('on', +b.dataset.s === s)); }
 document.querySelectorAll('#speeds button').forEach(b => b.onclick = () => setSpeed(+b.dataset.s));
 let railViewAuto = false;
 function syncOverlayButtons() {

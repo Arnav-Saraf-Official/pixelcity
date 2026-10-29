@@ -278,9 +278,9 @@ body.menu-screen #top,body.menu-screen #taxBtn,body.menu-screen #menu,body.menu-
   <button id="fireMapBtn" class="chip hidden" title="Show the locations of all active fires"><b>Fires</b><span id="fireCount">0</span></button>
   <div class="seg" id="speeds">
     <button data-s="0" title="Pause (P)">❚❚</button>
-    <button data-s="1" class="on" title="Normal (1): 1 real minute = 1 game minute">▶</button>
-    <button data-s="2" title="Fast (2): 1 real second = 1 game minute">▶▶</button>
-    <button data-s="3" title="Very fast (3): 1 real second = 15 game minutes">▶▶▶</button>
+    <button data-s="1" class="on" title="Normal (1): 20 ticks/s">▶</button>
+    <button data-s="2" title="Fast (2): 60 ticks/s">▶▶</button>
+    <button data-s="3" title="Very fast (3): 180 ticks/s">▶▶▶</button>
   </div>
   <div class="stats">
     <div class="chip"><b>Pop</b><span id="sPop">0</span></div>
@@ -600,13 +600,17 @@ const T = 9;                               // art pixels per tile
 const DW = 200, DH = 150, RW = 3, RH = 3;  // district size and region grid
 const MW = DW * RW, MH = DH * RH, N = MW * MH;
 const FW = MW * T, FH = MH * T;
-const MIN_PER_SEC = 1 / 60;                 // 1×: one game minute per real minute
-// Clock speed per step, in game minutes per real second. 1× keeps real time,
-// 2× runs a game minute every second, 3× a quarter of an hour every second.
-const SPEED_RATES = [0, MIN_PER_SEC, 1, 15];
-const SIM_STEPS = 10;                       // most simulation steps one frame may run
-const TRAIN_RIDE_GAP_MIN = 30;             // world minutes between one train ride and the next
-const TRAIN_RIDE_GAP = TRAIN_RIDE_GAP_MIN / MIN_PER_SEC;   // the same gap in simulated seconds
+// The city runs on one clock: a fixed tick. A tick is TICK_SEC of world motion
+// and TICK_MIN of city time, and every rate in the game - travel, walking, fire
+// spread, spawns, the clock itself, the animation - is expressed in it. The only
+// thing a speed change touches is `tps`, the number of ticks per real second.
+const TICK_SEC = 1 / 20;                    // simulated seconds one tick advances
+const TICK_MIN = 1 / 60;                    // game minutes one tick advances
+const TPS_BASE = 20;                        // ticks per real second: the normal speed
+const TPS_STEPS = [0, TPS_BASE, 60, 180];   // pause, 1×, 2×, 3×
+const MAX_TICKS_PER_FRAME = 12;             // catch-up cap, so a stalled frame cannot spiral
+const TRAIN_RIDE_GAP_MIN = 30;              // world minutes between one train ride and the next
+const TRAIN_RIDE_GAP = TRAIN_RIDE_GAP_MIN * 60 * TICK_SEC;   // the same gap in world seconds
 const YEL = 2;                             // yellow light seconds
 const SAVE_KEY = 'pixelCity.v5';
 const LEGACY_SAVE_KEY = 'pixelTrafficCity.v5';
@@ -756,7 +760,7 @@ const carById = new Map();
 // pruned without scanning every tile.
 const roadClosed = new Float32Array(N);   // simTime at which each tile reopens
 const streetClosures = new Map();         // tile -> simTime it reopens
-let simTime = 0, gameMin = 6.5 * 60, speed = 1;
+let simTime = 0, gameMin = 6.5 * 60, speed = 1, tps = TPS_STEPS[1];
 let destCom = [], destPark = [], destWork = [], stations = [], docks = [], airports = [], busStops = [];
 let stats = {trips: [], modes: [], totalTrips: 0, frustrated: 0, stranded: 0, ti: 0, tiAcc: 0, tiN: 0, waitN: 0, hist: [], lastFrustToast: -1e9,
   planeCrashes: 0, planeDeaths: 0, crashes: 0, crashesCleared: 0, firesOut: 0, burned: 0, evacuated: 0};
@@ -4412,7 +4416,10 @@ function stepBoats(dt) {
 // =====================================================================
 // Simulation step
 // =====================================================================
-let heatTimer = 0, sampleTimer = 0, histTimer = 0;
+let heatTimer = 0, sampleTimer = 0, histTimer = 0;   // all counted in ticks
+const HEAT_TICKS = 10;     // the per-tile heat field averages every half world second
+const SAMPLE_TICKS = 20;   // traffic stats sample once a world second
+const HIST_TICKS = 40;     // the history graph samples every two world seconds
 // Area congestion field: road heat blurred over the neighborhood, divided by road density,
 // so each spot shows the average congestion of the streets around it.
 const fA = new Float32Array(N), fR = new Float32Array(N), fT = new Float32Array(N);
@@ -4454,40 +4461,44 @@ function computeArea() {
   }
   actx.putImageData(areaImg, 0, 0);
 }
-// One clock for everything: a simulated second is a second of world movement,
-// a second of travel and a sixtieth of a game minute, whatever the speed.
-function simStep(dt) {
-  simTime += dt;
-  const prev = gameMin; gameMin += dt * MIN_PER_SEC;
-  const ticks = Math.min(3, Math.floor(gameMin) - Math.floor(prev));
-  for (let k = 0; k < ticks; k++) minuteTick();
+// One tick, one update of the whole city. Every system advances by the same
+// TICK_SEC, and the clock by TICK_MIN, so raising `tps` speeds all of them up
+// together and nothing can drift out of proportion with anything else.
+function simulateTick() {
+  simTime += TICK_SEC;
+  const wasMinute = Math.floor(gameMin);
+  gameMin += TICK_MIN;
+  if (Math.floor(gameMin) !== wasMinute) minuteTick();
+
+  // the previous positions, so rendering can interpolate the tick interval
+  for (const c of cars) { c.px = c.x; c.py = c.y; }
+  for (const p of peds) { p.px = p.x; p.py = p.y; }
+
   buildBuckets();
-  for (const b of buildings.values()) if (b.queue.length) { b.spawnCd -= dt; if (b.spawnCd <= 0) trySpawn(b); }
-  for (const c of cars) if (!c.dead) stepCar(c, dt);
-  for (const p of peds) if (!p.dead) stepPed(p, dt);
-  stepPlanes(dt); stepBoats(dt); stepBusStops(dt); stepMetros(dt); stepMetroWait(); stepIncidents(dt);
-  stepWeather(dt); if (typeof stepLogistics === 'function') stepLogistics(dt);
+  for (const b of buildings.values()) if (b.queue.length) { b.spawnCd -= TICK_SEC; if (b.spawnCd <= 0) trySpawn(b); }
+  for (const c of cars) if (!c.dead) stepCar(c, TICK_SEC);
+  for (const p of peds) if (!p.dead) stepPed(p, TICK_SEC);
+  stepPlanes(TICK_SEC); stepBoats(TICK_SEC); stepBusStops(TICK_SEC); stepMetros(TICK_SEC); stepMetroWait(); stepIncidents(TICK_SEC);
+  stepWeather(TICK_SEC); if (typeof stepLogistics === 'function') stepLogistics(TICK_SEC);
   if (cars.some(c => c.dead)) cars = cars.filter(c => !c.dead);
   if (agentsDirty) { agentsDirty = false; agents = agents.filter(a => !a.dead); recount(); }
   if (peds.some(p => p.dead)) peds = peds.filter(p => !p.dead);
-}
-// Once a frame, with the seconds the frame simulated: the per-tile heat field and
-// the stat samples are whole-city work, so they are not repeated per step.
-function simSample(dt) {
-  heatTimer += dt;
-  if (heatTimer >= 0.5) {
-    for (let i = 0; i < N; i++) { if (heat[i] || heatAcc[i]) { heat[i] = heat[i] * 0.82 + (heatAcc[i] / heatTimer) * 0.18; if (heat[i] < 0.01) heat[i] = 0; heatAcc[i] = 0; } }
+
+  // whole-city work that only needs to run every few ticks
+  heatTimer++;
+  if (heatTimer >= HEAT_TICKS) {
+    for (let i = 0; i < N; i++) { if (heat[i] || heatAcc[i]) { heat[i] = heat[i] * 0.82 + (heatAcc[i] / (HEAT_TICKS * TICK_SEC)) * 0.18; if (heat[i] < 0.01) heat[i] = 0; heatAcc[i] = 0; } }
     heatTimer = 0;
   }
-  sampleTimer += dt;
-  if (sampleTimer >= 1) {
+  sampleTimer++;
+  if (sampleTimer >= SAMPLE_TICKS) {
     const ti = stats.tiN ? stats.tiAcc / stats.tiN : 0;
     stats.ti = stats.ti * 0.7 + ti * 0.3;
-    stats.wait = stats.waitN / Math.max(1, sampleTimer * 30);
+    stats.wait = stats.waitN / Math.max(1, sampleTimer);
     stats.tiAcc = 0; stats.tiN = 0; stats.waitN = 0; sampleTimer = 0;
   }
-  histTimer += dt;
-  if (histTimer >= 2) { histTimer = 0; stats.hist.push({ti: stats.ti, cars: cars.length}); if (stats.hist.length > 115) stats.hist.shift(); }
+  histTimer++;
+  if (histTimer >= HIST_TICKS) { histTimer = 0; stats.hist.push({ti: stats.ti, cars: cars.length}); if (stats.hist.length > 115) stats.hist.shift(); }
 }
 
 
@@ -5238,8 +5249,9 @@ function stepIncidents(dt) {
     if (inc.state === 'done') continue;
     inc.age += dt;
     if (inc.state === 'open' && !inc.unit) dispatch(inc);
-    // nobody could come: a tow truck clears the wreck after a while
-    if (inc.state === 'open' && inc.age > 300) {
+    // nobody could come: a tow truck clears the wreck after a while, and a fire
+    // with no station burns itself out once it has had its time to do damage
+    if (inc.state === 'open' && inc.age > (inc.kind === 'fire' ? FIRE_GIVEUP_SEC : 300)) {
       inc.state = 'done';
       if (inc.kind === 'crash') stats.crashesCleared = (stats.crashesCleared || 0) + 1;
     }
@@ -5253,12 +5265,14 @@ function stepIncidents(dt) {
           continue;
         }
       }
-      const age = gameMin - (inc.started ?? gameMin);
-      while (inc.b && age < FIRE_CHAR_MINUTES && age >= ((inc.spreadCount || 0) + 1) * FIRE_SPREAD_INTERVAL) {
+      // Fire timing is world time, not clock time: crews drive on the same
+      // ticks, so a fire must not spread faster than an engine can reach it.
+      const age = inc.age;
+      while (inc.b && age < FIRE_CHAR_SEC && age >= ((inc.spreadCount || 0) + 1) * FIRE_SPREAD_SEC) {
         inc.spreadCount = (inc.spreadCount || 0) + 1;
         spreadFire(inc);
       }
-      if (inc.b && age >= FIRE_CHAR_MINUTES) charBuilding(inc);
+      if (inc.b && age >= FIRE_CHAR_SEC) charBuilding(inc);
     }
   }
   for (let k = incidents.length - 1; k >= 0; k--) {
@@ -5280,9 +5294,10 @@ function resolveIncident(inc, u) {
 }
 // How far a fire reaches: from the edge of the burning footprint, not from its
 // centre, so a large building does not magically protect the row beside it.
-const FIRE_SPREAD_INTERVAL = 5;
+const FIRE_SPREAD_SEC = 300;      // world seconds between spread attempts
 const FIRE_SPREAD_CHANCE = 0.25;
-const FIRE_CHAR_MINUTES = 30;
+const FIRE_CHAR_SEC = 900;        // world seconds before the shell is lost
+const FIRE_GIVEUP_SEC = 1500;     // an unfought fire is out after this long
 const FIRE_SPREAD_REACH = 4;
 
 function nearbyBuildings(b, reach) {
@@ -6889,6 +6904,20 @@ function clampCam() {
   cam.x = Math.max(-vw * 0.5, Math.min(FW - vw * 0.5, cam.x));
   cam.y = Math.max(-vh * 0.5, Math.min(FH - vh * 0.5, cam.y));
 }
+// Motion is simulated on ticks; between two ticks the drawing places moving
+// things where the last tick left them plus the fraction of the next tick that
+// has already elapsed. A path change that jumps further than a few tiles is not
+// blended, so a re-route never smears across the map.
+function lerpPos(o) {
+  if (o.px == null || tickAlpha >= 1) return [o.x, o.y];
+  const dx = o.x - o.px, dy = o.y - o.py;
+  if (dx * dx + dy * dy > 16 * T * T) return [o.x, o.y];
+  return [o.px + dx * tickAlpha, o.py + dy * tickAlpha];
+}
+// Flame flicker, rain, snow and lightning are world effects, so they run on the
+// tick clock too and speed up with everything else. Interface blinks stay on real
+// time: the player should still be able to read them at 3x.
+const animNow = () => simTime * 1000;
 function darkness(h) {
   if (h >= 7 && h < 17.5) return 0;
   if (h >= 17.5 && h < 20) return (h - 17.5) / 2.5 * 0.58;
@@ -7043,7 +7072,7 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
     if (!inP(inc.x * T, inc.y * T)) continue;
     const px = Math.round(inc.x * T), py = Math.round(inc.y * T);
     if (inc.kind === 'fire') {
-      drawFire(f, px, py, (performance.now() / 140 | 0) % 3);
+      drawFire(f, px, py, (animNow() / 140 | 0) % 3);
       // a blinking alert over the burning building, in the same spirit as the
       // no-parking sign drivers raise
       if ((performance.now() / 420 | 0) % 2) {
@@ -7058,7 +7087,8 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
   for (const s of ships) if (inP(s.x, s.y)) drawShip(f, s);
   for (const p of peds) {
     if (p.dead || p.hidden || !inP(p.x, p.y)) continue;
-    drawPed(f, Math.round(p.x - 0.5), Math.round(p.y - 0.5), p.color);
+    const pp = lerpPos(p);
+    drawPed(f, Math.round(pp[0] - 0.5), Math.round(pp[1] - 0.5), p.color);
   }
   // people queueing at bus stops (metro riders wait underground, out of sight)
   for (const b of vis) {
@@ -7069,16 +7099,17 @@ function drawWorld(f, sx0, sy0, sx1, sy1) {
   // cars (east-west cars on an overpass are drawn after its deck, so the others pass underneath)
   const drawCar = c => {
     const hz = c.d === 2 || c.d === 4;
+    const cp = lerpPos(c), cx = cp[0], cy = cp[1];
     if (c.bus) {
       // a long yellow bus with a row of windows
-      drawBus(f, Math.round(c.x - (hz ? 2.5 : 1)), Math.round(c.y - (hz ? 1 : 2.5)), hz);
+      drawBus(f, Math.round(cx - (hz ? 2.5 : 1)), Math.round(cy - (hz ? 1 : 2.5)), hz);
       return;
     }
     if (c.truck) {
-      drawTruck(f, Math.round(c.x - (hz ? 2.5 : 1)), Math.round(c.y - (hz ? 1 : 2.5)), hz, c.color);
+      drawTruck(f, Math.round(cx - (hz ? 2.5 : 1)), Math.round(cy - (hz ? 1 : 2.5)), hz, c.color);
       return;
     }
-    drawCarSprite(f, Math.round(c.x - (hz ? 1.5 : 1)), Math.round(c.y - (hz ? 1 : 1.5)), hz, c.color);
+    drawCarSprite(f, Math.round(cx - (hz ? 1.5 : 1)), Math.round(cy - (hz ? 1 : 1.5)), hz, c.color);
   };
   const onDeck = [];
   for (const c of cars) {
@@ -7297,7 +7328,7 @@ function strokePath(f, pts, width, style) {
   f.stroke();
 }
 function drawLightning(f, cell, cx, cy, R, sx0, sy0, sx1, sy1) {
-  const now = performance.now();
+  const now = animNow();
   const slot = Math.floor(now / BOLT_MS);
   if (hash(slot, 91, cell.id) > 0.06) return;          // a strike every few seconds
   const a = 1 - (now - slot * BOLT_MS) / BOLT_MS;      // fade out over the slot
@@ -7346,7 +7377,7 @@ function drawLightning(f, cell, cx, cy, R, sx0, sy0, sx1, sy1) {
   f.fillRect(px - 16 * zf, py - Math.max(0.5, zf), 32 * zf * a, Math.max(1, zf));
 }
 function drawRain(f, cell, R, sx0, sy0, sx1, sy1) {
-  const t = performance.now() / 1000;
+  const t = animNow() / 1000;
   const cx = cell.x * T, cy = cell.y * T, heavy = cell.kind === 'storm';
   // A shower is a scatter of drops; a thunderstorm is a dense sheet driven
   // sideways, so the two never look like the same weather at two strengths.
@@ -7392,7 +7423,7 @@ function drawRain(f, cell, R, sx0, sy0, sx1, sy1) {
   }
 }
 function drawSnow(f, cell, R, sx0, sy0, sx1, sy1) {
-  const t = performance.now() / 1000, cx = cell.x * T, cy = cell.y * T;
+  const t = animNow() / 1000, cx = cell.x * T, cy = cell.y * T;
   const n = cell.kind === 'storm' ? 170 : 120;
   f.fillStyle = 'rgba(248,252,255,.85)';
   f.beginPath();
@@ -8296,7 +8327,7 @@ function setTool(id) {
   markTool();
   cv.style.cursor = id === 'inspect' ? 'pointer' : 'crosshair';
 }
-function setSpeed(s) { speed = s; document.querySelectorAll('#speeds button').forEach(b => b.classList.toggle('on', +b.dataset.s === s)); }
+function setSpeed(s) { speed = s; tps = TPS_STEPS[s] || 0; document.querySelectorAll('#speeds button').forEach(b => b.classList.toggle('on', +b.dataset.s === s)); }
 document.querySelectorAll('#speeds button').forEach(b => b.onclick = () => setSpeed(+b.dataset.s));
 let railViewAuto = false;
 function syncOverlayButtons() {
@@ -10666,22 +10697,24 @@ initCloud();
 setInterval(() => { if (gameActive) saveLocal(true); }, 120000);
 addEventListener('pagehide', () => { if (gameActive) saveLocal(true); });
 
-let lastT = performance.now();
+// Fixed timestep: real time fills a bucket at `tps` ticks per second, and every
+// whole tick in the bucket is simulated. Rendering uses the leftover fraction to
+// interpolate, so motion is smooth and still paced entirely by the tick rate.
+let lastT = performance.now(), tickAcc = 0, tickAlpha = 1;
 function frame(now) {
-  const dt = Math.min(0.1, (now - lastT) / 1000); lastT = now;
+  const dt = Math.min(0.25, (now - lastT) / 1000); lastT = now;
   const inGameMenu = gameActive && document.body.classList.contains('menu-screen');
   if (gameActive || menuPreview.active) {
     if (gameActive && !inGameMenu) { panKeys(dt); panEdge(dt); }
-    const rate = SPEED_RATES[speed] || 0;
-    if (rate > 0 && ((!inGameMenu && gameActive) || menuPreview.advancing)) {
-      // Everything - the clock, travel, fire spread, spawns - runs on one clock.
-      // The frame's simulated seconds are cut into equal steps (never more than
-      // SIM_STEPS) so a high speed can leap ahead without stalling the frame.
-      const sdt = dt * rate / MIN_PER_SEC;
-      const steps = Math.min(SIM_STEPS, Math.max(1, Math.ceil(sdt * 30)));
-      for (let k = 0; k < steps; k++) simStep(sdt / steps);
-      simSample(sdt);
-    }
+    const running = tps > 0 && ((!inGameMenu && gameActive) || menuPreview.advancing);
+    if (running) {
+      tickAcc += dt * tps;
+      let ticks = Math.floor(tickAcc);
+      tickAcc -= ticks;
+      if (ticks > MAX_TICKS_PER_FRAME) { ticks = MAX_TICKS_PER_FRAME; tickAcc = 0; }
+      for (let k = 0; k < ticks; k++) simulateTick();
+      tickAlpha = ticks ? tickAcc : tickAlpha;
+    } else tickAlpha = 1;
     render();
     hud(dt);
   }

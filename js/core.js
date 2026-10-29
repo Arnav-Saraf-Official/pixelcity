@@ -6,13 +6,17 @@ const T = 9;                               // art pixels per tile
 const DW = 200, DH = 150, RW = 3, RH = 3;  // district size and region grid
 const MW = DW * RW, MH = DH * RH, N = MW * MH;
 const FW = MW * T, FH = MH * T;
-const MIN_PER_SEC = 1 / 60;                 // 1×: one game minute per real minute
-// Clock speed per step, in game minutes per real second. 1× keeps real time,
-// 2× runs a game minute every second, 3× a quarter of an hour every second.
-const SPEED_RATES = [0, MIN_PER_SEC, 1, 15];
-const SIM_STEPS = 10;                       // most simulation steps one frame may run
-const TRAIN_RIDE_GAP_MIN = 30;             // world minutes between one train ride and the next
-const TRAIN_RIDE_GAP = TRAIN_RIDE_GAP_MIN / MIN_PER_SEC;   // the same gap in simulated seconds
+// The city runs on one clock: a fixed tick. A tick is TICK_SEC of world motion
+// and TICK_MIN of city time, and every rate in the game - travel, walking, fire
+// spread, spawns, the clock itself, the animation - is expressed in it. The only
+// thing a speed change touches is `tps`, the number of ticks per real second.
+const TICK_SEC = 1 / 20;                    // simulated seconds one tick advances
+const TICK_MIN = 1 / 60;                    // game minutes one tick advances
+const TPS_BASE = 20;                        // ticks per real second: the normal speed
+const TPS_STEPS = [0, TPS_BASE, 60, 180];   // pause, 1×, 2×, 3×
+const MAX_TICKS_PER_FRAME = 12;             // catch-up cap, so a stalled frame cannot spiral
+const TRAIN_RIDE_GAP_MIN = 30;              // world minutes between one train ride and the next
+const TRAIN_RIDE_GAP = TRAIN_RIDE_GAP_MIN * 60 * TICK_SEC;   // the same gap in world seconds
 const YEL = 2;                             // yellow light seconds
 const SAVE_KEY = 'pixelCity.v5';
 const LEGACY_SAVE_KEY = 'pixelTrafficCity.v5';
@@ -162,7 +166,7 @@ const carById = new Map();
 // pruned without scanning every tile.
 const roadClosed = new Float32Array(N);   // simTime at which each tile reopens
 const streetClosures = new Map();         // tile -> simTime it reopens
-let simTime = 0, gameMin = 6.5 * 60, speed = 1;
+let simTime = 0, gameMin = 6.5 * 60, speed = 1, tps = TPS_STEPS[1];
 let destCom = [], destPark = [], destWork = [], stations = [], docks = [], airports = [], busStops = [];
 let stats = {trips: [], modes: [], totalTrips: 0, frustrated: 0, stranded: 0, ti: 0, tiAcc: 0, tiN: 0, waitN: 0, hist: [], lastFrustToast: -1e9,
   planeCrashes: 0, planeDeaths: 0, crashes: 0, crashesCleared: 0, firesOut: 0, burned: 0, evacuated: 0};

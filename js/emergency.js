@@ -511,8 +511,9 @@ function stepIncidents(dt) {
     if (inc.state === 'done') continue;
     inc.age += dt;
     if (inc.state === 'open' && !inc.unit) dispatch(inc);
-    // nobody could come: a tow truck clears the wreck after a while
-    if (inc.state === 'open' && inc.age > 300) {
+    // nobody could come: a tow truck clears the wreck after a while, and a fire
+    // with no station burns itself out once it has had its time to do damage
+    if (inc.state === 'open' && inc.age > (inc.kind === 'fire' ? FIRE_GIVEUP_SEC : 300)) {
       inc.state = 'done';
       if (inc.kind === 'crash') stats.crashesCleared = (stats.crashesCleared || 0) + 1;
     }
@@ -526,12 +527,14 @@ function stepIncidents(dt) {
           continue;
         }
       }
-      const age = gameMin - (inc.started ?? gameMin);
-      while (inc.b && age < FIRE_CHAR_MINUTES && age >= ((inc.spreadCount || 0) + 1) * FIRE_SPREAD_INTERVAL) {
+      // Fire timing is world time, not clock time: crews drive on the same
+      // ticks, so a fire must not spread faster than an engine can reach it.
+      const age = inc.age;
+      while (inc.b && age < FIRE_CHAR_SEC && age >= ((inc.spreadCount || 0) + 1) * FIRE_SPREAD_SEC) {
         inc.spreadCount = (inc.spreadCount || 0) + 1;
         spreadFire(inc);
       }
-      if (inc.b && age >= FIRE_CHAR_MINUTES) charBuilding(inc);
+      if (inc.b && age >= FIRE_CHAR_SEC) charBuilding(inc);
     }
   }
   for (let k = incidents.length - 1; k >= 0; k--) {
@@ -553,9 +556,10 @@ function resolveIncident(inc, u) {
 }
 // How far a fire reaches: from the edge of the burning footprint, not from its
 // centre, so a large building does not magically protect the row beside it.
-const FIRE_SPREAD_INTERVAL = 5;
+const FIRE_SPREAD_SEC = 300;      // world seconds between spread attempts
 const FIRE_SPREAD_CHANCE = 0.25;
-const FIRE_CHAR_MINUTES = 30;
+const FIRE_CHAR_SEC = 900;        // world seconds before the shell is lost
+const FIRE_GIVEUP_SEC = 1500;     // an unfought fire is out after this long
 const FIRE_SPREAD_REACH = 4;
 
 function nearbyBuildings(b, reach) {

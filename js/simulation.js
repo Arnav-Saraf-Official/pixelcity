@@ -1042,7 +1042,10 @@ function stepBoats(dt) {
 // =====================================================================
 // Simulation step
 // =====================================================================
-let heatTimer = 0, sampleTimer = 0, histTimer = 0;
+let heatTimer = 0, sampleTimer = 0, histTimer = 0;   // all counted in ticks
+const HEAT_TICKS = 10;     // the per-tile heat field averages every half world second
+const SAMPLE_TICKS = 20;   // traffic stats sample once a world second
+const HIST_TICKS = 40;     // the history graph samples every two world seconds
 // Area congestion field: road heat blurred over the neighborhood, divided by road density,
 // so each spot shows the average congestion of the streets around it.
 const fA = new Float32Array(N), fR = new Float32Array(N), fT = new Float32Array(N);
@@ -1084,38 +1087,42 @@ function computeArea() {
   }
   actx.putImageData(areaImg, 0, 0);
 }
-// One clock for everything: a simulated second is a second of world movement,
-// a second of travel and a sixtieth of a game minute, whatever the speed.
-function simStep(dt) {
-  simTime += dt;
-  const prev = gameMin; gameMin += dt * MIN_PER_SEC;
-  const ticks = Math.min(3, Math.floor(gameMin) - Math.floor(prev));
-  for (let k = 0; k < ticks; k++) minuteTick();
+// One tick, one update of the whole city. Every system advances by the same
+// TICK_SEC, and the clock by TICK_MIN, so raising `tps` speeds all of them up
+// together and nothing can drift out of proportion with anything else.
+function simulateTick() {
+  simTime += TICK_SEC;
+  const wasMinute = Math.floor(gameMin);
+  gameMin += TICK_MIN;
+  if (Math.floor(gameMin) !== wasMinute) minuteTick();
+
+  // the previous positions, so rendering can interpolate the tick interval
+  for (const c of cars) { c.px = c.x; c.py = c.y; }
+  for (const p of peds) { p.px = p.x; p.py = p.y; }
+
   buildBuckets();
-  for (const b of buildings.values()) if (b.queue.length) { b.spawnCd -= dt; if (b.spawnCd <= 0) trySpawn(b); }
-  for (const c of cars) if (!c.dead) stepCar(c, dt);
-  for (const p of peds) if (!p.dead) stepPed(p, dt);
-  stepPlanes(dt); stepBoats(dt); stepBusStops(dt); stepMetros(dt); stepMetroWait(); stepIncidents(dt);
-  stepWeather(dt); if (typeof stepLogistics === 'function') stepLogistics(dt);
+  for (const b of buildings.values()) if (b.queue.length) { b.spawnCd -= TICK_SEC; if (b.spawnCd <= 0) trySpawn(b); }
+  for (const c of cars) if (!c.dead) stepCar(c, TICK_SEC);
+  for (const p of peds) if (!p.dead) stepPed(p, TICK_SEC);
+  stepPlanes(TICK_SEC); stepBoats(TICK_SEC); stepBusStops(TICK_SEC); stepMetros(TICK_SEC); stepMetroWait(); stepIncidents(TICK_SEC);
+  stepWeather(TICK_SEC); if (typeof stepLogistics === 'function') stepLogistics(TICK_SEC);
   if (cars.some(c => c.dead)) cars = cars.filter(c => !c.dead);
   if (agentsDirty) { agentsDirty = false; agents = agents.filter(a => !a.dead); recount(); }
   if (peds.some(p => p.dead)) peds = peds.filter(p => !p.dead);
-}
-// Once a frame, with the seconds the frame simulated: the per-tile heat field and
-// the stat samples are whole-city work, so they are not repeated per step.
-function simSample(dt) {
-  heatTimer += dt;
-  if (heatTimer >= 0.5) {
-    for (let i = 0; i < N; i++) { if (heat[i] || heatAcc[i]) { heat[i] = heat[i] * 0.82 + (heatAcc[i] / heatTimer) * 0.18; if (heat[i] < 0.01) heat[i] = 0; heatAcc[i] = 0; } }
+
+  // whole-city work that only needs to run every few ticks
+  heatTimer++;
+  if (heatTimer >= HEAT_TICKS) {
+    for (let i = 0; i < N; i++) { if (heat[i] || heatAcc[i]) { heat[i] = heat[i] * 0.82 + (heatAcc[i] / (HEAT_TICKS * TICK_SEC)) * 0.18; if (heat[i] < 0.01) heat[i] = 0; heatAcc[i] = 0; } }
     heatTimer = 0;
   }
-  sampleTimer += dt;
-  if (sampleTimer >= 1) {
+  sampleTimer++;
+  if (sampleTimer >= SAMPLE_TICKS) {
     const ti = stats.tiN ? stats.tiAcc / stats.tiN : 0;
     stats.ti = stats.ti * 0.7 + ti * 0.3;
-    stats.wait = stats.waitN / Math.max(1, sampleTimer * 30);
+    stats.wait = stats.waitN / Math.max(1, sampleTimer);
     stats.tiAcc = 0; stats.tiN = 0; stats.waitN = 0; sampleTimer = 0;
   }
-  histTimer += dt;
-  if (histTimer >= 2) { histTimer = 0; stats.hist.push({ti: stats.ti, cars: cars.length}); if (stats.hist.length > 115) stats.hist.shift(); }
+  histTimer++;
+  if (histTimer >= HIST_TICKS) { histTimer = 0; stats.hist.push({ti: stats.ti, cars: cars.length}); if (stats.hist.length > 115) stats.hist.shift(); }
 }
