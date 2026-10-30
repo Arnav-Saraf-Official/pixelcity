@@ -12,9 +12,10 @@
   <div class="seg" id="speeds">
     <button data-s="0" title="Pause (P)">❚❚</button>
     <button data-s="1" class="on" title="Normal (1): 20 ticks/s">▶</button>
-    <button data-s="2" title="Fast (2): 60 ticks/s">▶▶</button>
-    <button data-s="3" title="Very fast (3): 180 ticks/s">▶▶▶</button>
+    <button data-s="2" title="Fast (2): 480 ticks/s">▶▶</button>
+    <button data-s="3" title="Very fast (3): 720 ticks/s">▶▶▶</button>
   </div>
+  <button id="musicChip" class="chip" title="Background music: Eric Skiff's Resistor Anthems">♪ <span id="musicState">Music</span></button>
   <div class="stats">
     <div class="chip"><b>Pop</b><span id="sPop">0</span></div>
     <div class="chip"><b>Jobs</b><span id="sJobs">0</span></div>
@@ -107,6 +108,21 @@
   <div id="bar" class="panel"></div>
 </div>
 
+<div id="musicPanel" class="panel hidden" role="dialog" aria-label="Background music">
+  <div class="dlgHead"><h3>Music</h3><button id="musicClose" title="Close">✕</button></div>
+  <div id="musicNow">Nothing playing<small>Resistor Anthems</small></div>
+  <div class="btns">
+    <button id="musicPrev" title="Previous track">⏮</button>
+    <button id="musicPlay" class="play" title="Play or pause">▶</button>
+    <button id="musicNext" title="Next track">⏭</button>
+    <button id="musicMute" title="Mute or unmute">Mute</button>
+  </div>
+  <label for="musicVol" class="note">Volume</label>
+  <input type="range" id="musicVol" min="0" max="100" step="1" value="45" aria-label="Music volume">
+  <div id="musicList" class="music-list" aria-label="Tracks"></div>
+  <p class="music-credit">Music: Eric Skiff · <i>Resistor Anthems</i> · licensed CC BY 3.0. Free to use with credit · <a href="https://ericskiff.com/music/" target="_blank" rel="noopener">EricSkiff.com</a></p>
+</div>
+
 <div id="tip" class="panel hidden"></div>
 <div id="hover" class="hidden"></div>
 <div id="toasts"></div>
@@ -164,6 +180,7 @@
   <p><kbd>Wheel</kbd> or <kbd>+ −</kbd> zoom · <kbd>Z</kbd> district · <kbd>Right</kbd> or <kbd>Middle</kbd> drag, or <kbd>WASD</kbd> to pan · <kbd>Shift</kbd>+click a road or track to cycle its states · <kbd>Esc</kbd> cancel · <kbd>P</kbd> pause · <kbd>1 2 3</kbd> speed<br>
   <kbd>X</kbd> select, then <kbd>Ctrl+C</kbd> <kbd>Ctrl+X</kbd> <kbd>Ctrl+V</kbd> <kbd>Del</kbd> · <kbd>Ctrl+S</kbd> quick save<br>
   <kbd>Q</kbd> inspect · <kbd>B</kbd> bulldoze · <kbd>R</kbd> street · <kbd>K</kbd> country road · <kbd>J</kbd> sidewalks · <kbd>O</kbd> one-way · <kbd>H</kbd> highway · <kbd>U</kbd> overpass · <kbd>L</kbd> light · <kbd>F</kbd> footpath · <kbd>T</kbd> metro rails · <kbd>I</kbd> freight track · <kbd>E</kbd> rail signal · <kbd>V</kbd> congestion · <kbd>M</kbd> moods · <kbd>N</kbd> underground · <kbd>Y</kbd> sky</p>
+  <p class="note">Music: “Resistor Anthems” by Eric Skiff, used under CC BY 3.0 · EricSkiff.com</p>
   <div class="btns"><button id="helpClose" class="on">Start building</button></div>
 </div>
 
@@ -337,7 +354,9 @@
 <script src="js/render.js"></script>
 <script src="js/controls.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/audio.js"></script>
 <script src="js/world.js"></script>
+<script src="js/live.js"></script>
 <script src="js/save.js"></script>
 <script src="js/stats.js"></script>
 <script src="js/menuPreview.js"></script>

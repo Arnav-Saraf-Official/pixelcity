@@ -248,7 +248,7 @@ const MINIC = [[88, 156, 68], [215, 218, 224], [240, 200, 90], [219, 201, 159], 
 const MINIB = {res: [222, 158, 96], com: [95, 168, 224], work: [168, 150, 128], civic: [236, 236, 242], ped: [127, 209, 106], lot: [140, 140, 140]};
 function miniColor(i) {
   const id = bldAt[i];
-  if (id) { const b = B(id); if (b) return b.charred ? [118, 118, 118] : b.type === 'metro' ? [31, 79, 176] : b.type === 'farm' || b.type === 'orchard' ? [196, 178, 84] : MINIB[BT[b.type].cat]; }
+  if (id) { const b = B(id); if (b) return b.charred ? [118, 118, 118] : b.type === 'metro' ? [31, 79, 176] : b.type === 'farm' || b.type === 'orchard' ? [196, 178, 84] : MINIB[BT[b.type].cat] || MINIB.work; }
   const t = tile[i];
   if (t === 1) return water[i] ? [190, 170, 140] : walkway[i] ? MINIC[1] : [176, 160, 120];
   if (t) return MINIC[t];

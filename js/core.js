@@ -13,8 +13,12 @@ const FW = MW * T, FH = MH * T;
 const TICK_SEC = 1 / 20;                    // simulated seconds one tick advances
 const TICK_MIN = 1 / 60;                    // game minutes one tick advances
 const TPS_BASE = 20;                        // ticks per real second: the normal speed
-const TPS_STEPS = [0, TPS_BASE, 180, 480];   // pause, 1×, 2×, 3×
-const MAX_TICKS_PER_FRAME = 12;             // catch-up cap, so a stalled frame cannot spiral
+// Terrain generation version. A save records the version it was built with, so
+// a world made before a change to the generators keeps the exact coastline,
+// biome map and tree cover it was created with.
+const GEN_VERSION = 2;
+const TPS_STEPS = [0, TPS_BASE, 480, 720];  // pause, 1×, 2×, 3×
+const MAX_TICKS_PER_FRAME = 32;             // catch-up cap, so a stalled frame cannot spiral
 const TRAIN_RIDE_GAP_MIN = 30;              // world minutes between one train ride and the next
 const TRAIN_RIDE_GAP = TRAIN_RIDE_GAP_MIN * 60 * TICK_SEC;   // the same gap in world seconds
 const YEL = 2;                             // yellow light seconds
@@ -88,6 +92,7 @@ const gates = new Set();            // grade-crossing tiles with a crossing gate
 const gateOff = new Uint8Array(N);  // crossings the player deliberately removed a gate from
 let connections = [], overpassList = [];
 let worldSeed = 12345;
+let worldGenVersion = GEN_VERSION;
 let regionView = false, regionHover = -1, regionLayout = null;
 
 const DX = [0, 0, 1, 0, -1], DY = [0, -1, 0, 1, 0], OPP = [0, 3, 4, 1, 2];
@@ -243,7 +248,7 @@ function waterDistance(wArr, seedMask) {
 // often - an island world whose biggest landmass is itself an island, so the
 // starter city grows up offshore. Biomes come from latitude (snow grows toward
 // the north), moisture and a rock field.
-function genTerrainInto(seed, wArr, tArr) {
+function genTerrainInto(seed, wArr, tArr, ver = GEN_VERSION) {
   wArr.fill(0); tArr.fill(0); biome.fill(0); oilField.fill(0); gasField.fill(0);
   const islandWorld = hash(seed, 21, 907) < 0.42;
   const islandCount = islandWorld ? 7 + (seed % 4) : 3 + (seed % 2);
@@ -305,10 +310,22 @@ function genTerrainInto(seed, wArr, tArr) {
     const t = y / MH, moist = vnoise(x / 64, y / 64, seed + 5), rock = vnoise(x / 38, y / 38, seed + 6);
     const cold = (1 - t) * 0.95 + (vnoise(x / 74, y / 74, seed + 9) - 0.5) * 0.18;
     let b = 1;
-    if (cold > 0.68) b = 4;
-    else if (rock > 0.63) b = 5;
-    else if (moist > 0.6) b = 2;
-    else if (moist < 0.33) b = 3;
+    if (ver >= 2) {
+      // Desert mirrors the snow line: the same broad field, read from the warm
+      // end of the map. Mountains still win where rock is strongest, so a range
+      // running through the south stays rock instead of being forced to sand.
+      const heat = t * 0.95 + (vnoise(x / 74, y / 74, seed + 10) - 0.5) * 0.18;
+      if (cold > 0.68) b = 4;
+      else if (rock > 0.6) b = 5;
+      else if (heat > 0.66) b = 3;
+      else if (moist > 0.6) b = 2;
+      else if (moist < 0.36) b = 3;
+    } else {
+      if (cold > 0.68) b = 4;
+      else if (rock > 0.63) b = 5;
+      else if (moist > 0.6) b = 2;
+      else if (moist < 0.33) b = 3;
+    }
     biome[i] = b;
   }
   // Deterministic inland ponds. They only cut a small hole into land, leaving
@@ -356,18 +373,38 @@ function genTerrainInto(seed, wArr, tArr) {
   // as a broken generation, so each world gets two to four waterways that
   // meander widely across the map instead.
   const riverCount = 2 + (seed % 3);
+  // How many neighbouring land tiles carry a different biome. Rivers are more
+  // likely to rise near a contact point between two biomes, where their water
+  // becomes the natural border between the two regions.
+  const biomeContact = (i) => {
+    if (wArr[i]) return 0;
+    const b0 = biome[i];
+    let n = 0;
+    for (let dy = -6; dy <= 6; dy += 2) for (let dx = -6; dx <= 6; dx += 2) {
+      const x = i % MW + dx, y = (i / MW | 0) + dy;
+      if (!inb(x, y)) continue;
+      const j = y * MW + x;
+      if (wArr[j] || biome[j] === 0) continue;
+      if (biome[j] !== b0) n++;
+    }
+    return n;
+  };
   for (let r = 0; r < riverCount; r++) {
     // Start at the most inland spot of a handful of tries: a river should have
-    // some distance to run before it reaches the sea.
-    let start = -1, startD = 0;
+    // some distance to run before it reaches the sea. From version 2 the choice
+    // also favours a biome edge, so the channel often traces the seam between
+    // two regions on its way down.
+    let start = -1, startD = 0, startScore = -1;
     for (let t = 0; t < 240; t++) {
       const x = 6 + Math.floor(hash(t, r, seed + 81) * (MW - 12));
       const y = 6 + Math.floor(hash(t, r + 7, seed + 82) * (MH - 12));
       const i = y * MW + x;
-      if (wArr[i] || riverTiles[i]) continue;
-      if (wd[i] > startD) { startD = wd[i]; start = i; }
+      if (wArr[i] || riverTiles[i] || wd[i] < 12) continue;
+      const score = ver >= 2 ? wd[i] + biomeContact(i) * 1.8 : wd[i];
+      if (score > startScore) { startScore = score; startD = wd[i]; start = i; }
     }
     if (start < 0 || startD < 12) continue;
+    const riverBiome = biome[start];
     // Walk downhill to the sea once, collecting the base course. This is the
     // shortest way out; the river itself is carved beside it below.
     const base = [];
@@ -379,7 +416,11 @@ function genTerrainInto(seed, wArr, tArr) {
       for (let d = 1; d <= 4; d++) {
         const j = nb(cur, d);
         if (j < 0 || j === prev) continue;
-        const sc = wd[j] + hash(j, r, seed + 83) * 0.4;
+        // A small pull toward a different biome lets the river drift along a
+        // boundary without ever climbing away from the sea: the bonus is less
+        // than one step of the distance field.
+        const edgePull = ver >= 2 && biome[j] !== riverBiome && biome[j] !== 0 ? 0.3 : 0;
+        const sc = wd[j] + hash(j, r, seed + 83) * 0.4 - edgePull;
         if (sc < nextScore) { nextScore = sc; next = j; }
       }
       if (next < 0) break;
@@ -439,6 +480,37 @@ function genTerrainInto(seed, wArr, tArr) {
       let best = 1;
       for (let b = 2; b <= 5; b++) if (cnt[b] > cnt[best]) best = b;
       if (cnt[best] >= 6) biome[i] = best;
+    }
+  }
+  // Jungle only reaches desert across a belt of plains (or a river). From
+  // version 2 the desert side of every jungle border is cut back to plains, so
+  // the two never touch directly; a jungle that borders snow or rock gets the
+  // same treatment, so jungle is always next to plains or water.
+  if (ver >= 2) {
+    const before = biome.slice();
+    for (let y = 1; y < MH - 1; y++) for (let x = 1; x < MW - 1; x++) {
+      const i = y * MW + x;
+      if (wArr[i] || before[i] !== 3) continue;
+      let touchesJungle = false;
+      for (let d = 1; d <= 4 && !touchesJungle; d++) { const j = nb(i, d); if (j >= 0 && before[j] === 2) touchesJungle = true; }
+      if (touchesJungle) biome[i] = 1;
+    }
+    // Every jungle border needs plains directly beside it. Where the neighbour
+    // is desert, rock or snow instead, that neighbour becomes a plains foot
+    // slope, so jungle never meets another biome without a transition.
+    const mid = biome.slice();
+    for (let y = 1; y < MH - 1; y++) for (let x = 1; x < MW - 1; x++) {
+      const i = y * MW + x;
+      if (wArr[i] || mid[i] !== 2) continue;
+      let plains = false;
+      const convert = [];
+      for (let d = 1; d <= 4; d++) {
+        const j = nb(i, d);
+        if (j < 0 || wArr[j]) continue;
+        if (mid[j] === 1) plains = true;
+        else if (mid[j] !== 2 && mid[j] !== 0) convert.push(j);
+      }
+      if (!plains && convert.length) biome[convert[0]] = 1;
     }
   }
   // Trees follow the smoothed map and choose species suited to each biome. Rock

@@ -79,47 +79,286 @@ function mainLandBox(w, h) {
   }
   return pick && {x: Math.floor(pick.x), y: Math.floor(pick.y), score: pick.score};
 }
+// A pregenerated region is a small country, not one town: a main city and two
+// satellite towns, airports tying them together, farms in the gaps and a metro
+// network in every town. Roads, runways and lanes are laid before the buildings,
+// so the first tick already has working frontage, signals and transit.
 function buildStarterTown() {
   starterTown = null;
   const rng = mulberry((worldSeed ^ 4242) >>> 0);
   // A city needs a big, mostly dry site. The biggest landmass of an island
   // world may be smaller than the mainland of a normal one, so step down to
   // smaller footprints until one is properly covered in land.
-  let box = null, boxW = 72, boxH = 50;
+  const towns = [];
+  let mainBox = null, boxW = 72, boxH = 50;
   for (const [bw, bh] of [[72, 50], [56, 40], [38, 28]]) {
     const b = mainLandBox(bw, bh);
-    if (b && (!box || b.score > box.score + 0.05)) { box = b; boxW = bw; boxH = bh; }
-    if (box && box.score >= 0.95) break;
+    if (b && (!mainBox || b.score > mainBox.score + 0.05)) { mainBox = b; boxW = bw; boxH = bh; }
+    if (mainBox && mainBox.score >= 0.95) break;
   }
-  if (box) {
-    const xs = [], ys = [];
-    for (let x = box.x + 2; x <= box.x + boxW - 6; x += 13) xs.push(x);
-    for (let y = box.y + 2; y <= box.y + boxH - 6; y += 12) ys.push(y);
-    for (const y of ys) lineRoadLand(xs[0], y, xs[xs.length - 1], y, y === ys[Math.floor(ys.length / 2)] ? 2 : 1);
-    for (const x of xs) lineRoadLand(x, ys[0], x, ys[ys.length - 1], 1);
-    for (let xi = 0; xi < xs.length - 1; xi++) for (let yi = 0; yi < ys.length - 1; yi++) {
-      const list = xi === 0 && yi === 0 ? ['market', 'shop', 'house']
-        : ['house', 'house', 'house', 'apartment', 'shop', 'house'];
-      fillArea(xs[xi] + 1, ys[yi] + 1, xs[xi + 1] - 1, ys[yi + 1] - 1, list, rng);
-    }
-    const bx1 = box.x + boxW - 2, by1 = box.y + boxH - 2;
-    findSpot('school', box.x, box.y, bx1, by1, 11);
-    findSpot('hospital', box.x, box.y, bx1, by1, 12);
-    findSpot('parking', box.x, box.y, bx1, by1, 13);
-    for (let k = 0; k < 3; k++) findSpot('park', box.x, box.y, bx1, by1, 20 + k);
-    // The demo's two stations are joined at their own tiles, so the generated
-    // city starts with a working line instead of two stranded platforms.
-    const met1 = findSpot('metro', box.x, box.y, bx1, by1, 31);
-    if (met1 && typeof connectMetroStation === 'function') connectMetroStation(met1);
-    const met2 = findSpot('metro', box.x, box.y, bx1, by1, 32);
-    if (met2 && typeof connectMetroStation === 'function') connectMetroStation(met2);
-    for (let k = 0; k < 4; k++) findSpot('busstop', box.x, box.y, bx1, by1, 40 + k);
-    starterTown = {x: Math.round(best2(xs)), y: Math.round(best2(ys))};
-    placeFreightYards(box, xs, ys);
+  if (mainBox) towns.push({x: mainBox.x, y: mainBox.y, w: boxW, h: boxH, main: true});
+  // Satellite towns go on their own dry site, far enough away to read as a
+  // separate place and close enough to be worth a highway.
+  for (let k = 0; k < 2; k++) {
+    const site = findSatelliteSite(46, 34, towns, 48);
+    if (site) towns.push(site);
+  }
+  if (towns.length) {
+    for (const t of towns) layTownGrid(t);
+    for (const t of towns.slice(1)) highwayLink(towns[0], t);
+    // Airports go in before the blocks: the access lane they cut becomes
+    // street frontage, and every town that fits one gets an airfield.
+    let airports = 0;
+    for (const t of towns) if (placeAirport(t)) airports++;
+    for (let k = 0; k < 2 && airports < 2 && towns[0]; k++) if (placeAirport(towns[0], true)) airports++;
+    for (const t of towns) { fillTownBlocks(t, rng); townCivics(t, rng); }
+    for (const t of towns) balanceTown(t, rng, t.main ? 70 : 30);
+    for (const t of towns) ruralFarms(t, rng);
+    const main = towns[0];
+    starterTown = {x: Math.round(best2(main.xs)), y: Math.round(best2(main.ys))};
+    placeFreightYards({x: main.x, y: main.y, w: main.w, h: main.h}, main.xs, main.ys);
   }
   placeCargoPorts(rng);
   placeCoastalBuildings(rng);
   finishWorld();
+}
+
+// The flattest, driest rectangle that is not already a town site.
+function findSatelliteSite(w, h, towns, minDist) {
+  let best = null;
+  for (let by = 6; by <= MH - h - 6; by += 6) {
+    for (let bx = 6; bx <= MW - w - 6; bx += 6) {
+      let near = false;
+      for (const t of towns) {
+        if (Math.hypot(t.x + t.w / 2 - (bx + w / 2), t.y + t.h / 2 - (by + h / 2)) < minDist) { near = true; break; }
+      }
+      if (near) continue;
+      let land = 0, total = 0, trees = 0;
+      for (let y = by; y < by + h; y += 2) for (let x = bx; x < bx + w; x += 2) {
+        total++;
+        if (!water[y * MW + x]) land++;
+        if (tree[y * MW + x]) trees++;
+      }
+      if (land < total) continue;               // a town needs unbroken dry land
+      const score = total - trees * 0.02 - (towns[0] ? Math.hypot(towns[0].x - bx, towns[0].y - by) * 0.01 : 0);
+      if (!best || score > best.score) best = {x: bx, y: by, score};
+    }
+  }
+  return best ? {x: best.x, y: best.y, w, h, main: false} : null;
+}
+
+// The street grid: a wider artery through the middle, cross streets every block.
+function layTownGrid(t) {
+  const xs = [], ys = [];
+  const stepX = t.main ? 13 : 12, stepY = t.main ? 12 : 10;
+  for (let x = t.x + 2; x <= t.x + t.w - 6; x += stepX) xs.push(x);
+  for (let y = t.y + 2; y <= t.y + t.h - 6; y += stepY) ys.push(y);
+  if (xs.length < 2 || ys.length < 2) { t.xs = [t.x + 1, t.x + 2]; t.ys = [t.y + 1, t.y + 2]; t.cx = t.x + 1; t.cy = t.y + 1; return; }
+  const mid = Math.floor(ys.length / 2);
+  for (let k = 0; k < ys.length; k++) lineRoadLand(xs[0], ys[k], xs[xs.length - 1], ys[k], k === mid ? 2 : 1);
+  for (const x of xs) lineRoadLand(x, ys[0], x, ys[ys.length - 1], 1);
+  t.xs = xs; t.ys = ys;
+  t.cx = xs[Math.floor(xs.length / 2)]; t.cy = ys[mid];
+}
+
+// Two lanes each way between towns: side-by-side highways become directional
+// lanes in the linker, so intercity traffic does not meet head-on.
+function highwayLink(a, b) {
+  if (!a || !b) return;
+  const ax = a.cx, ay = a.cy, bx = b.cx, by = b.cy;
+  lineRoadLand(ax, ay, bx, ay, 2);
+  lineRoadLand(ax, ay + 1, bx, ay + 1, 2);
+  lineRoadLand(bx, ay, bx, by, 2);
+  lineRoadLand(bx + 1, ay + 1, bx + 1, by + 1, 2);
+}
+
+// Nearest street or highway inside a rectangle, for cutting an access lane.
+function nearestRoadRect(x0, y0, x1, y1) {
+  let best = -1, bd = Infinity;
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  for (let y = Math.max(0, y0); y <= Math.min(MH - 1, y1); y++) {
+    for (let x = Math.max(0, x0); x <= Math.min(MW - 1, x1); x++) {
+      const i = y * MW + x;
+      if (tile[i] !== 1 && tile[i] !== 2) continue;
+      const d = Math.abs(x - cx) + Math.abs(y - cy);
+      if (d < bd) { bd = d; best = i; }
+    }
+  }
+  return best;
+}
+
+// An airport needs a long, flat plot and a road to its gate. Island worlds and
+// cities hemmed in by water may not fit one; the caller just tries again.
+function placeAirport(t, force) {
+  const d = BT.airport, w = d.w, h = d.h;
+  const cx = t.x + t.w / 2, cy = t.y + t.h / 2;
+  for (let r = force ? 30 : 20; r <= 96; r += 4) {
+    for (let a = 0; a < 24; a++) {
+      const ang = a / 24 * Math.PI * 2 + r * 0.11;
+      const bx = Math.round(cx + Math.cos(ang) * r) - (w >> 1);
+      const by = Math.round(cy + Math.sin(ang) * r) - (h >> 1);
+      if (bx < 2 || by < 2 || bx + w > MW - 2 || by + h > MH - 2) continue;
+      if (whyNot('airport', bx, by, true) !== '') continue;
+      const near = nearestRoadRect(bx - 30, by - 30, bx + w + 30, by + h + 30);
+      if (near < 0) continue;
+      const inFoot = (x, y) => x >= bx && x < bx + w && y >= by && y < by + h;
+      const sides = [[bx - 1, by + 2], [bx + w, by + 2], [bx + 2, by - 1], [bx + 2, by + h]];
+      for (const [tx, ty] of sides) {
+        if (!inb(tx, ty) || water[ty * MW + tx] || bldAt[ty * MW + tx]) continue;
+        const route = spurTiles(near % MW, near / MW | 0, tx, ty, inFoot);
+        if (!route) continue;
+        for (const [sx, sy] of route) {
+          const j = sy * MW + sx;
+          if (tile[j] === 1 || tile[j] === 2 || water[j] || bldAt[j]) continue;
+          tile[j] = 1; walkway[j] = 1; tree[j] = 0; oneway[j] = 0;
+        }
+        if (!canPlace('airport', bx, by)) continue;
+        return placeBuilding('airport', bx, by, (r * 131 + a * 17) | 0);
+      }
+    }
+  }
+  return null;
+}
+
+// Downtown gets the towers and workplaces, the edges get homes and shops.
+function fillTownBlocks(t, rng) {
+  const xs = t.xs, ys = t.ys;
+  const midx = (xs.length - 1) / 2, midy = (ys.length - 1) / 2;
+  for (let xi = 0; xi < xs.length - 1; xi++) for (let yi = 0; yi < ys.length - 1; yi++) {
+    const dist = Math.max(Math.abs(xi - midx), Math.abs(yi - midy));
+    const list = t.main && dist <= 1
+      ? ['hq', 'office', 'mall', 'apartment', 'tower', 'office', 'apartment', 'garage', 'shop']
+      : dist <= 2 || !t.main
+        ? ['apartment', 'tower', 'office', 'shop', 'house', 'apartment', 'parking', 'house', 'office']
+        : ['house', 'house', 'apartment', 'house', 'shop', 'parking', 'house', 'apartment'];
+    fillArea(xs[xi] + 1, ys[yi] + 1, xs[xi + 1] - 1, ys[yi + 1] - 1, list, rng);
+  }
+}
+
+// Try a spot near a target point first, so civic buildings and stations spread
+// across the town instead of filling the first free row.
+function placeNear(type, x0, y0, x1, y1, tx, ty, seed) {
+  const r = 16;
+  const ax = clamp(Math.round(tx - r), x0, x1), bx = clamp(Math.round(tx + r), x0, x1);
+  const ay = clamp(Math.round(ty - r), y0, y1), by = clamp(Math.round(ty + r), y0, y1);
+  return findSpot(type, ax, ay, bx, by, seed) || findSpot(type, x0, y0, x1, y1, seed);
+}
+
+// Civic buildings, transit and signals. Stations are spread along a cross and
+// joined in placement order, so each one tunnels back to the nearest existing
+// line and the town sits on one network rather than a pile of platforms.
+function townCivics(t, rng) {
+  const x0 = t.x, y0 = t.y, x1 = t.x + t.w - 1, y1 = t.y + t.h - 1;
+  const midX = t.xs[Math.floor(t.xs.length / 2)], midY = t.ys[Math.floor(t.ys.length / 2)];
+  const firstX = t.xs[1] ?? x0, firstY = t.ys[1] ?? y0;
+  const lastX = t.xs[t.xs.length - 2] ?? x1, lastY = t.ys[t.ys.length - 2] ?? y1;
+  const spots = t.main
+    ? [
+        ['school', firstX, firstY], ['school', lastX, lastY],
+        ['hospital', midX, t.ys[0]], ['hospital', t.xs[0], midY],
+        ['fireStation', firstX, midY], ['policeStation', lastX, midY],
+        ['researchLab', midX, lastY],
+        ['factory', t.xs[0], lastY], ['factory', lastX, firstY], ['factory', midX, firstY],
+        ['warehouse', t.xs[0], firstY], ['warehouse', lastX, lastY], ['warehouse', firstX, lastY],
+        ['garage', midX, firstY], ['garage', lastX, midY],
+        ['parking', firstX, midY + 6], ['parking', lastX, midY - 6], ['parking', midX, lastY],
+        ['park', firstX, lastY], ['park', midX + 8, midY], ['park', lastX, firstY],
+        ['metro', firstX, midY], ['metro', midX, firstY], ['metro', lastX, midY], ['metro', midX, lastY], ['metro', midX, midY],
+      ]
+    : [
+        ['school', firstX, firstY], ['hospital', lastX, midY],
+        ['policeStation', firstX, midY], ['factory', lastX, lastY], ['warehouse', midX, firstY],
+        ['parking', firstX, midY - 5], ['parking', lastX, firstY],
+        ['park', midX, lastY], ['park', lastX, midY + 5],
+        ['metro', firstX, midY], ['metro', midX, firstY], ['metro', lastX, lastY],
+      ];
+  // Bus stops along the main cross, one per block, so every district is served.
+  const stops = [];
+  for (let k = 1; k < t.xs.length - 1; k++) stops.push(['busstop', t.xs[k], midY]);
+  for (let k = 1; k < t.ys.length - 1; k++) stops.push(['busstop', midX, t.ys[k]]);
+  spots.push(...stops.slice(0, t.main ? 8 : 4));
+  let seed = 900 + (t.x | 0);
+  const metros = [];
+  for (const [type, tx, ty] of spots) {
+    const b = placeNear(type, x0, y0, x1, y1, tx, ty, seed++);
+    if (b && type === 'metro') metros.push(b);
+  }
+  for (const m of metros) if (typeof connectMetroStation === 'function') connectMetroStation(m);
+  townSignals(t);
+}
+
+// Signals on every junction where two directions cross. A highway junction gets
+// a longer green than a side street, which keeps the arterial moving.
+function townSignals(t) {
+  for (let y = Math.max(1, t.y - 1); y <= Math.min(MH - 2, t.y + t.h); y++) {
+    for (let x = Math.max(1, t.x - 1); x <= Math.min(MW - 2, t.x + t.w); x++) {
+      const i = y * MW + x;
+      if (!isRoad(i) || overpass[i] || lights.has(i)) continue;
+      const ns = isRoad(i - MW) || isRoad(i + MW);
+      const ew = isRoad(i - 1) || isRoad(i + 1);
+      if (!ns || !ew) continue;
+      const major = tile[i] === 2 || tile[i - MW] === 2 || tile[i + MW] === 2 || tile[i - 1] === 2 || tile[i + 1] === 2;
+      lights.set(i, {ns: major ? 14 : 10, ew: major ? 10 : 8, off: 0});
+    }
+  }
+}
+
+// A generated city should not be a bedroom town: top up workplaces until the
+// jobs roughly match the homes, using the densest types that still fit.
+function balanceTown(t, rng, maxAdd) {
+  const totals = () => {
+    let homes = 0, jobs = 0;
+    for (const b of buildings.values()) {
+      if (b.x < t.x || b.x >= t.x + t.w || b.y < t.y || b.y >= t.y + t.h) continue;
+      const d = BT[b.type];
+      homes += d.homes; jobs += d.jobs;
+    }
+    return {homes, jobs};
+  };
+  for (let g = 0; g < maxAdd; g++) {
+    const {homes, jobs} = totals();
+    if (!homes || jobs >= homes * 0.9) break;
+    const type = g % 4 === 0 ? 'office' : g % 4 === 1 ? 'hq' : g % 4 === 2 ? 'mall' : 'factory';
+    if (!findSpot(type, t.x, t.y, t.x + t.w - 1, t.y + t.h - 1, 5000 + g)) break;
+  }
+}
+
+// A country lane from the fields back to the nearest street.
+function connectLane(x, y) {
+  const near = nearestRoadRect(x - 40, y - 40, x + 40, y + 40);
+  if (near < 0) return false;
+  const route = spurTiles(near % MW, near / MW | 0, x, y, () => false);
+  if (!route) return false;
+  for (const [sx, sy] of route) {
+    const j = sy * MW + sx;
+    if (water[j] || bldAt[j] || tile[j]) continue;
+    tile[j] = 1; walkway[j] = 0; tree[j] = 0; oneway[j] = 0;
+  }
+  return true;
+}
+
+// Farms and orchards in the gaps between towns, on a lane off the nearest road.
+function ruralFarms(t, rng) {
+  const cx = t.x + t.w / 2, cy = t.y + t.h / 2;
+  let zones = 0;
+  for (let r = 26; r <= 96 && zones < 2; r += 7) {
+    for (let a = 0; a < 26 && zones < 2; a++) {
+      const ang = a / 26 * Math.PI * 2 + r * 0.17;
+      const x = Math.round(cx + Math.cos(ang) * r), y = Math.round(cy + Math.sin(ang) * r);
+      if (!inb(x, y) || water[y * MW + x] || tile[y * MW + x] || bldAt[y * MW + x]) continue;
+      let bad = 0;
+      for (let yy = y - 6; yy <= y + 6; yy += 2) for (let xx = x; xx <= x + 11; xx += 2) {
+        if (!inb(xx, yy) || water[yy * MW + xx] || bldAt[yy * MW + xx]) bad++;
+      }
+      if (bad > 2) continue;
+      if (!connectLane(x, y)) continue;
+      lineRoadLand(x, y, Math.min(MW - 2, x + 11), y, 1);
+      lineRoadLand(x + 6, Math.max(1, y - 6), x + 6, Math.min(MH - 2, y + 6), 1);
+      fillArea(Math.max(0, x + 1), Math.max(0, y - 5), Math.min(MW - 2, x + 11), Math.min(MH - 2, y + 5),
+        ['farm', 'orchard', 'farmhouse', 'greenhouse', 'farm'], rng);
+      zones++;
+    }
+  }
 }
 const best2 = a => a[Math.floor(a.length / 2)];
 let starterTown = null;
@@ -304,6 +543,7 @@ function genRegion(demo, seed = demo ? 12345 : Math.floor(Math.random() * 1e6)) 
   clearWorld();
   for (const key of Object.keys(resources)) resources[key] = 0;
   worldSeed = seed;
+  worldGenVersion = GEN_VERSION;
   genTerrainInto(worldSeed, water, tree);
   if (demo) buildStarterTown();
   else finishWorld();
@@ -329,7 +569,7 @@ function clearDistrict(m) {
   }
   for (const id of kill) { const b = B(id); if (b) removeBuilding(b); }
   if (typeof clearRuinsRect === 'function') clearRuinsRect(x0, y0, x1, y1);
-  const gw = new Uint8Array(N), gt = new Uint8Array(N); genTerrainInto(worldSeed, gw, gt);
+  const gw = new Uint8Array(N), gt = new Uint8Array(N); genTerrainInto(worldSeed, gw, gt, worldGenVersion);
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { const i = y * MW + x; water[i] = gw[i]; tree[i] = bldAt[i] ? 0 : gt[i]; }
   markDirty(x0, y0, x1, y1); mapChanged();
   toast(`Cleared the ${DISTRICTS[m]} district.`);

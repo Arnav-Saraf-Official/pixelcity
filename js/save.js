@@ -203,18 +203,23 @@ function listFlags(a) { const out = []; for (let i = 0; i < N; i++) if (a[i]) ou
 function serialize() {
   const gw = new Uint8Array(N), gt = new Uint8Array(N); genTerrainInto(worldSeed, gw, gt);
   const savedBuildings = [...buildings.values()];
-  return {v: 5, seed: worldSeed, t: Math.round(gameMin), settings: {...worldSettings}, tax: {sales: worldSettings.taxSales || 0, income: worldSettings.taxIncome || 0}, resources: {...resources},
+  return {v: 5, gen: worldGenVersion, seed: worldSeed, t: Math.round(gameMin), settings: {...worldSettings}, tax: {sales: worldSettings.taxSales || 0, income: worldSettings.taxIncome || 0}, resources: {...resources},
     tile: rle(tile), platform: rle(platform), oneway: rle(oneway), overpass: rle(overpass), walkway: rle(walkway), rail: rle(railOn), track: rle(trackOn), track2: rle(trackWide), sig: rle(sigNode),
     water: diffEnc(water, gw), tree: diffEnc(tree, gt, i => tile[i] || bldAt[i]),
     lights: [...lights].map(([i, L]) => [i, L.ns, L.ew, Math.round(L.off)]),
     gates: [...gates], gateOff: listFlags(gateOff),
-    b: savedBuildings.map(b => [b.type, b.x, b.y, b.seed >>> 0]),
-    charred: [...charredBuildings.values()].map(b => [b.type, b.x, b.y, b.seed >>> 0]),
+    // The trailing id lets a load keep the exact ids the live population uses
+    // for homes and jobs instead of renumbering every building.
+    b: savedBuildings.map(b => [b.type, b.x, b.y, b.seed >>> 0, b.id]),
+    charred: [...charredBuildings.values()].map(b => [b.type, b.x, b.y, b.seed >>> 0, b.id]),
     state: savedBuildings.map((b, i) => [i, Number.isFinite(b.stock) ? b.stock : null, b.inventory || null, b.byproducts || null, b.policy || null]),
     districts: [...districts.values()].map(d => [d.id, d.name, d.color]),
     dlayer: rle(districtLayer),
     lines: freightLines.map(l => [l.id, l.stops.slice(), l.color]),
     wx: [WEATHER.kind, Math.round(WEATHER.until)],
+    // The running city travels with the map: people, jobs, traffic, trains,
+    // fires and weather. Restoring it is what makes opening a save instant.
+    live: captureLiveState(),
     cam: [Math.round(cam.x), Math.round(cam.y), cam.z]};
 }
 // Everything loaded from a file or a code is checked before it touches the current region:
@@ -246,6 +251,11 @@ function applyDiff(s, arr, maxV) {
 function loadData(d) {
   if (!d || typeof d !== 'object' || d.v !== 5) throw new Error('This save comes from a different version of the game.');
   if (!isInt(d.seed, 0, 1e9)) throw new Error(BAD);
+  // Terrain is stored as a difference from what the seed generates, so a world
+  // is regenerated with the generator version it was made with. Saves written
+  // before the field existed are version 1, which is exactly what they used.
+  if (d.gen !== undefined && !isInt(d.gen, 1, GEN_VERSION)) throw new Error('This save comes from a newer version of the game.');
+  const genVersion = d.gen === undefined ? 1 : d.gen;
   for (const k of ['tile', 'oneway', 'overpass', 'walkway', 'water', 'tree']) if (typeof d[k] !== 'string' || d[k].length > 5e6) throw new Error(BAD);
   if (!Array.isArray(d.b) || d.b.length > 40000 || !Array.isArray(d.lights) || d.lights.length > 40000) throw new Error(BAD);
   if (d.charred !== undefined && (!Array.isArray(d.charred) || d.charred.length > 40000)) throw new Error(BAD);
@@ -270,20 +280,25 @@ function loadData(d) {
   if (typeof d.track === 'string') unrleInto(d.track, ntk, 1);
   if (typeof d.track2 === 'string') unrleInto(d.track2, ntw, 2);
   if (typeof d.sig === 'string') unrleInto(d.sig, nsig, 1);
-  genTerrainInto(d.seed, nwa, ntr); applyDiff(d.water, nwa, 1); applyDiff(d.tree, ntr, TREE_MAXV);
-  for (const e of d.b) if (!Array.isArray(e) || !hasType(e[0]) || !isInt(e[1], 0, MW - 1) || !isInt(e[2], 0, MH - 1) || !isInt(e[3], 0, 4294967295)) throw new Error(BAD);
-  if (Array.isArray(d.charred)) for (const e of d.charred) if (!Array.isArray(e) || !hasType(e[0]) || !isInt(e[1], 0, MW - 1) || !isInt(e[2], 0, MH - 1) || !isInt(e[3], 0, 4294967295)) throw new Error(BAD);
+  genTerrainInto(d.seed, nwa, ntr, genVersion); applyDiff(d.water, nwa, 1); applyDiff(d.tree, ntr, TREE_MAXV);
+  for (const e of d.b) if (!Array.isArray(e) || !hasType(e[0]) || !isInt(e[1], 0, MW - 1) || !isInt(e[2], 0, MH - 1) || !isInt(e[3], 0, 4294967295) || (e[4] !== undefined && !isInt(e[4], 1, 1e9))) throw new Error(BAD);
+  if (Array.isArray(d.charred)) for (const e of d.charred) if (!Array.isArray(e) || !hasType(e[0]) || !isInt(e[1], 0, MW - 1) || !isInt(e[2], 0, MH - 1) || !isInt(e[3], 0, 4294967295) || (e[4] !== undefined && !isInt(e[4], 1, 1e9))) throw new Error(BAD);
   for (const e of d.lights) if (!Array.isArray(e) || !isInt(e[0], 0, N - 1) || !isInt(e[1], 3, 25) || !isInt(e[2], 3, 25) || !isInt(e[3], 0, 60)) throw new Error(BAD);
   // the save is valid: replace the region
   clearWorld();
   worldSeed = d.seed;
+  worldGenVersion = genVersion;
   tile.set(nt); platform.set(npl); oneway.set(no); overpass.set(nov); walkway.set(nw); water.set(nwa); tree.set(ntr); railOn.set(nra); trackOn.set(ntk); trackWide.set(ntw); sigNode.set(nsig);
   // Lanes remembered for a tile that no longer carries track would confuse the
   // linker, so drop them.
   for (let i = 0; i < N; i++) if (!trackOn[i]) trackWide[i] = 0;
   for (let i = 0; i < N; i++) if (tile[i] || water[i] || platform[i]) tree[i] = 0;
-  const restoredBuildings = [];
-  for (const [type, x, y, seed] of d.b) restoredBuildings.push(canPlace(type, x, y) || canPlaceLoose(type, x, y) ? placeBuilding(type, x, y, seed) : null);
+  const restoredBuildings = [], keptIds = [];
+  for (const [type, x, y, seed, id] of d.b) {
+    const b = canPlace(type, x, y) || canPlaceLoose(type, x, y) ? placeBuilding(type, x, y, seed) : null;
+    restoredBuildings.push(b);
+    if (b && Number.isInteger(id)) keptIds.push([b, id]);
+  }
   if (Array.isArray(d.state)) for (const entry of d.state) {
     if (!Array.isArray(entry) || !isInt(entry[0], 0, d.b.length - 1) || entry.length !== 5) throw new Error(BAD);
     const b = restoredBuildings[entry[0]];
@@ -315,14 +330,30 @@ function loadData(d) {
       b.policy = {message: policy.message, tone: policy.tone};
     }
   }
-  if (Array.isArray(d.charred)) for (const [type, x, y, seed] of d.charred) {
+  if (Array.isArray(d.charred)) for (const [type, x, y, seed, id] of d.charred) {
     const b = canPlace(type, x, y) || canPlaceLoose(type, x, y) ? placeBuilding(type, x, y, seed) : null;
     if (!b) continue;
+    if (Number.isInteger(id)) keptIds.push([b, id]);
     buildings.delete(b.id);
     b.charred = true;
     b.queue = [];
     charredBuildings.set(b.id, b);
     wrecks.push({ruin: true, charredBuilding: true, id: b.id, type, x, y, w: b.w, h: b.h, seed, t: simTime, until: Infinity});
+  }
+  // Keep the building ids the save was made with, so every home, job and yard
+  // reference in the live snapshot still points at the same building.
+  if (keptIds.length) {
+    const taken = new Set(), remap = new Map();
+    for (const [b, id] of keptIds) if (!taken.has(id)) { taken.add(id); remap.set(b.id, id); }
+    const all = [...buildings.values(), ...charredBuildings.values()];
+    buildings.clear(); charredBuildings.clear();
+    for (const b of all) {
+      if (remap.has(b.id)) b.id = remap.get(b.id);
+      (b.charred ? charredBuildings : buildings).set(b.id, b);
+    }
+    for (const b of all) for (let yy = b.y; yy < b.y + b.h; yy++) for (let xx = b.x; xx < b.x + b.w; xx++) bldAt[yy * MW + xx] = b.id;
+    for (const w of wrecks) if (w.charredBuilding && remap.has(w.id)) w.id = remap.get(w.id);
+    for (const id of taken) if (id >= nextBid) nextBid = id + 1;
   }
   if (d.resources) for (const good of Object.keys(resources)) if (Number.isFinite(d.resources[good])) resources[good] = d.resources[good];
   for (const [i, ns, ew, off] of d.lights) lights.set(i, {ns, ew, off});
@@ -359,6 +390,12 @@ function loadData(d) {
   }
   gameMin = isInt(d.t, 0, 1e9) ? d.t : 6.5 * 60;
   finishWorld();
+  // Saves made before the live snapshot existed simply skip it and build the
+  // city the old way, rather than refusing to open.
+  if (d.live) {
+    try { restoreLiveState(d.live); }
+    catch (e) { console.warn('Could not restore the saved population; the city will rebuild it.', e); }
+  }
   if (Array.isArray(d.cam) && d.cam.length === 3 && d.cam.every(Number.isFinite) && ZOOMS.includes(d.cam[2])) { cam.x = d.cam[0]; cam.y = d.cam[1]; cam.z = d.cam[2]; }
   zoomTo(cam.z, 0, 0);
 }
