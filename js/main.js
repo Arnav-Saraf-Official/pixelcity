@@ -34,6 +34,7 @@ function frame(now) {
     hud(dt);
   }
   audioFrame(dt);
+  devFrame();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

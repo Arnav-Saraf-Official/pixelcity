@@ -248,6 +248,17 @@ body.menu-screen #top,body.menu-screen #taxBtn,body.menu-screen #menu,body.menu-
 .sound-row label{display:flex;justify-content:space-between;align-items:baseline;color:var(--dim)}
 .sound-row label b{color:var(--hi);font-weight:normal;font-variant-numeric:tabular-nums}
 #soundDlg input[type=range]{width:100%;accent-color:var(--hi)}
+.sound-toggle{display:flex;align-items:center;gap:8px;color:var(--hi);border-top:2px solid var(--line);padding-top:8px;cursor:pointer}
+.sound-toggle input{width:18px;height:18px;accent-color:var(--hi);flex:none}
+#fxLevels{display:flex;flex-direction:column;gap:6px;border-top:2px solid var(--line);padding-top:8px}
+#fxLevels.hidden{display:none}
+/* Developer tick tools: a small panel above the tool bar, only while a game runs. */
+.dev-panel{position:fixed;left:10px;bottom:calc(10px + var(--sb,0px));display:flex;align-items:center;gap:6px;padding:5px 7px;z-index:6;font-size:17px}
+.dev-panel b{color:var(--hi);font-weight:normal;letter-spacing:1px}
+.dev-panel label{color:var(--dim)}
+.dev-panel input{width:64px;font:inherit;font-size:17px;background:var(--ink);color:var(--hi);border:2px solid var(--edge);padding:1px 4px}
+.dev-panel.hidden{display:none}
+body.menu-screen #devPanel,body.firemap #devPanel,body.region #devPanel{display:none!important}
 
 /* City statistics: compact summary dialog and the full-screen record. */
 #statsBtn{padding:4px 10px;border:2px solid var(--edge);background:var(--panel2);color:var(--hi);font:inherit;font-size:18px}

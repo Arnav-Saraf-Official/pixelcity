@@ -430,8 +430,8 @@ function drawWeather(f, sx0, sy0, sx1, sy1) {
 
 // A thunderstorm throws bolts: a jagged line from the cloud down to the ground,
 // stroked three times (wide faint halo, mid glow, white core) with a flash where
-// it lands. Everything is seeded off a time slot, so a bolt stays put while it is
-// on screen and is gone 180ms later.
+// it lands. Bolts come from the storm schedule in audio.js, which plays a rumble
+// first and a crack at the strike, so the flash, the sound and the fire line up.
 const BOLT_MS = 180;
 function strokePath(f, pts, width, style) {
   f.strokeStyle = style; f.lineWidth = width;
@@ -442,13 +442,13 @@ function strokePath(f, pts, width, style) {
   f.stroke();
 }
 function drawLightning(f, cell, cx, cy, R, sx0, sy0, sx1, sy1) {
-  const now = animNow();
-  const slot = Math.floor(now / BOLT_MS);
-  if (hash(slot, 91, cell.id) > 0.06) return;          // a strike every few seconds
-  const a = 1 - (now - slot * BOLT_MS) / BOLT_MS;      // fade out over the slot
+  const now = performance.now();
+  const ev = typeof stormBoltFor === 'function' ? stormBoltFor(cell.id, now) : null;
+  if (!ev) return;
+  const a = 1 - (now - ev.at) / BOLT_MS;                // fade out over the flash
   if (a <= 0.05) return;
-  const px = cx + (hash(slot, 92, cell.id) - 0.5) * R * 1.5;
-  const py = cy + (hash(slot, 93, cell.id) - 0.5) * R * 1.5;
+  const px = ev.x * T, py = ev.y * T;
+  const slot = Math.floor(ev.at / BOLT_MS);             // stable shape per strike
   // The world is drawn in world pixels and then scaled by the zoom, so a fixed
   // bolt would be a hairline zoomed out and a thick bar zoomed in. Size it in
   // screen pixels instead: the same strike reads the same at every zoom.
@@ -554,8 +554,8 @@ function drawRain(f, cell, R, sx0, sy0, sx1, sy1) {
     f.beginPath();
     for (let j = 0; j < list.length; j += 3) {
       const px = list[j], py = list[j + 1], age = list[j + 2];
-      const spread = 1 + age * 2.6;
-      const lift = Math.sin(age * Math.PI) * 2.6;
+      const spread = 1 + age * 1.3;
+      const lift = Math.sin(age * Math.PI) * 1.3;
       f.rect(px - Math.round(spread), py - Math.round(lift), 1, 1);
       f.rect(px + Math.round(spread), py - Math.round(lift), 1, 1);
       if (age < 0.7) {
@@ -563,7 +563,7 @@ function drawRain(f, cell, R, sx0, sy0, sx1, sy1) {
         f.rect(px - s2, py - Math.round(lift * 0.4), 1, 1);
         f.rect(px + s2, py - Math.round(lift * 0.4), 1, 1);
       }
-      const rw = Math.round(2 + age * 3);
+      const rw = Math.round(1 + age * 1.5);
       f.rect(px - (rw >> 1), py, rw, 1);
     }
     f.fill();
@@ -572,7 +572,7 @@ function drawRain(f, cell, R, sx0, sy0, sx1, sy1) {
   drawSplash(splashB, 0.42);
   drawSplash(splashA, 0.72);
   if (streak.length) {
-    const h = heavy ? 2 : 1;
+    const h = 2;                     // every drop is two pixels, one above the other
     f.fillStyle = heavy ? 'rgba(178,205,255,.78)' : 'rgba(190,220,255,.5)';
     f.beginPath();
     for (let j = 0; j < streak.length; j += 2) f.rect(streak[j], streak[j + 1], 1, h);

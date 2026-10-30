@@ -94,6 +94,12 @@
   <button id="zFit" title="Whole district (Z)">District</button>
   <button id="zRegion" title="Every district in the region">Region</button>
 </div>
+<div id="devPanel" class="panel dev-panel hidden" aria-label="Developer tools">
+  <b>DEV</b>
+  <button id="devTick" title="Advance the simulation by exactly one tick">Tick +1</button>
+  <label for="devTps">TPS</label>
+  <input id="devTps" type="number" min="0" max="5000" step="1" value="20" inputmode="numeric">
+</div>
 <div id="regionHint" class="panel">REGION · click a district to build in it · Esc or + to go back</div>
 <div id="fireMapPanel" class="panel"><b>ACTIVE FIRES</b><span id="fireMapCount">No active fires</span><button id="fireMapClose">Back to city</button></div>
 
@@ -166,6 +172,38 @@
     <input type="range" id="volWeather" min="0" max="100" step="1" value="75" aria-label="Weather sound volume">
   </div>
   <p class="note">Vehicles covers cars, buses, trucks, trains and aircraft: engines, horns, rail joints and brakes. Sounds fade as they leave the view. Weather is rain, wind and thunder.</p>
+  <label class="sound-toggle"><input type="checkbox" id="soundDev"> <span>Developer mode</span></label>
+  <div id="fxLevels" class="hidden">
+    <p class="note">Per-effect levels. Set one to 0 to mute it while debugging something else.</p>
+    <div class="sound-row">
+      <label for="volCar"><span>Cars</span><b id="volCarVal">100%</b></label>
+      <input type="range" id="volCar" min="0" max="100" step="1" value="100" aria-label="Car volume">
+    </div>
+    <div class="sound-row">
+      <label for="volHeavy"><span>Bus &amp; truck</span><b id="volHeavyVal">100%</b></label>
+      <input type="range" id="volHeavy" min="0" max="100" step="1" value="100" aria-label="Bus and truck volume">
+    </div>
+    <div class="sound-row">
+      <label for="volTrain"><span>Trains</span><b id="volTrainVal">100%</b></label>
+      <input type="range" id="volTrain" min="0" max="100" step="1" value="100" aria-label="Train volume">
+    </div>
+    <div class="sound-row">
+      <label for="volPlane"><span>Aircraft</span><b id="volPlaneVal">100%</b></label>
+      <input type="range" id="volPlane" min="0" max="100" step="1" value="100" aria-label="Aircraft volume">
+    </div>
+    <div class="sound-row">
+      <label for="volRain"><span>Rain</span><b id="volRainVal">100%</b></label>
+      <input type="range" id="volRain" min="0" max="100" step="1" value="100" aria-label="Rain volume">
+    </div>
+    <div class="sound-row">
+      <label for="volWind"><span>Wind</span><b id="volWindVal">100%</b></label>
+      <input type="range" id="volWind" min="0" max="100" step="1" value="100" aria-label="Wind volume">
+    </div>
+    <div class="sound-row">
+      <label for="volThunder"><span>Thunder</span><b id="volThunderVal">100%</b></label>
+      <input type="range" id="volThunder" min="0" max="100" step="1" value="100" aria-label="Thunder volume">
+    </div>
+  </div>
 </div>
 
 <div id="help" class="panel dlg hidden" role="dialog" aria-label="How to play">
