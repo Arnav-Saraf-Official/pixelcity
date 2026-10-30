@@ -281,6 +281,7 @@ menuEl.querySelectorAll('button').forEach(b => b.onclick = () => {
   else if (m === 'file') downloadSave();
   else if (m === 'newWorld') openWorldSetup();
   else if (m === 'worlds') openWorldList('game');
+  else if (m === 'sound') openSoundDlg();
   else if (m === 'start') returnToStartScreen();
   else if (m === 'clearmap') { const d = camDistrict(); askConfirm(`Clear everything built in the ${DISTRICTS[d]} district?`, () => clearDistrict(d)); }
   else if (m === 'help') helpEl.classList.remove('hidden');

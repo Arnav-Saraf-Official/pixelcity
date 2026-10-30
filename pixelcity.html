@@ -49,6 +49,7 @@
   <button data-m="file">Save as file (.save)</button>
   <button data-m="newWorld">New world…</button>
   <button data-m="worlds">Load / manage worlds…</button>
+  <button data-m="sound">Sound…</button>
   <button data-m="start">Main menu</button>
   <button data-m="clearmap">Clear this district</button>
   <button data-m="help">How to play</button>
@@ -148,6 +149,23 @@
 <div id="confirmDlg" class="panel dlg hidden" role="alertdialog">
   <p id="confirmMsg"></p>
   <div class="btns"><button id="confirmYes" class="danger">Yes</button><button id="confirmNo">Cancel</button></div>
+</div>
+
+<div id="soundDlg" class="panel dlg hidden" role="dialog" aria-label="Sound settings">
+  <div class="dlgHead"><h3>Sound</h3><button id="soundClose" title="Close">✕</button></div>
+  <div class="sound-row">
+    <label for="volMusic"><span>Music</span><b id="volMusicVal">75%</b></label>
+    <input type="range" id="volMusic" min="0" max="100" step="1" value="75" aria-label="Music volume">
+  </div>
+  <div class="sound-row">
+    <label for="volVehicles"><span>Vehicles</span><b id="volVehiclesVal">75%</b></label>
+    <input type="range" id="volVehicles" min="0" max="100" step="1" value="75" aria-label="Vehicle sound volume">
+  </div>
+  <div class="sound-row">
+    <label for="volWeather"><span>Weather</span><b id="volWeatherVal">75%</b></label>
+    <input type="range" id="volWeather" min="0" max="100" step="1" value="75" aria-label="Weather sound volume">
+  </div>
+  <p class="note">Vehicles covers cars, buses, trucks, trains and aircraft: engines, horns, rail joints and brakes. Sounds fade as they leave the view. Weather is rain, wind and thunder.</p>
 </div>
 
 <div id="help" class="panel dlg hidden" role="dialog" aria-label="How to play">

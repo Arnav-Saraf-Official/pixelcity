@@ -496,36 +496,46 @@ function drawRain(f, cell, R, sx0, sy0, sx1, sy1) {
   // A shower is a scatter of drops; a thunderstorm is a dense sheet driven
   // sideways, so the two never look like the same weather at two strengths.
   const n = heavy ? 1100 : 220, speed = heavy ? 560 : 330;
-  const base = heavy ? 0.30 : 0.12, amp = heavy ? 0.55 : 0.32;
-  // Wind: a smooth Perlin-style field drifting across the map, sampled per drop.
-  // The whole shower bends together in gusts instead of falling along one fixed
-  // slant, and neighbouring drops lean the same way.
-  const gust = (x, y) => vnoise(x / 150 + t * 0.32, y / 120 - t * 0.22, 0x51f0 + cell.id * 37) - 0.5;
-  const SPLASH = 166;                                  // drops stop and splash here
+  const CYCLE = 210, SPLASH = 166;                     // fall length; drops splash here
+  // One smooth Perlin field drives the whole shower. Its lean from vertical is
+  // kept inside ±45° (0° is straight down), and the same field translates the
+  // rain by up to four tiles on each axis. Both drift slowly with time, so the
+  // shower bends and wanders as a body instead of each drop doing its own thing.
+  const SEED = 0x51f0 + cell.id * 37;
+  const wind = (x, y) => {
+    const fx = x / 150 + t * 0.22, fy = y / 120 - t * 0.16;
+    const angle = (vnoise(fx, fy, SEED) * 2 - 1) * (Math.PI / 4);
+    return {
+      sin: Math.sin(angle), cos: Math.cos(angle),
+      ox: (vnoise(fx + 11.3, fy + 4.7, SEED + 17) * 2 - 1) * 4 * T,
+      oy: (vnoise(fx - 6.1, fy + 9.4, SEED + 29) * 2 - 1) * 4 * T,
+    };
+  };
   const snow = [], streak = [], splashA = [], splashB = [], splashC = [];
   for (let k = 0; k < n; k++) {
     const ang = hash(k, 11, cell.id) * Math.PI * 2, rr = Math.sqrt(hash(k, 12, cell.id)) * R;
     const bx = cx + Math.cos(ang) * rr, by = cy + Math.sin(ang) * rr;
-    const fall = (t * speed + hash(k, 13, cell.id) * 900) % 210;
-    const slant = base + gust(bx, by) * amp + gust(bx * 2.7, by * 2.7) * amp * 0.3;
+    const w = wind(bx, by);
+    // The translation moves the source too, so the generator stays in the cell
+    // while the visible drops may spill slightly over its edge.
+    const ox = bx + w.ox, oy = by + w.oy;
+    const bdx = ox - cx, bdy = oy - cy;
+    if (bdx * bdx + bdy * bdy > (R + 4 * T) * (R + 4 * T)) continue;
+    const fall = (t * speed + hash(k, 13, cell.id) * 900) % CYCLE;
     const phase = fall;
     if (phase > SPLASH) {
       // The drop has landed: freeze the splash where it hit, and let it spread
       // and fade from there. The drop itself is gone for the rest of the cycle.
-      const gx = bx + SPLASH * slant, gy = by + SPLASH * 0.55;
+      const gx = ox + SPLASH * w.sin, gy = oy + SPLASH * w.cos;
       if (gx < sx0 - 4 || gx > sx1 + 4 || gy < sy0 - 4 || gy > sy1 + 4) continue;
-      const dx = gx - cx, dy = gy - cy;
-      if (dx * dx + dy * dy > R * R) continue;
       const tx = Math.floor(gx / T), ty = Math.floor(gy / T), ti = inb(tx, ty) ? ty * MW + tx : -1;
       if (ti < 0 || water[ti]) continue;
-      const age = (phase - SPLASH) / (210 - SPLASH);
+      const age = (phase - SPLASH) / (CYCLE - SPLASH);
       (age < 0.34 ? splashA : age < 0.67 ? splashB : splashC).push(Math.round(gx), Math.round(gy), age);
       continue;
     }
-    const x = bx + phase * slant, y = by + phase * 0.55;
+    const x = ox + phase * w.sin, y = oy + phase * w.cos;
     if (x < sx0 - 3 || x > sx1 + 3 || y < sy0 - 3 || y > sy1 + 3) continue;
-    const dx = x - cx, dy = y - cy;
-    if (dx * dx + dy * dy > R * R) continue;
     const px = Math.round(x), py = Math.round(y);
     const tx = Math.floor(x / T), ty = Math.floor(y / T), ti = inb(tx, ty) ? ty * MW + tx : -1;
     if (ti >= 0 && biome[ti] === 4) snow.push(px, py);
@@ -544,8 +554,8 @@ function drawRain(f, cell, R, sx0, sy0, sx1, sy1) {
     f.beginPath();
     for (let j = 0; j < list.length; j += 3) {
       const px = list[j], py = list[j + 1], age = list[j + 2];
-      const spread = 1 + age * 3.2;
-      const lift = Math.sin(age * Math.PI) * 3.2;
+      const spread = 1 + age * 2.6;
+      const lift = Math.sin(age * Math.PI) * 2.6;
       f.rect(px - Math.round(spread), py - Math.round(lift), 1, 1);
       f.rect(px + Math.round(spread), py - Math.round(lift), 1, 1);
       if (age < 0.7) {
@@ -553,7 +563,7 @@ function drawRain(f, cell, R, sx0, sy0, sx1, sy1) {
         f.rect(px - s2, py - Math.round(lift * 0.4), 1, 1);
         f.rect(px + s2, py - Math.round(lift * 0.4), 1, 1);
       }
-      const rw = Math.round(3 + age * 5);
+      const rw = Math.round(2 + age * 3);
       f.rect(px - (rw >> 1), py, rw, 1);
     }
     f.fill();
@@ -562,7 +572,7 @@ function drawRain(f, cell, R, sx0, sy0, sx1, sy1) {
   drawSplash(splashB, 0.42);
   drawSplash(splashA, 0.72);
   if (streak.length) {
-    const h = heavy ? 3 : 2;
+    const h = heavy ? 2 : 1;
     f.fillStyle = heavy ? 'rgba(178,205,255,.78)' : 'rgba(190,220,255,.5)';
     f.beginPath();
     for (let j = 0; j < streak.length; j += 2) f.rect(streak[j], streak[j + 1], 1, h);

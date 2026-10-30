@@ -1,13 +1,14 @@
 'use strict';
 // =====================================================================
-// Sound: a background-music toggle and a live city soundscape
+// Sound: background music, live city effects and the volume mix
 // =====================================================================
 // Music streams Eric Skiff's Resistor Anthems (CC BY 3.0) from the Internet
 // Archive copy of the release, so no audio files are bundled. The effects are
-// synthesised with WebAudio noise and oscillators: no assets, and the traffic
-// sounds pan and quiet down with where the camera is. Weather is audible at
-// every zoom level; individual vehicles only while the view is close enough to
-// pick them out, so a city seen from the region overview is not a wall of noise.
+// synthesised with WebAudio noise and oscillators: no assets. Everything runs
+// through three gains (music, vehicles, weather) so the settings dialog can
+// balance them, and the city mix follows the camera: traffic is audible only
+// while individual vehicles are on screen, and fades with distance as they
+// leave the view. Weather is heard at every zoom.
 const MUSIC_KEY = SAVE_KEY + '.music';
 const MUSIC_BASE = 'https://archive.org/download/Resistor_Anthems-9016/';
 const MUSIC_TRACKS = [
@@ -23,6 +24,21 @@ const MUSIC_TRACKS = [
   {name: 'Arpanauts', file: 'Eric_Skiff_-_10_-_Arpanauts.mp3'},
 ];
 
+// The mix. Everything starts at 75%, and the three sliders in the Sound dialog
+// write straight into this: music, vehicles and weather.
+const MIX_KEY = SAVE_KEY + '.mix';
+const audioMix = {music: 0.75, vehicles: 0.75, weather: 0.75};
+function mixLoad() {
+  try {
+    const s = JSON.parse(localStorage.getItem(MIX_KEY));
+    if (!s || typeof s !== 'object') return;
+    for (const k of Object.keys(audioMix)) if (Number.isFinite(s[k])) audioMix[k] = clamp(s[k], 0, 1);
+  } catch (e) { /* defaults */ }
+}
+function mixSave() {
+  try { localStorage.setItem(MIX_KEY, JSON.stringify(audioMix)); } catch (e) { /* private mode */ }
+}
+
 const music = {
   el: new Audio(),
   i: 0,
@@ -31,15 +47,16 @@ const music = {
   started: false,
 };
 music.el.preload = 'none';
-music.el.volume = 0.42;
 
 const musicChipEl = document.getElementById('musicChip');
 const musicStateEl = document.getElementById('musicState');
 const sfxChipEl = document.getElementById('sfxChip');
 const sfxStateEl = document.getElementById('sfxState');
 
-// A saved preference is one boolean and the track it was on. Older saves wrote a
-// volume and a mute flag; a muted player counts as switched off.
+// 75% music is about the level the old fixed 0.42 gave, and a hundred is loud
+// but not clipping.
+const musicApplyVolume = () => { music.el.volume = clamp(audioMix.music * 0.55, 0, 1); };
+
 function musicLoad() {
   try {
     const saved = JSON.parse(localStorage.getItem(MUSIC_KEY));
@@ -62,6 +79,7 @@ function musicPlay(i) {
   if (!music.enabled) return;
   music.i = ((i % MUSIC_TRACKS.length) + MUSIC_TRACKS.length) % MUSIC_TRACKS.length;
   music.el.src = MUSIC_BASE + MUSIC_TRACKS[music.i].file;
+  musicApplyVolume();
   music.started = true;
   const p = music.el.play();
   if (p && p.catch) p.catch(() => { music.started = false; musicRender(); });
@@ -104,8 +122,14 @@ const SFX = {
   on: true,
   voices: {},
   filters: {},        // weather filters, kept apart from the buses above
+  groups: {},         // vehicles / weather gain stages
+  noise: null,        // shared noise buffer for one-shots
   acc: 0,             // seconds since the last mix update
   thunderAt: 0,       // real time of the next thunder rumble
+  honkAt: 0,
+  clackAt: 0,
+  hornAt: 0,
+  brakeAt: 0,
 };
 
 function sfxLoad() {
@@ -117,8 +141,14 @@ function sfxSave() {
 function sfxRender() {
   if (sfxStateEl) sfxStateEl.textContent = SFX.on ? 'on' : 'off';
   sfxChipEl.classList.toggle('on', SFX.on);
-  sfxChipEl.title = SFX.on ? 'City sounds on' : 'City sounds off';
+  sfxChipEl.title = SFX.on ? 'City sounds on: weather, vehicles and aircraft' : 'City sounds off';
 }
+sfxChipEl.onclick = () => {
+  SFX.on = !SFX.on;
+  if (SFX.master) SFX.master.gain.setTargetAtTime(SFX.on ? 0.9 : 0, SFX.ctx.currentTime, 0.08);
+  sfxRender();
+  sfxSave();
+};
 
 // Pink-ish noise: a little darker than white noise, which is what wind, rain and
 // engines actually sound like. One buffer is shared by every looping source.
@@ -139,15 +169,26 @@ function makeNoise(ctx, seconds) {
 
 // One pannable output bus per sound. The gain starts closed, so nothing is heard
 // until the mix has decided how loud that sound should be.
-function mkBus(ctx, master) {
+function mkBus(ctx, dest) {
   const gain = ctx.createGain();
   gain.gain.value = 0;
-  let pan = null;
   if (ctx.createStereoPanner) {
-    pan = ctx.createStereoPanner();
-    gain.connect(pan); pan.connect(master);
-  } else gain.connect(master);
-  return {gain, pan};
+    const pan = ctx.createStereoPanner();
+    gain.connect(pan); pan.connect(dest);
+    return {gain, pan};
+  }
+  gain.connect(dest);
+  return {gain, pan: null};
+}
+function routeAudio(ctx, node, pan, dest) {
+  if (ctx.createStereoPanner) {
+    const p = ctx.createStereoPanner();
+    p.pan.value = clamp(pan, -1, 1);
+    node.connect(p); p.connect(dest);
+    return p;
+  }
+  node.connect(dest);
+  return null;
 }
 function loopSrc(ctx, buf) {
   const s = ctx.createBufferSource();
@@ -166,55 +207,149 @@ function noiseBand(ctx, buf, type, freq, q, out, level = 1) {
 
 function buildSfx(ctx) {
   const master = ctx.createGain();
-  master.gain.value = SFX.on ? 0.85 : 0;
+  master.gain.value = SFX.on ? 0.9 : 0;
   master.connect(ctx.destination);
   SFX.master = master;
+  // Two groups under the master, so the sliders scale whole families at once.
+  const vehicles = ctx.createGain(), weather = ctx.createGain();
+  vehicles.gain.value = audioMix.vehicles * 1.25;
+  weather.gain.value = audioMix.weather * 1.15;
+  vehicles.connect(master); weather.connect(master);
+  SFX.groups = {vehicles, weather};
   const noise = makeNoise(ctx, 2.5);
+  SFX.noise = noise;
   const V = SFX.voices = {}, F = SFX.filters = {};
 
   // Weather. Rain is a broadband hiss, wind a low rumble under it.
-  V.rain = mkBus(ctx, master);
+  V.rain = mkBus(ctx, weather);
   F.rain = noiseBand(ctx, noise, 'bandpass', 2900, 0.5, V.rain.gain, 0.9);
-  V.wind = mkBus(ctx, master);
+  V.wind = mkBus(ctx, weather);
   F.wind = noiseBand(ctx, noise, 'lowpass', 420, 0.8, V.wind.gain, 0.8);
 
-  // Engines: a low sawtooth for the body of the sound with a band of noise for
-  // the tyre and exhaust hiss. Three voices cover cars, heavy vehicles and rail.
-  const engine = (base, cutoff, hissFreq, hissLevel) => {
-    const bus = mkBus(ctx, master);
+  // Engine beds. A sawtooth gives the body, a band of noise the tyres and
+  // exhaust. `chugHz` adds a diesel throb for the heavy vehicles.
+  const engine = (base, cutoff, hissFreq, hissLevel, chugHz) => {
+    const bus = mkBus(ctx, vehicles);
+    const bed = ctx.createGain(); bed.gain.value = 1;
+    bed.connect(bus.gain);
     const osc = ctx.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = base;
     const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = cutoff; lp.Q.value = 1.1;
-    const og = ctx.createGain(); og.gain.value = 0.16;
-    osc.connect(lp); lp.connect(og); og.connect(bus.gain); osc.start();
-    noiseBand(ctx, noise, 'bandpass', hissFreq, 0.9, bus.gain, hissLevel);
+    const og = ctx.createGain(); og.gain.value = 0.30;
+    osc.connect(lp); lp.connect(og); og.connect(bed); osc.start();
+    noiseBand(ctx, noise, 'bandpass', hissFreq, 0.9, bed, hissLevel);
+    if (chugHz) {
+      const lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = chugHz;
+      const lg = ctx.createGain(); lg.gain.value = 0.34;
+      lfo.connect(lg); lg.connect(bed.gain); lfo.start();
+    }
     return bus;
   };
-  V.car = engine(72, 260, 520, 0.12);
-  V.heavy = engine(44, 190, 330, 0.20);
-  V.train = engine(58, 240, 1500, 0.10);
-  // Rail gets a slow tremolo, which reads as the joints passing under the wheels.
-  const trem = ctx.createGain(); trem.gain.value = 0.62;
-  const lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 3.2;
-  const lfoGain = ctx.createGain(); lfoGain.gain.value = 0.38;
-  lfo.connect(lfoGain); lfoGain.connect(trem.gain); lfo.start();
-  V.train.gain.disconnect();
-  V.train.gain.connect(trem);
-  if (V.train.pan) trem.connect(V.train.pan); else trem.connect(master);
+  // Cars: a running note over the body makes them stand out from the general hum.
+  V.car = engine(68, 330, 700, 0.22, 0);
+  const carNote = ctx.createOscillator(); carNote.type = 'triangle'; carNote.frequency.value = 186;
+  const carNoteG = ctx.createGain(); carNoteG.gain.value = 0.11;
+  carNote.connect(carNoteG); carNoteG.connect(V.car.gain); carNote.start();
+  // Buses and trucks: lower and lumpier, the way a diesel idles.
+  V.heavy = engine(42, 210, 300, 0.34, 2.6);
+  // Rail: a low rumble; the joints themselves are the clack one-shots below.
+  V.train = engine(48, 240, 1200, 0.24, 0);
 
-  // Aeroplanes: a distant jet rather than a prop plane, so the noise is the
-  // dominant part and the tone only gives it pitch.
-  V.plane = mkBus(ctx, master);
-  F.plane = noiseBand(ctx, noise, 'bandpass', 480, 0.7, V.plane.gain, 0.5);
-  const jet = ctx.createOscillator(); jet.type = 'sawtooth'; jet.frequency.value = 168;
-  const jetLp = ctx.createBiquadFilter(); jetLp.type = 'lowpass'; jetLp.frequency.value = 900;
-  const jetG = ctx.createGain(); jetG.gain.value = 0.05;
+  // Aeroplanes: noise for the airframe, a low tone for the body and a turbine
+  // whine that rises as the aircraft gets closer.
+  V.plane = mkBus(ctx, vehicles);
+  F.plane = noiseBand(ctx, noise, 'bandpass', 460, 0.7, V.plane.gain, 0.55);
+  const jet = ctx.createOscillator(); jet.type = 'sawtooth'; jet.frequency.value = 150;
+  const jetLp = ctx.createBiquadFilter(); jetLp.type = 'lowpass'; jetLp.frequency.value = 800;
+  const jetG = ctx.createGain(); jetG.gain.value = 0.09;
   jet.connect(jetLp); jetLp.connect(jetG); jetG.connect(V.plane.gain); jet.start();
+  const whine = ctx.createOscillator(); whine.type = 'triangle'; whine.frequency.value = 520;
+  const whineG = ctx.createGain(); whineG.gain.value = 0.16;
+  whine.connect(whineG); whineG.connect(V.plane.gain); whine.start();
+  const vib = ctx.createOscillator(); vib.type = 'sine'; vib.frequency.value = 0.8;
+  const vibG = ctx.createGain(); vibG.gain.value = 14;
+  vib.connect(vibG); vibG.connect(whine.frequency); vib.start();
+  // Kept off the voice list: it is an oscillator, not a gain bus, and the
+  // silence loop walks the voices.
+  SFX.planeWhine = whine;
 }
 
 function setBus(v, level, pan) {
   const t = SFX.ctx.currentTime;
   v.gain.gain.setTargetAtTime(level, t, 0.14);
   if (v.pan) v.pan.pan.setTargetAtTime(clamp(pan, -1, 1), t, 0.2);
+}
+
+// A car horn: two short, bright tones. Triggered occasionally in dense traffic.
+function honk(level, pan) {
+  const ctx = SFX.ctx;
+  if (!ctx || ctx.state !== 'running') return;
+  const t0 = ctx.currentTime;
+  const out = ctx.createGain();
+  out.gain.setValueAtTime(0.0001, t0);
+  out.gain.exponentialRampToValueAtTime(Math.max(0.0002, 0.24 * level), t0 + 0.012);
+  out.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.30);
+  routeAudio(ctx, out, pan, SFX.groups.vehicles);
+  for (const [freq, g] of [[392, 0.55], [494, 0.40]]) {
+    const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = freq;
+    const gg = ctx.createGain(); gg.gain.value = g;
+    o.connect(gg); gg.connect(out); o.start(t0); o.stop(t0 + 0.32);
+  }
+}
+
+// A rail joint: two sharp filtered noise clicks in quick succession. This is the
+// sound that makes a train read as a train rather than a low rumble.
+function railClack(level, pan) {
+  const ctx = SFX.ctx;
+  if (!ctx || ctx.state !== 'running' || !SFX.noise) return;
+  const t0 = ctx.currentTime;
+  for (const [dt, amp] of [[0, 1], [0.085, 0.55]]) {
+    const src = ctx.createBufferSource(); src.buffer = SFX.noise;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass'; f.frequency.value = 1900 + Math.random() * 700; f.Q.value = 1.3;
+    const g = ctx.createGain();
+    const peak = Math.max(0.0002, 0.20 * level * amp);
+    g.gain.setValueAtTime(0.0001, t0 + dt);
+    g.gain.exponentialRampToValueAtTime(peak, t0 + dt + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + 0.075);
+    src.connect(f); f.connect(g);
+    routeAudio(ctx, g, pan, SFX.groups.vehicles);
+    src.start(t0 + dt, Math.random() * 1.8, 0.09);
+  }
+}
+
+// A locomotive's two-tone horn, played rarely and only when a train is close.
+function trainHorn(level, pan) {
+  const ctx = SFX.ctx;
+  if (!ctx || ctx.state !== 'running') return;
+  const t0 = ctx.currentTime;
+  const out = ctx.createGain();
+  const peak = Math.max(0.0002, 0.15 * level);
+  out.gain.setValueAtTime(0.0001, t0);
+  out.gain.exponentialRampToValueAtTime(peak, t0 + 0.07);
+  out.gain.setValueAtTime(peak, t0 + 0.55);
+  out.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.95);
+  routeAudio(ctx, out, pan, SFX.groups.vehicles);
+  for (const freq of [233, 294]) {
+    const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = freq;
+    const g = ctx.createGain(); g.gain.value = 0.5;
+    o.connect(g); g.connect(out); o.start(t0); o.stop(t0 + 1);
+  }
+}
+
+// Buses and trucks hiss air when they stop at a kerb.
+function airBrake(level, pan) {
+  const ctx = SFX.ctx;
+  if (!ctx || ctx.state !== 'running' || !SFX.noise) return;
+  const t0 = ctx.currentTime;
+  const src = ctx.createBufferSource(); src.buffer = SFX.noise;
+  const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 1700;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.0002, 0.10 * level), t0 + 0.03);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.42);
+  src.connect(f); f.connect(g);
+  routeAudio(ctx, g, pan, SFX.groups.vehicles);
+  src.start(t0, Math.random() * 1.5, 0.45);
 }
 
 // A thunderclap: a crack of filtered noise over a low rumble. Scheduled only
@@ -233,15 +368,11 @@ function thunder() {
   const src = ctx.createBufferSource(); src.buffer = buf;
   const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 260;
   const g = ctx.createGain();
-  const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
   g.gain.setValueAtTime(0.0001, ctx.currentTime);
   g.gain.exponentialRampToValueAtTime(0.55, ctx.currentTime + 0.06);
   g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 2.2);
   src.connect(lp); lp.connect(g);
-  if (pan) {
-    pan.pan.value = (Math.random() * 2 - 1) * 0.5;
-    g.connect(pan); pan.connect(SFX.master);
-  } else g.connect(SFX.master);
+  routeAudio(ctx, g, (Math.random() * 2 - 1) * 0.5, SFX.groups.weather);
   src.start();
   src.stop(ctx.currentTime + 2.3);
 }
@@ -266,7 +397,8 @@ function sfxSilence() {
 
 // The audible neighbourhood is tied to what is on screen: a wider view hears
 // more of the city, but individual vehicles fade out entirely once the camera is
-// far enough that they are only a few pixels across.
+// far enough that they are only a few pixels across. The capture radius reaches
+// past the screen edge, so leaving the view is a fade rather than a cut.
 function audioFrame(dt) {
   if (!SFX.ctx) return;
   SFX.acc += dt;
@@ -278,12 +410,12 @@ function audioFrame(dt) {
   const z = cam.z;
   const halfW = Math.max(1, innerWidth / 2 / z), halfH = Math.max(1, innerHeight / 2 / z);
   const cx = cam.x + halfW, cy = cam.y + halfH;
+  const now = performance.now();
 
   // ---- weather, at every zoom -----------------------------------------
   const kind = weatherCells.length || weatherSeeded ? weatherAt(cameraTile().x, cameraTile().y) : 'sunny';
-  const now = performance.now();
-  const rain = kind === 'storm' ? 0.30 : kind === 'rain' ? 0.18 : kind === 'snow' ? 0.05 : 0;
-  const wind = kind === 'storm' ? 0.28 : kind === 'rain' ? 0.13 : kind === 'snow' ? 0.18 : kind === 'cloudy' ? 0.07 : 0.04;
+  const rain = kind === 'storm' ? 0.34 : kind === 'rain' ? 0.22 : kind === 'snow' ? 0.06 : 0;
+  const wind = kind === 'storm' ? 0.30 : kind === 'rain' ? 0.16 : kind === 'snow' ? 0.20 : kind === 'cloudy' ? 0.08 : 0.04;
   setBus(V.rain, rain, 0);
   setBus(V.wind, wind, 0);
   if (SFX.filters.rain) SFX.filters.rain.frequency.setTargetAtTime(kind === 'storm' ? 3400 : 2600, ctx.currentTime, 1.2);
@@ -294,14 +426,16 @@ function audioFrame(dt) {
   }
 
   // ---- traffic, only while the view is close --------------------------
+  // RC is wider than the view: a source just off screen is quieter, not silent.
   const R = Math.min(1500, Math.max(110, Math.max(halfW, halfH) * 1.15));
+  const RC = R * 1.7;
   let carW = 0, carP = 0, heavyW = 0, heavyP = 0, trainW = 0, trainP = 0, planeW = 0, planeP = 0;
-  const near = (x, y) => {
+  const near = (x, y, radius) => {
     const dx = x - cx, dy = y - cy;
-    if (dx < -R || dx > R || dy < -R || dy > R) return null;
+    if (dx < -radius || dx > radius || dy < -radius || dy > radius) return null;
     const d = Math.hypot(dx, dy);
-    if (d > R) return null;
-    const w = 1 - d / R;
+    if (d > radius) return null;
+    const w = 1 - d / radius;
     return {w: w * w, p: dx / halfW};
   };
 
@@ -309,14 +443,16 @@ function audioFrame(dt) {
     let n = 0;
     for (const c of cars) {
       if (c.dead) continue;
-      const s = near(c.x, c.y);
+      const s = near(c.x, c.y, RC);
       if (!s) continue;
-      if (c.bus || c.truck) { if (z >= 2.4) { heavyW += s.w * (c.bus ? 1.5 : 1.25); heavyP += s.p * s.w; } }
+      if (c.bus || c.truck) { if (z >= 2.4) { heavyW += s.w * (c.bus ? 1.6 : 1.3); heavyP += s.p * s.w; } }
       else { carW += s.w; carP += s.p * s.w; }
-      if (++n > 1200) break;
+      if (++n > 1400) break;
     }
-    setBus(V.car, Math.min(0.34, carW * 0.05), carW ? carP / carW * 0.7 : 0);
-    setBus(V.heavy, Math.min(0.26, heavyW * 0.06), heavyW ? heavyP / heavyW * 0.7 : 0);
+    // Exponential loudness: one nearby car is clearly audible and a traffic jam
+    // does not simply hit the ceiling in a straight line.
+    setBus(V.car, 0.80 * (1 - Math.exp(-carW * 1.1)), carW ? carP / carW * 0.75 : 0);
+    setBus(V.heavy, 0.70 * (1 - Math.exp(-heavyW * 1.2)), heavyW ? heavyP / heavyW * 0.75 : 0);
   } else {
     setBus(V.car, 0, 0); setBus(V.heavy, 0, 0);
   }
@@ -324,38 +460,88 @@ function audioFrame(dt) {
   if (z >= 1.9) {
     for (const m of metros) {
       if (!Number.isFinite(m.x)) continue;
-      const s = near(m.x, m.y); if (!s) continue;
+      const s = near(m.x, m.y, RC); if (!s) continue;
       trainW += s.w * 1.2; trainP += s.p * s.w;
     }
     for (const t of freight) {
       if (!Number.isFinite(t.x)) continue;
-      const s = near(t.x, t.y); if (!s) continue;
+      const s = near(t.x, t.y, RC); if (!s) continue;
       trainW += s.w * 1.6; trainP += s.p * s.w;
     }
-    setBus(V.train, Math.min(0.30, trainW * 0.09), trainW ? trainP / trainW * 0.7 : 0);
+    setBus(V.train, 0.65 * (1 - Math.exp(-trainW)), trainW ? trainP / trainW * 0.75 : 0);
   } else setBus(V.train, 0, 0);
 
   // Aircraft are audible from further out than a car: an aeroplane is loud and
   // still large on screen at a zoom where cars are specks.
   if (z >= 1.1) {
-    const RA = R * 2.4;
+    const RA = RC * 1.5;
     for (const p of planes) {
-      const dx = p.x - cx, dy = p.y - cy;
-      if (dx < -RA || dx > RA || dy < -RA || dy > RA) continue;
-      const d = Math.hypot(dx, dy); if (d > RA) continue;
-      const w = 1 - d / RA;
-      planeW += w * w * 1.4; planeP += dx / halfW * w * w;
+      const s = near(p.x, p.y, RA);
+      if (!s) continue;
+      planeW += s.w * 1.5; planeP += s.p * s.w;
     }
-    setBus(V.plane, Math.min(0.34, planeW * 0.11), planeW ? planeP / planeW * 0.8 : 0);
+    setBus(V.plane, 0.62 * (1 - Math.exp(-planeW * 0.9)), planeW ? planeP / planeW * 0.85 : 0);
+    if (SFX.planeWhine) SFX.planeWhine.frequency.setTargetAtTime(400 + Math.min(1, planeW) * 280, ctx.currentTime, 0.3);
   } else setBus(V.plane, 0, 0);
+
+  // ---- one-shots ------------------------------------------------------
+  if (!SFX.on) return;
+  const carPan = carW ? clamp(carP / carW * 0.8, -1, 1) : 0;
+  const heavyPan = heavyW ? clamp(heavyP / heavyW * 0.8, -1, 1) : 0;
+  const trainPan = trainW ? clamp(trainP / trainW * 0.8, -1, 1) : 0;
+  if (z >= 1.5 && carW > 0.08 && now > SFX.honkAt) {
+    SFX.honkAt = now + 1200 + Math.random() * 2800;
+    honk(clamp(0.35 + carW / 5, 0.35, 1), carPan);
+  }
+  if (z >= 1.9 && trainW > 0.05 && now > SFX.clackAt) {
+    SFX.clackAt = now + 230 + Math.random() * 110;
+    railClack(clamp(trainW / 4, 0.25, 1), trainPan);
+  }
+  if (z >= 1.9 && trainW > 0.18 && now > SFX.hornAt) {
+    SFX.hornAt = now + 9000 + Math.random() * 9000;
+    trainHorn(clamp(trainW / 3, 0.3, 1), trainPan);
+  }
+  if (z >= 2.4 && heavyW > 0.08 && now > SFX.brakeAt) {
+    SFX.brakeAt = now + 5000 + Math.random() * 9000;
+    airBrake(clamp(0.35 + heavyW / 4, 0.35, 1), heavyPan);
+  }
 }
 
-sfxChipEl.onclick = () => {
-  SFX.on = !SFX.on;
-  if (SFX.master) SFX.master.gain.setTargetAtTime(SFX.on ? 0.85 : 0, SFX.ctx.currentTime, 0.08);
-  sfxRender();
-  sfxSave();
-};
+// ---------------------------------------------------------------------
+// Volume dialog
+// ---------------------------------------------------------------------
+function applyMixUI() {
+  musicApplyVolume();
+  for (const kind of ['music', 'vehicles', 'weather']) {
+    const cap = kind[0].toUpperCase() + kind.slice(1);
+    const el = document.getElementById('vol' + cap), out = document.getElementById('vol' + cap + 'Val');
+    if (el) el.value = Math.round(audioMix[kind] * 100);
+    if (out) out.textContent = Math.round(audioMix[kind] * 100) + '%';
+  }
+  if (SFX.groups.vehicles) {
+    const t = SFX.ctx.currentTime;
+    SFX.groups.vehicles.gain.setTargetAtTime(audioMix.vehicles * 1.25, t, 0.05);
+    SFX.groups.weather.gain.setTargetAtTime(audioMix.weather * 1.15, t, 0.05);
+  }
+}
+function openSoundDlg() {
+  applyMixUI();
+  const dlg = document.getElementById('soundDlg');
+  if (dlg) dlg.classList.remove('hidden');
+}
+for (const kind of ['music', 'vehicles', 'weather']) {
+  const cap = kind[0].toUpperCase() + kind.slice(1);
+  const el = document.getElementById('vol' + cap), out = document.getElementById('vol' + cap + 'Val');
+  if (!el) continue;
+  el.oninput = () => {
+    audioMix[kind] = clamp(el.value / 100, 0, 1);
+    if (out) out.textContent = el.value + '%';
+    applyMixUI();
+    mixSave();
+  };
+}
+const soundCloseEl = document.getElementById('soundClose');
+if (soundCloseEl) soundCloseEl.onclick = () => document.getElementById('soundDlg').classList.add('hidden');
 
 // Autoplay is blocked until the page has seen a gesture, so the first click or
 // keypress starts both the music and the sound engine.
@@ -366,9 +552,11 @@ function audioUnlock() {
   if (music.enabled && !music.started) musicPlay(music.i);
 }
 
+mixLoad();
 sfxLoad();
-sfxRender();
 musicLoad();
+applyMixUI();
+sfxRender();
 musicRender();
 addEventListener('pointerdown', audioUnlock, true);
 addEventListener('keydown', audioUnlock, true);

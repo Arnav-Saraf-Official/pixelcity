@@ -243,6 +243,11 @@ body.menu-screen #top,body.menu-screen #taxBtn,body.menu-screen #menu,body.menu-
 /* Sound: one chip for the music, one for the city effects. */
 #musicChip,#sfxChip{gap:4px}
 #musicChip.on,#sfxChip.on{border-color:var(--hi);background:#3c3520;color:var(--hi)}
+/* Sound dialog: one slider per family, with the percentage beside its name. */
+.sound-row{display:flex;flex-direction:column;gap:2px}
+.sound-row label{display:flex;justify-content:space-between;align-items:baseline;color:var(--dim)}
+.sound-row label b{color:var(--hi);font-weight:normal;font-variant-numeric:tabular-nums}
+#soundDlg input[type=range]{width:100%;accent-color:var(--hi)}
 
 /* City statistics: compact summary dialog and the full-screen record. */
 #statsBtn{padding:4px 10px;border:2px solid var(--edge);background:var(--panel2);color:var(--hi);font:inherit;font-size:18px}
