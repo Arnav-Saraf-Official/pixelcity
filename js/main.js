@@ -33,6 +33,7 @@ function frame(now) {
     render();
     hud(dt);
   }
+  audioFrame(dt);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

@@ -40,8 +40,17 @@ const BIOME_PAL = {
   5: [126, 122, 116, 110, 106, 100, 142, 138, 132, 168, 164, 158, 96, 92, 88],
 };
 // How far a biome's colour reaches into the neighbouring tile, in art pixels.
-// The stored biome of each tile never changes; only the ground colour fades.
-const EDGE_BLEND = 3;
+// The stored biome of each tile never changes; only the ground colour crosses
+// the border, and it crosses as a dither rather than a gradient: the two
+// palettes interleave over the last few pixels of each tile, so a biome seam
+// reads as a stitched edge instead of a solid line. EDGE_N is the same ramp
+// expressed as the number of 16ths of pixels that take the neighbour's colour at
+// each distance in from the border.
+const EDGE_BLEND = 4;
+const EDGE_N = [8, 6, 4, 2, 0];
+// 4x4 ordered dither (Bayer): a stable, tile-sized pattern. It is indexed by the
+// absolute art-pixel position, so the pattern continues across chunk borders.
+const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 // The five colours a pixel can take out of a biome palette — base, light
 // speckle, dark speckle and two flowers — packed the way the image data stores
 // them (RGBA, little endian, alpha included), so a painted pixel is one 32-bit
@@ -65,8 +74,7 @@ const N_FLOWER1 = Math.ceil(0.064 * 4294967296), N_FLOWER2 = Math.ceil(0.067 * 4
 const N_W_MID = Math.floor(0.8 * 4294967296), N_W_LIGHT = Math.floor(0.95 * 4294967296);
 const W_BASE = packRGBA(46, 108, 180), W_MID = packRGBA(54, 120, 194);
 const W_LIGHT = packRGBA(104, 162, 224), W_SAND = packRGBA(214, 196, 140);
-// Blend weight for a pixel `bd` art pixels inside the tile's own border.
-const EDGE_W = [0.5, 1 / 3, 1 / 6, 0];
+
 // One scratch pixel buffer for every chunk: panning builds chunk after chunk, and
 // a fresh 388 KB image per chunk is a lot of allocation and zeroing for memory
 // that is overwritten pixel by pixel anyway.
@@ -83,6 +91,9 @@ function buildChunk(cx, cy) {
   const hb = new Int32Array(ph);
   for (let yy = 0; yy < ph; yy++) hb[yy] = (ty0 * T + yy) * 668265263 + 7 * 1442695041;
   const bdH = new Int32Array(T), palH = new Array(T);
+  // Column index into the 4x4 dither pattern, shared by every row of the chunk.
+  const dhx = new Uint8Array(pw);
+  for (let xx = 0; xx < pw; xx++) dhx[xx] = (tx0 * T + xx) & 3;
   for (let ty = ty0; ty < ty0 + CHH; ty++) {
     for (let tx = tx0; tx < tx0 + CW; tx++) {
       const i = ty * MW + tx, px0 = (tx - tx0) * T, py0 = (ty - ty0) * T;
@@ -139,6 +150,7 @@ function buildChunk(cx, cy) {
         const row = (py0 + ly) * pw + px0, h = hb[py0 + ly];
         const upBd = ly < EDGE_BLEND + 1 && pN ? ly : EDGE_BLEND + 1;
         const dnBd = T - 1 - ly < EDGE_BLEND + 1 && pS ? T - 1 - ly : EDGE_BLEND + 1;
+        const bayerRow = ((ty * T + ly) & 3) * 4;
         for (let lx = 0; lx < T; lx++) {
           const v0 = (hx[px0 + lx] + h) | 0;
           const v = Math.imul(v0 ^ (v0 >>> 13), 1274126177) ^ 0;
@@ -149,15 +161,9 @@ function buildChunk(cx, cy) {
             let bd = bdH[lx], nb2 = palH[lx];
             if (upBd < bd) { bd = upBd; nb2 = pN; }
             if (dnBd < bd) { bd = dnBd; nb2 = pS; }
-            if (nb2 && bd < EDGE_BLEND) {
-              // 50/50 exactly on the border and fading to 0 three pixels in, so
-              // the two sides meet on the same colour instead of a hard edge.
-              const w = EDGE_W[bd], q = nb2[k];
-              const r = col & 255, g = col >> 8 & 255, b = col >> 16 & 255;
-              col = (Math.round(r + ((q & 255) - r) * w) |
-                (Math.round(g + ((q >> 8 & 255) - g) * w) << 8) |
-                (Math.round(b + ((q >> 16 & 255) - b) * w) << 16) | 0xff000000) >>> 0;
-            }
+            // 50/50 exactly on the border and thinning out over four pixels, so
+            // the two sides interleave instead of meeting on a hard seam.
+            if (nb2 && bd < EDGE_BLEND && BAYER4[bayerRow + dhx[px0 + lx]] < EDGE_N[bd]) col = nb2[k];
           }
           d[row + lx] = col;
         }
