@@ -39,18 +39,43 @@ const BIOME_PAL = {
   4: [226, 233, 242, 210, 220, 234, 240, 246, 252, 196, 214, 236, 232, 238, 248],
   5: [126, 122, 116, 110, 106, 100, 142, 138, 132, 168, 164, 158, 96, 92, 88],
 };
-// How far a biome's colour reaches into the neighbouring tile, in art pixels.
-// The stored biome of each tile never changes; only the ground colour crosses
-// the border, and it crosses as a dither rather than a gradient: the two
-// palettes interleave over the last few pixels of each tile, so a biome seam
-// reads as a stitched edge instead of a solid line. EDGE_N is the same ramp
-// expressed as the number of 16ths of pixels that take the neighbour's colour at
-// each distance in from the border.
-const EDGE_BLEND = 4;
-const EDGE_N = [8, 6, 4, 2, 0];
-// 4x4 ordered dither (Bayer): a stable, tile-sized pattern. It is indexed by the
-// absolute art-pixel position, so the pattern continues across chunk borders.
+// Biome borders are dithered at two scales. First whole 9x9 tiles borrow a
+// neighbouring biome's palette in a 4x4 ordered pattern, so two biomes interlock
+// in blocks; then the tiles that keep their own ground stipple the last few
+// pixels of their border with the neighbour's colours. The stored biome never
+// changes and still drives every rule and the region map; this is only paint.
+const EDGE_BLEND = 4;               // widest per-pixel stitch, in art pixels
+// 4x4 ordered dither (Bayer), used at both scales. At pixel scale it is indexed
+// by the absolute art-pixel position, so the pattern continues across chunks.
 const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+// The eight neighbours in a fixed order, so a tile with several different
+// biomes around it picks one consistently (and the starting point is hashed).
+const DIR8X = [1, 1, 0, -1, -1, -1, 0, 1];
+const DIR8Y = [0, 1, 1, 1, 0, -1, -1, -1];
+
+// Which biome a tile's ground looks like. Called for the chunk and a one-tile
+// ring, so the pixel stitcher can compare against neighbouring *looks* rather
+// than stored biomes.
+function groundBiomeAt(tx, ty) {
+  if (tx < 0 || ty < 0 || tx >= MW || ty >= MH) return 0;
+  const i = ty * MW + tx, b = biome[i];
+  if (water[i] || !PAL_RGB[b]) return b;
+  const start = (hash(tx, ty, 0x3c6ef372) * 8) | 0;
+  let cand = 0;
+  for (let k = 0; k < 8; k++) {
+    const dir = (start + k) & 7;
+    const nx = tx + DIR8X[dir], ny = ty + DIR8Y[dir];
+    if (nx < 0 || ny < 0 || nx >= MW || ny >= MH) continue;
+    const j = ny * MW + nx, nb = biome[j];
+    if (!water[j] && nb !== b && PAL_RGB[nb]) { cand = nb; break; }
+  }
+  if (!cand) return b;
+  // How much of this stretch of border mixes varies over patches of about 8x8
+  // tiles: some places interlock heavily, others are nearly sharp.
+  const level = hash(tx >> 3, ty >> 3, 0x51ed270b);
+  const p = 0.14 + level * 0.46;
+  return (BAYER4[(ty & 3) * 4 + (tx & 3)] + 0.5) / 16 < p ? cand : b;
+}
 // The five colours a pixel can take out of a biome palette — base, light
 // speckle, dark speckle and two flowers — packed the way the image data stores
 // them (RGBA, little endian, alpha included), so a painted pixel is one 32-bit
@@ -94,6 +119,12 @@ function buildChunk(cx, cy) {
   // Column index into the 4x4 dither pattern, shared by every row of the chunk.
   const dhx = new Uint8Array(pw);
   for (let xx = 0; xx < pw; xx++) dhx[xx] = (tx0 * T + xx) & 3;
+  // Effective (painted) biome of every tile in the chunk plus a one-tile ring.
+  const EW = CW + 2, EH = CHH + 2;
+  const effB = new Uint8Array(EW * EH);
+  for (let ey = 0; ey < EH; ey++) for (let ex = 0; ex < EW; ex++)
+    effB[ey * EW + ex] = groundBiomeAt(tx0 + ex - 1, ty0 + ey - 1);
+  const effIdx = (tx, ty) => (ty - ty0 + 1) * EW + (tx - tx0 + 1);
   for (let ty = ty0; ty < ty0 + CHH; ty++) {
     for (let tx = tx0; tx < tx0 + CW; tx++) {
       const i = ty * MW + tx, px0 = (tx - tx0) * T, py0 = (ty - ty0) * T;
@@ -105,11 +136,11 @@ function buildChunk(cx, cy) {
         const channel = (bW && bE) || (bN && bS);
         // The bank takes the colour of the land beside it. A land tile that was
         // painted over water can still carry biome 0, so fall back to plains.
-        const bank = (j) => (PAL_RGB[biome[j]] || PAL_RGB[1])[0];
-        const sW = bW ? (channel ? bank(i - 1) : W_SAND) : 0;
-        const sE = bE ? (channel ? bank(i + 1) : W_SAND) : 0;
-        const sN = bN ? (channel ? bank(i - MW) : W_SAND) : 0;
-        const sS = bS ? (channel ? bank(i + MW) : W_SAND) : 0;
+        const bank = (bx, by) => (PAL_RGB[effB[(by - ty0 + 1) * EW + (bx - tx0 + 1)]] || PAL_RGB[1])[0];
+        const sW = bW ? (channel ? bank(tx - 1, ty) : W_SAND) : 0;
+        const sE = bE ? (channel ? bank(tx + 1, ty) : W_SAND) : 0;
+        const sN = bN ? (channel ? bank(tx, ty - 1) : W_SAND) : 0;
+        const sS = bS ? (channel ? bank(tx, ty + 1) : W_SAND) : 0;
         for (let ly = 0; ly < T; ly++) {
           const row = (py0 + ly) * pw + px0, h = hb[py0 + ly];
           for (let lx = 0; lx < T; lx++) {
@@ -129,14 +160,20 @@ function buildChunk(cx, cy) {
         }
         continue;
       }
-      const bi = biome[i], pal = PAL_RGB[bi] || PAL_RGB[1];
-      // Near a border, pick the closest land tile with another biome and fade
-      // the ground colour toward it. The tile keeps its own biome for every
-      // rule and simulation system; this is only what the pixels look like.
-      const pW = tx > 0 && !water[i - 1] && biome[i - 1] !== bi ? PAL_RGB[biome[i - 1]] : null;
-      const pE = tx < MW - 1 && !water[i + 1] && biome[i + 1] !== bi ? PAL_RGB[biome[i + 1]] : null;
-      const pN = ty > 0 && !water[i - MW] && biome[i - MW] !== bi ? PAL_RGB[biome[i - MW]] : null;
-      const pS = ty < MH - 1 && !water[i + MW] && biome[i + MW] !== bi ? PAL_RGB[biome[i + MW]] : null;
+      // Whole-tile dithering has already picked this tile's painted palette;
+      // now stitch only the pixels along its border with the neighbours' painted
+      // palettes. The band width varies per tile, so the seam texture is not
+      // identical everywhere along a border.
+      const bi = effB[effIdx(tx, ty)], pal = PAL_RGB[bi] || PAL_RGB[1];
+      const band = 2 + ((hash(tx >> 1, ty >> 1, 0x9e3779b1) * 3) | 0);
+      const nbPal = (bx, by) => {
+        const b2 = effB[effIdx(bx, by)];
+        return b2 !== bi ? PAL_RGB[b2] : null;
+      };
+      const pW = tx > 0 && !water[i - 1] ? nbPal(tx - 1, ty) : null;
+      const pE = tx < MW - 1 && !water[i + 1] ? nbPal(tx + 1, ty) : null;
+      const pN = ty > 0 && !water[i - MW] ? nbPal(tx, ty - 1) : null;
+      const pS = ty < MH - 1 && !water[i + MW] ? nbPal(tx, ty + 1) : null;
       const edge = pW || pE || pN || pS;
       if (edge) {
         for (let lx = 0; lx < T; lx++) {
@@ -161,9 +198,8 @@ function buildChunk(cx, cy) {
             let bd = bdH[lx], nb2 = palH[lx];
             if (upBd < bd) { bd = upBd; nb2 = pN; }
             if (dnBd < bd) { bd = dnBd; nb2 = pS; }
-            // 50/50 exactly on the border and thinning out over four pixels, so
-            // the two sides interleave instead of meeting on a hard seam.
-            if (nb2 && bd < EDGE_BLEND && BAYER4[bayerRow + dhx[px0 + lx]] < EDGE_N[bd]) col = nb2[k];
+            // 50/50 on the border itself, thinning to nothing `band` pixels in.
+            if (nb2 && bd < band && BAYER4[bayerRow + dhx[px0 + lx]] < Math.round(8 * (band - bd) / band)) col = nb2[k];
           }
           d[row + lx] = col;
         }
